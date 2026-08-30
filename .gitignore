@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Bun
+.bun/
+
+# Build / generated output
+dist/
+build/
+.output/
+.tanstack/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+
+# LLMs
+AGENTS.md

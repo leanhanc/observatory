@@ -1,0 +1,20 @@
+{
+	"$schema": "./node_modules/oxfmt/configuration_schema.json",
+	"categories": {
+		"correctness": "error",
+		"suspicious": "warn",
+		"perf": "warn"
+	},
+	"plugins": ["typescript", "unicorn", "import"],
+	"rules": {
+		"sort-imports": "off",
+		"no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+		"typescript/no-unsafe-type-assertion": "off",
+		"typescript/restrict-template-expressions": "off",
+		"typescript/prefer-nullish-coalescing": "warn",
+		"consistent-return": "errorli",
+		"no-console": "warn",
+		"import/no-duplicates": "error"
+	},
+	"ignorePatterns": ["dist", "node_modules", "**/*.d.ts"]
+}

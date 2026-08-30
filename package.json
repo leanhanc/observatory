@@ -1,0 +1,23 @@
+{
+	"name": "observatory",
+	"description": "Open-source market observatory that explains what changed and surfaces potential opportunities.",
+	"type": "module",
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"lint": "oxlint --type-aware",
+		"lint:fix": "oxlint --type-aware --fix",
+		"format": "oxfmt --check .",
+		"format:fix": "oxfmt --write .",
+		"test": "bun test"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.4.0",
+		"oxfmt": "^0.65.0",
+		"oxlint": "^1.80.0",
+		"oxlint-tsgolint": "^7.0.2001",
+		"typescript": "^7.0.2"
+	},
+	"engines": {
+		"bun": ">=1.4"
+	}
+}

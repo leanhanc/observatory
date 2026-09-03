@@ -12,7 +12,7 @@
 		"typescript/no-unsafe-type-assertion": "off",
 		"typescript/restrict-template-expressions": "off",
 		"typescript/prefer-nullish-coalescing": "warn",
-		"consistent-return": "errorli",
+		"consistent-return": "error",
 		"no-console": "warn",
 		"import/no-duplicates": "error"
 	},

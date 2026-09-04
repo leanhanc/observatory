@@ -1,13 +1,13 @@
 ## 1. Domain Model and Validation
 
-- [ ] 1.1 Define schema-v1 `DailyBar`, Bar History envelope, provenance, freshness, result, and failure types; verify TypeScript type checking passes and the storage shape matches the specification.
-- [ ] 1.2 Implement Daily Bar and complete-history validation; verify focused tests cover missing/non-finite/negative values, OHLC range violations, duplicate dates, ordering, valid zero volume, identity/provenance mismatch, and progress regression.
+- [x] 1.1 Define schema-v1 `DailyBar`, Bar History envelope, provenance, freshness, result, and failure types; verify TypeScript type checking passes and the storage shape matches the specification.
+- [x] 1.2 Implement Daily Bar and complete-history validation; verify focused tests cover missing/non-finite/negative values, OHLC range violations, duplicate dates, ordering, valid zero volume, identity/provenance mismatch, and progress regression.
 
 ## 2. Reconciliation
 
-- [ ] 2.1 Implement pure session-date reconciliation for new, identical, and corrected bars; verify tests prove oldest-to-newest output, no duplicate sessions, safe repeated input, and structured old/new corrections.
-- [ ] 2.2 Implement authoritative-window checks; verify tests preserve older out-of-window bars and reject a previously stored real bar disappearing inside the returned interval.
-- [ ] 2.3 Implement full-candidate validation before persistence; verify one invalid supplied bar rejects the complete line update and leaves its previous envelope available to the caller.
+- [x] 2.1 Implement pure session-date reconciliation for new, identical, and corrected bars; verify tests prove oldest-to-newest output, no duplicate sessions, safe repeated input, and structured old/new corrections.
+- [x] 2.2 Implement authoritative-window checks; verify tests preserve older out-of-window bars and reject a previously stored real bar disappearing inside the returned interval.
+- [x] 2.3 Implement full-candidate validation before persistence; verify one invalid supplied bar rejects the complete line update and leaves its previous envelope available to the caller.
 
 ## 3. Open BYMADATA Adapter
 

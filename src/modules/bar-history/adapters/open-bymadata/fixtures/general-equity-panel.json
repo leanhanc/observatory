@@ -1,0 +1,20 @@
+{
+	"content": {
+		"page_number": 1,
+		"page_count": 1,
+		"page_size": 5000,
+		"total_elements_count": 1
+	},
+	"data": [
+		{
+			"symbol": "A3",
+			"openingPrice": 2900,
+			"tradingHighPrice": 2940,
+			"tradingLowPrice": 2860,
+			"closingPrice": 2885,
+			"volume": 79565,
+			"denominationCcy": "ARS",
+			"settlementType": "2"
+		}
+	]
+}

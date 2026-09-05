@@ -1,0 +1,20 @@
+{
+	"content": {
+		"page_number": 1,
+		"page_count": 1,
+		"page_size": 5000,
+		"total_elements_count": 1
+	},
+	"data": [
+		{
+			"symbol": "GGAL",
+			"openingPrice": 7075,
+			"tradingHighPrice": 7125,
+			"tradingLowPrice": 6950,
+			"closingPrice": 7005,
+			"volume": 749900,
+			"denominationCcy": "ARS",
+			"settlementType": "2"
+		}
+	]
+}

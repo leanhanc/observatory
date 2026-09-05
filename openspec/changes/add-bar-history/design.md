@@ -70,7 +70,7 @@ Alternative considered: one file per bar or separate metadata and bars files. Re
 The scheduled caller provides an explicit `throughSession` that it has determined is completed. Bar History does not guess the latest completed session from wall-clock time.
 
 - **Initial backfill:** request all daily history currently available for each Trading Line.
-- **Ordinary refresh:** fetch the newest completed session from BYMA's batched CEDEAR, leading-equity, and general-equity panels when the stored line is already caught up to the preceding session.
+- **Ordinary refresh:** fetch the newest completed session from BYMA's batched CEDEAR, leading-equity, and general-equity panels when the stored line is already caught up to the preceding session. Because panel rows have no date, the adapter assigns the one supplied `throughSession`; it does not accept a second date that could contradict it.
 - **Catch-up:** when more than the ordinary refresh interval is missing, request the missing historical interval for that Trading Line before advancing progress.
 - **Reconciliation:** request the provider's complete currently available historical window, intended to run staggered approximately monthly.
 

@@ -11,8 +11,8 @@
 
 ## 3. Open BYMADATA Adapter
 
-- [ ] 3.1 Implement catalog-resolved mapping for historical requests and batched CEDEAR, leading-equity, and general-equity panels; verify fixtures cover ARS, MEP, CCL, equity, missing, and malformed provider responses.
-- [ ] 3.2 Normalize provider timestamps into Buenos Aires session dates and exclude active sessions; verify timezone-boundary and incomplete-session tests.
+- [x] 3.1 Implement catalog-resolved mapping for historical requests and batched CEDEAR, leading-equity, and general-equity panels; verify fixtures cover ARS, MEP, CCL, equity, missing, and malformed provider responses.
+- [x] 3.2 Normalize provider timestamps into Buenos Aires session dates and exclude active sessions; verify timezone-boundary and incomplete-session tests.
 - [ ] 3.3 Detect and omit provider carried-close rows before domain validation; verify tests distinguish them from structurally valid zero-volume bars.
 - [ ] 3.4 Implement initial-backfill, ordinary-refresh, catch-up, and reconciliation fetch modes; verify tests use shared panel requests for ordinary refresh and historical requests for missing intervals.
 

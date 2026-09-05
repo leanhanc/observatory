@@ -1,0 +1,32 @@
+[
+	{
+		"symbol": "AAPL",
+		"openingPrice": 25960,
+		"tradingHighPrice": 26200,
+		"tradingLowPrice": 25240,
+		"closingPrice": 25380,
+		"volume": 134573,
+		"denominationCcy": "ARS",
+		"settlementType": "2"
+	},
+	{
+		"symbol": "AAPLD",
+		"openingPrice": 17.13,
+		"tradingHighPrice": 17.15,
+		"tradingLowPrice": 16.53,
+		"closingPrice": 16.73,
+		"volume": 18953,
+		"denominationCcy": "USD",
+		"settlementType": "2"
+	},
+	{
+		"symbol": "AAPLC",
+		"openingPrice": 16.02,
+		"tradingHighPrice": 16.05,
+		"tradingLowPrice": 16.02,
+		"closingPrice": 16.05,
+		"volume": 243,
+		"denominationCcy": "EXT",
+		"settlementType": "2"
+	}
+]

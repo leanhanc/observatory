@@ -40,6 +40,12 @@ export type OpenBymadataPanelRow = Readonly<{
 
 export type OpenBymadataPanelLineResult =
 	| Readonly<{
+			status: 'excluded';
+			reason: 'no-trade-placeholder';
+			tradingLineId: string;
+			source: BarHistorySource;
+	  }>
+	| Readonly<{
 			status: 'found';
 			tradingLineId: string;
 			source: BarHistorySource;

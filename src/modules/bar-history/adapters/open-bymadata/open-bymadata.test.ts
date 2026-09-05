@@ -13,6 +13,81 @@ const aaplMep = createTradingLine('cedear-aapl-mep', 'AAPLD', 'cedears');
 const aaplCcl = createTradingLine('cedear-aapl-ccl', 'AAPLC', 'cedears');
 
 describe('Open BYMADATA adapter', () => {
+	test.each(['cedears', 'leading-equity', 'general-equity'] as const)(
+		'excludes placeholders but preserves zero-volume bars in %s',
+		async (panel) => {
+			const rows = [
+				{
+					...createPanelRow('EMPTY'),
+					openingPrice: 0,
+					tradingHighPrice: 0,
+					tradingLowPrice: 0,
+					volume: 0,
+				},
+				{ ...createPanelRow('REAL'), volume: 0 },
+			];
+			const payload =
+				panel === 'cedears'
+					? rows
+					: {
+							content: {
+								page_number: 1,
+								page_count: 1,
+								page_size: 5000,
+								total_elements_count: 2,
+							},
+							data: rows,
+						};
+			const adapter = createOpenBymadataAdapter(createFixtureFetch(payload));
+			const result = await adapter.fetchPanel({
+				tradingLines: [
+					createTradingLine('empty', 'EMPTY', panel),
+					createTradingLine('real', 'REAL', panel),
+				],
+				throughSession: '2026-09-03',
+			});
+			expect(result).toMatchObject({
+				ok: true,
+				lines: [
+					{ status: 'excluded', reason: 'no-trade-placeholder', tradingLineId: 'empty' },
+					{ status: 'found', tradingLineId: 'real', bar: { open: 100, volume: 0 } },
+				],
+			});
+			if (result.ok) expect(result.lines[0]).not.toHaveProperty('bar');
+		},
+	);
+
+	test('filters only the exact historical placeholder shape', async () => {
+		const adapter = createOpenBymadataAdapter(
+			createFixtureFetch({
+				s: 'ok',
+				t: [1, 2, 3, 4, 5, 6, 7].map((day) => toEpochSeconds(`2026-09-0${day}T03:00:00Z`)),
+				o: [0, 100, 1, 0, 0, 0, 0],
+				h: [0, 103, 0, 1, 0, 0, 0],
+				l: [0, 99, 0, 0, 1, 0, 0],
+				c: [102, 102, 102, 102, 102, 102, -1],
+				v: [0, 0, 0, 0, 0, 1, 0],
+			}),
+		);
+		const result = await adapter.fetchHistory({
+			tradingLine: aaplArs,
+			fromEpochSeconds: 0,
+			toEpochSeconds: 2_000_000_000,
+			throughSession: '2026-09-07',
+		});
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.bars.map((bar) => bar.sessionDate)).toEqual([
+			'2026-09-02',
+			'2026-09-03',
+			'2026-09-04',
+			'2026-09-05',
+			'2026-09-06',
+			'2026-09-07',
+		]);
+		expect(result.bars[0]).toMatchObject({ open: 100, volume: 0 });
+	});
+
 	test('builds a daily 24HS request and normalizes parallel history series', async () => {
 		const fixture = await readFixture('history.json');
 		const requests: Request[] = [];

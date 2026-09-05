@@ -293,18 +293,30 @@ function matchPanelRows(
 			};
 		}
 
+		const bar: DailyBar = {
+			sessionDate,
+			open: row.openingPrice,
+			high: row.tradingHighPrice,
+			low: row.tradingLowPrice,
+			close: row.closingPrice,
+			volume: row.volume,
+		};
+		const isNoTradePlaceholder = checkIfNoTradePlaceholder(bar);
+
+		if (isNoTradePlaceholder) {
+			return {
+				status: 'excluded',
+				reason: 'no-trade-placeholder',
+				tradingLineId: tradingLine.tradingLineId,
+				source,
+			};
+		}
+
 		return {
 			status: 'found',
 			tradingLineId: tradingLine.tradingLineId,
 			source,
-			bar: {
-				sessionDate,
-				open: row.openingPrice,
-				high: row.tradingHighPrice,
-				low: row.tradingLowPrice,
-				close: row.closingPrice,
-				volume: row.volume,
-			},
+			bar,
 		};
 	});
 }
@@ -352,7 +364,9 @@ function normalizeHistorySeries(
 				return [];
 			}
 
-			return [createDailyBar(series, index, sessionDate)];
+			const bar = createDailyBar(series, index, sessionDate);
+			const isNoTradePlaceholder = checkIfNoTradePlaceholder(bar);
+			return isNoTradePlaceholder ? [] : [bar];
 		});
 	} catch {
 		return null;
@@ -362,6 +376,11 @@ function normalizeHistorySeries(
 function convertTimestampToSessionDate(timestamp: number): string {
 	const instant = Temporal.Instant.fromEpochMilliseconds(timestamp * 1_000);
 	return instant.toZonedDateTimeISO('America/Argentina/Buenos_Aires').toPlainDate().toString();
+}
+
+/** Identifies BYMA's repeated-close row; zero volume alone is not sufficient. */
+function checkIfNoTradePlaceholder(bar: DailyBar): boolean {
+	return bar.open === 0 && bar.high === 0 && bar.low === 0 && bar.volume === 0 && bar.close > 0;
 }
 
 function createDailyBar(

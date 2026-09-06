@@ -27,6 +27,15 @@ Each Daily Bar SHALL contain `sessionDate`, `open`, `high`, `low`, `close`, and 
 - **WHEN** provider data describes a Trading Session that has not completed
 - **THEN** the system does not add that session to Bar History
 
+### Requirement: The completed-session cutoff is explicit
+
+Every update SHALL receive `throughSession` from its scheduled caller. Bar History SHALL treat it as the latest completed Trading Session the caller has authorized for acceptance; it SHALL not infer that session from its own clock. Provider bars later than `throughSession` SHALL be excluded.
+
+#### Scenario: Historical data includes an active session
+
+- **WHEN** a historical response includes a bar later than the supplied `throughSession`
+- **THEN** that bar is excluded from the update
+
 ### Requirement: Daily Bar values are validated
 
 The system SHALL reject a Daily Bar when any OHLCV field is missing, non-finite, or negative; when `low` exceeds `high`; or when `open` or `close` lies outside the inclusive low-to-high range. Zero volume alone SHALL remain valid.
@@ -91,6 +100,30 @@ For an existing history, the system SHALL request the interval after `checkedThr
 
 - **WHEN** the same completed interval is processed more than once
 - **THEN** each session date occurs at most once and check progress does not regress
+
+### Requirement: Acquisition mode selects an appropriate provider response
+
+The system SHALL select provider data according to the work required for each Trading Line. An initial backfill, catch-up interval, or reconciliation SHALL use dated historical data. An ordinary refresh MAY use a shared provider panel only when the scheduled caller has established that the panel represents the single completed session being accepted. A panel row has no session date of its own, so the system SHALL assign only the supplied `throughSession`; it SHALL not accept a second date for that row.
+
+#### Scenario: Initial backfill uses historical data
+
+- **WHEN** a requested Trading Line has no stored Bar History
+- **THEN** the system obtains its available Daily Bars from dated historical data rather than a current panel
+
+#### Scenario: Missed sessions use historical data
+
+- **WHEN** a stored Trading Line is behind the completed session being requested
+- **THEN** the system obtains the missing interval from dated historical data rather than using a current panel to recreate past sessions
+
+#### Scenario: Ordinary refresh shares a panel
+
+- **WHEN** several Trading Lines need only the single completed session represented by the same provider panel
+- **THEN** the system obtains that panel once and assigns its rows the supplied `throughSession`
+
+#### Scenario: Reconciliation uses historical data
+
+- **WHEN** the system revisits previously accepted sessions to detect provider corrections
+- **THEN** it obtains the authoritative interval from dated historical data
 
 ### Requirement: Reconciliation preserves history and applies corrections
 
@@ -166,6 +199,15 @@ A read SHALL treat requested Trading Line identifiers as a set: it SHALL return 
 
 - **WHEN** a read supplies a range whose start is after its end
 - **THEN** the read returns an `invalid-request` failure without reading any stored history
+
+### Requirement: Stored history is validated before it is returned
+
+The system SHALL validate a complete stored Bar History before returning it to a read consumer. Missing objects, unreadable objects, and stored values that fail validation SHALL be reported as distinct per-line failures.
+
+#### Scenario: Stored JSON is structurally invalid
+
+- **WHEN** storage contains JSON that is not a valid Bar History
+- **THEN** the read returns `invalid-stored-history` for that Trading Line and does not expose the partial value to the consumer
 
 ### Requirement: Successful storage becomes the authoritative history
 

@@ -2,11 +2,15 @@ import * as v from 'valibot';
 
 import {
 	checkIfValueIsRecord,
+	createValidationError,
 	createValibotObjectPath,
 	mapValibotIssues,
-} from '../../../../lib/utils/validation.ts';
+} from '#lib/utils/validation.ts';
 
-import type { ReconcileBarHistoryInput, ValidationIssue } from '../../bar-history.types.ts';
+import type {
+	ReconcileBarHistoryInput,
+	ValidationIssue,
+} from '#modules/bar-history/bar-history.types.ts';
 import type { ValidationResult } from './bar-history-validator.types.ts';
 
 const messages = {
@@ -317,5 +321,9 @@ function createIssue(
 }
 
 function fromIssues(issues: readonly ValidationIssue[]): ValidationResult {
-	return issues.length === 0 ? { isValid: true, issues: [] } : { isValid: false, issues };
+	if (issues.length > 0) {
+		return createValidationError(issues);
+	}
+
+	return { isValid: true, issues: [] };
 }

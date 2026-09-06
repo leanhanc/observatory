@@ -6,7 +6,10 @@
 		"moduleDetection": "force",
 		"lib": ["ESNext"],
 		"types": ["bun"],
-
+		"paths": {
+			"#lib/*": ["./src/lib/*"],
+			"#modules/*": ["./src/modules/*"]
+		},
 		"allowImportingTsExtensions": true,
 		"verbatimModuleSyntax": true,
 		"isolatedModules": true,

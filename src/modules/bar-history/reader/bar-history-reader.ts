@@ -1,4 +1,8 @@
-import { checkIfValueIsRecord } from '../../../lib/utils/validation.ts';
+import {
+	checkIfValueIsRecord,
+	createValidationError,
+	type ValidationError,
+} from '#lib/utils/validation.ts';
 
 import type { DailyBar, SessionDateRange, ValidationIssue } from '../bar-history.types.ts';
 import type { BarHistoryStorage, BarHistoryStorageReadResult } from '../storage/index.ts';
@@ -45,7 +49,7 @@ async function readBarHistories(
 
 function validateReadRequest(value: unknown): ReadRequestValidationResult {
 	if (!checkIfValueIsRecord(value)) {
-		return createInvalidReadRequestValidation([
+		return createValidationError([
 			createValidationIssue(
 				'invalid-type',
 				'request',
@@ -63,7 +67,7 @@ function validateReadRequest(value: unknown): ReadRequestValidationResult {
 			...selectValidationIssues(rangeValidation),
 		];
 
-		return createInvalidReadRequestValidation(issues);
+		return createValidationError(issues);
 	}
 
 	return {
@@ -77,16 +81,13 @@ function validateReadRequest(value: unknown): ReadRequestValidationResult {
 
 function validateTradingLineIds(value: unknown): TradingLineIdsValidationResult {
 	if (!Array.isArray(value)) {
-		return {
-			isValid: false,
-			issues: [
-				createValidationIssue(
-					'invalid-type',
-					'tradingLineIds',
-					'Trading Line IDs must be an array.',
-				),
-			],
-		};
+		return createValidationError([
+			createValidationIssue(
+				'invalid-type',
+				'tradingLineIds',
+				'Trading Line IDs must be an array.',
+			),
+		]);
 	}
 
 	const issues = value.flatMap((tradingLineId, index) => {
@@ -113,9 +114,11 @@ function validateTradingLineIds(value: unknown): TradingLineIdsValidationResult 
 		];
 	});
 
-	return issues.length === 0
-		? { isValid: true, tradingLineIds: value, issues: [] }
-		: { isValid: false, issues };
+	if (issues.length > 0) {
+		return createValidationError(issues);
+	}
+
+	return { isValid: true, tradingLineIds: value, issues: [] };
 }
 
 function validateSessionDateRange(value: unknown): SessionDateRangeValidationResult {
@@ -124,12 +127,9 @@ function validateSessionDateRange(value: unknown): SessionDateRangeValidationRes
 	}
 
 	if (!checkIfValueIsRecord(value)) {
-		return {
-			isValid: false,
-			issues: [
-				createValidationIssue('invalid-type', 'range', 'Range must be an object or null.'),
-			],
-		};
+		return createValidationError([
+			createValidationIssue('invalid-type', 'range', 'Range must be an object or null.'),
+		]);
 	}
 
 	const startIssue = createInvalidSessionDateIssue(value.start, 'range.start');
@@ -139,7 +139,7 @@ function validateSessionDateRange(value: unknown): SessionDateRangeValidationRes
 	);
 
 	if (dateIssues.length > 0) {
-		return { isValid: false, issues: dateIssues };
+		return createValidationError(dateIssues);
 	}
 
 	const range = value as SessionDateRange;
@@ -148,16 +148,9 @@ function validateSessionDateRange(value: unknown): SessionDateRangeValidationRes
 		return { isValid: true, range, issues: [] };
 	}
 
-	return {
-		isValid: false,
-		issues: [
-			createValidationIssue(
-				'invalid-value',
-				'range',
-				'Range start must not be after its end.',
-			),
-		],
-	};
+	return createValidationError([
+		createValidationIssue('invalid-value', 'range', 'Range start must not be after its end.'),
+	]);
 }
 
 function createInvalidSessionDateIssue(value: unknown, path: string): ValidationIssue | null {
@@ -229,12 +222,6 @@ function createInvalidRequestFailure(issues: readonly ValidationIssue[]): ReadBa
 	};
 }
 
-function createInvalidReadRequestValidation(
-	issues: readonly ValidationIssue[],
-): ReadRequestValidationResult {
-	return { isValid: false, issues };
-}
-
 function selectValidationIssues(
 	validation: TradingLineIdsValidationResult | SessionDateRangeValidationResult,
 ): readonly ValidationIssue[] {
@@ -257,12 +244,12 @@ type ReadRequestValidationResult =
 				range: SessionDateRange | null;
 			}>;
 	  }>
-	| Readonly<{ isValid: false; issues: readonly ValidationIssue[] }>;
+	| ValidationError<ValidationIssue>;
 
 type TradingLineIdsValidationResult =
 	| Readonly<{ isValid: true; tradingLineIds: readonly string[]; issues: readonly [] }>
-	| Readonly<{ isValid: false; issues: readonly ValidationIssue[] }>;
+	| ValidationError<ValidationIssue>;
 
 type SessionDateRangeValidationResult =
 	| Readonly<{ isValid: true; range: SessionDateRange | null; issues: readonly [] }>
-	| Readonly<{ isValid: false; issues: readonly ValidationIssue[] }>;
+	| ValidationError<ValidationIssue>;

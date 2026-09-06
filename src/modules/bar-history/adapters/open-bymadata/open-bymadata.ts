@@ -71,7 +71,7 @@ async function fetchHistory(
 	fetchFromProvider: OpenBymadataFetch,
 	request: OpenBymadataHistoryRequest,
 ): Promise<OpenBymadataHistoryResult> {
-	const source = createSource(request.tradingLine);
+	const source = buildOpenBymadataSource(request.tradingLine);
 	const url = createHistoryUrl(source.symbol, request);
 	const response = await fetchJson(fetchFromProvider, url);
 
@@ -282,7 +282,7 @@ function matchPanelRows(
 	const rowsBySymbol = new Map(rows.map((row) => [row.symbol, row]));
 
 	return tradingLines.map((tradingLine) => {
-		const source = createSource(tradingLine);
+		const source = buildOpenBymadataSource(tradingLine);
 		const row = rowsBySymbol.get(tradingLine.symbol);
 
 		if (!row) {
@@ -321,7 +321,9 @@ function matchPanelRows(
 	});
 }
 
-function createSource(tradingLine: OpenBymadataTradingLineDescriptor): BarHistorySource {
+export function buildOpenBymadataSource(
+	tradingLine: OpenBymadataTradingLineDescriptor,
+): BarHistorySource {
 	return {
 		provider: 'open-bymadata',
 		symbol: `${tradingLine.symbol} ${SETTLEMENT}`,

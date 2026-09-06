@@ -76,6 +76,16 @@ The scheduled caller provides an explicit `throughSession` that it has determine
 
 Grouping ordinary refreshes by provider panel avoids one request per Trading Line. Initial backfill, catch-up, and reconciliation may require per-line historical requests and therefore must respect provider limits in their orchestration.
 
+Initial backfill and full reconciliation request historical data from the explicit lower bound
+`2000-01-01`; the provider's available history remains the effective limit. Historical requests run
+one Trading Line at a time with a two-second pause between requests. This is deliberately
+conservative while anonymous rate limits remain undocumented.
+
+The reconciliation window begins at the earliest real bar returned by the provider rather than at
+the requested lower bound. This preserves stored bars older than the provider's currently available
+history. When a successful response contains no real bars, the requested range remains the
+authoritative window so the shrinkage guard can reject the response when stored real bars exist.
+
 Alternative considered: use the historical endpoint for every line every day. Rejected because reducing the requested date range does not reduce request count, while the panels provide the newest market rows in a small number of batch calls.
 
 ### 4. Provider transformation happens before domain validation

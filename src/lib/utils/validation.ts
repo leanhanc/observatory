@@ -1,5 +1,10 @@
 import type * as v from 'valibot';
 
+export type ValidationError<Issue> = Readonly<{
+	isValid: false;
+	issues: readonly Issue[];
+}>;
+
 type MappedValibotIssue<TCode extends string> = Readonly<{
 	code: TCode;
 	path: string;
@@ -33,6 +38,10 @@ export function createValibotObjectPath<TValue extends Record<string, unknown>>(
 
 export function checkIfValueIsRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function createValidationError<Issue>(issues: readonly Issue[]): ValidationError<Issue> {
+	return { isValid: false, issues };
 }
 
 function buildValibotIssuePath(

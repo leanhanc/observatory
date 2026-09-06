@@ -20,7 +20,7 @@
 
 - [x] 4.1 Implement a storage adapter around an explicitly configured Bun `S3Client`, including Railway endpoint-style configuration and machine-readable error translation; verify adapter tests cover configuration and expected failures.
 - [x] 4.2 Read and validate complete JSON envelopes from `<trading-line-id>/v1/history.json`; verify missing, unreadable, and invalid stored objects return their distinct failure reasons.
-- [ ] 4.3 Serialize, validate, and atomically replace complete history objects with `application/json`; verify an S3-compatible integration test observes only complete old or complete new objects and never reports failed persistence as success.
+- [x] 4.3 Serialize, validate, and atomically replace complete history objects with `application/json`; verify an S3-compatible integration test observes only complete old or complete new objects and never reports failed persistence as success.
 
 ## 5. Batch Application Operations
 

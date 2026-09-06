@@ -9,6 +9,7 @@
 		"format": "oxfmt --check .",
 		"format:fix": "oxfmt --write .",
 		"test": "bun test",
+		"test:storage-integration": "bun test src/modules/bar-history/storage/bar-history-storage.integration.test.ts",
 		"observe": "bun scripts/bymadata-observer.ts"
 	},
 	"dependencies": {

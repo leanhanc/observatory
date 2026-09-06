@@ -1,4 +1,5 @@
 export { reconcileBarHistory } from './bar-history.ts';
+export { createBarHistoryReader } from './reader/index.ts';
 export { createBarHistoryStorage } from './storage/index.ts';
 export type {
 	BarHistory,
@@ -13,6 +14,16 @@ export type {
 	SessionDateRange,
 	ValidationIssue,
 } from './bar-history.types.ts';
+export type {
+	BarHistoryRead,
+	BarHistoryReadFailure,
+	BarHistoryReadSuccess,
+	BarHistoryReader,
+	ReadBarHistoriesFailure,
+	ReadBarHistoriesRequest,
+	ReadBarHistoriesResult,
+	ReadBarHistoriesSuccess,
+} from './reader/index.ts';
 export type {
 	BarHistoryStorage,
 	BarHistoryStorageConfiguration,

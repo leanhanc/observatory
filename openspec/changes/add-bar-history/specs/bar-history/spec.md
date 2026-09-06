@@ -140,7 +140,7 @@ An update SHALL return exactly one result for every requested Trading Line. Each
 
 ### Requirement: Batch reads are explicit and range-aware
 
-A read SHALL return exactly one result for every requested Trading Line identifier. A usable result SHALL include bars, provenance, and `checkedThroughSession`; a failed result SHALL include a machine-readable reason such as `not-found`, `unreadable`, or `invalid-stored-history`. Reads SHALL accept an optional inclusive session-date range, return matching bars oldest to newest, and treat an empty matching range as a successful result with `bars: []`.
+A read SHALL treat requested Trading Line identifiers as a set: it SHALL return one result for each unique identifier, preserving the order of its first occurrence. Blank identifiers, invalid session dates, and ranges whose start is after their end SHALL reject the complete request before any stored history is read. A usable result SHALL include bars, provenance, and `checkedThroughSession`; a failed result SHALL include a machine-readable reason such as `not-found`, `unreadable`, or `invalid-stored-history`. Reads SHALL accept an optional inclusive session-date range, return matching bars oldest to newest, and treat an empty matching range as a successful result with `bars: []`.
 
 #### Scenario: Requested history is missing
 
@@ -156,6 +156,16 @@ A read SHALL return exactly one result for every requested Trading Line identifi
 
 - **WHEN** requested histories have different `checkedThroughSession` values
 - **THEN** the read returns every usable history with its own freshness value instead of silently hiding a stale line
+
+#### Scenario: Duplicate requested identifiers are read once
+
+- **WHEN** a read requests `cedear-aapl-ars`, `cedear-msft-ars`, and `cedear-aapl-ars` again
+- **THEN** the result contains `cedear-aapl-ars` once, before `cedear-msft-ars`, and storage reads each unique history once
+
+#### Scenario: Invalid range rejects the complete request
+
+- **WHEN** a read supplies a range whose start is after its end
+- **THEN** the read returns an `invalid-request` failure without reading any stored history
 
 ### Requirement: Successful storage becomes the authoritative history
 

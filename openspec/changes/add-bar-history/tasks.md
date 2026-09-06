@@ -24,7 +24,7 @@
 
 ## 5. Batch Application Operations
 
-- [ ] 5.1 Implement range-aware batch reads that preserve every requested Trading Line result; verify inclusive ranges, empty successful ranges, oldest-to-newest bars, differing freshness, and per-line failures.
+- [x] 5.1 Implement range-aware batch reads that preserve every requested Trading Line result; verify inclusive ranges, empty successful ranges, oldest-to-newest bars, differing freshness, duplicate requests, invalid requests, and per-line failures.
 - [ ] 5.2 Implement batch updates that share provider fetches while reconciling and persisting each Trading Line independently; verify mixed `created`, `updated`, `unchanged`, and `failed` results in one request.
 - [ ] 5.3 Advance `checkedThroughSession` only after a successfully accepted interval, including sessions with no real bar; verify missed-session catch-up, holiday/no-trade progress, and non-regressing repeated updates.
 - [ ] 5.4 Log structured corrections through the shared `src/modules/logger` as `market-history-correction` events without adding side effects to pure reconciliation; verify orchestration tests capture the Trading Line ID, session date, and old/new bars.

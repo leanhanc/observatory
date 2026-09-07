@@ -147,6 +147,7 @@ describe('reconcileBarHistory', () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 
+		expect(result.status).toBe('updated');
 		expect(result.history.bars).toEqual(existingHistory.bars);
 		expect(result.history.lastReconciledAt).toBe('2026-09-03T21:10:00Z');
 	});

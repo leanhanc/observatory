@@ -38,7 +38,7 @@ Every update SHALL receive `throughSession` from its scheduled caller. Bar Histo
 
 ### Requirement: Daily Bar values are validated
 
-The system SHALL reject a Daily Bar when any OHLCV field is missing, non-finite, or negative; when `low` exceeds `high`; or when `open` or `close` lies outside the inclusive low-to-high range. Zero volume alone SHALL remain valid.
+The system SHALL reject a Daily Bar when any OHLCV field is missing or non-finite; when any OHLC price is zero or negative; when volume is negative; when `low` exceeds `high`; or when `open` or `close` lies outside the inclusive low-to-high range. Zero volume alone SHALL remain valid.
 
 #### Scenario: Invalid price range rejects the update
 
@@ -49,6 +49,11 @@ The system SHALL reject a Daily Bar when any OHLCV field is missing, non-finite,
 
 - **WHEN** a supplied bar has structurally valid OHLC prices and zero volume but is not identified as a provider carried-close row
 - **THEN** the system accepts the bar
+
+#### Scenario: Zero price rejects the update
+
+- **WHEN** a supplied bar contains zero for any OHLC price after provider-specific no-trade rows have been excluded
+- **THEN** the update for that Trading Line fails and its previously stored history remains unchanged
 
 ### Requirement: Stored prices are raw market facts
 

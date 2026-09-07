@@ -1,4 +1,5 @@
 import {
+	checkIfIsoDateIsValid,
 	checkIfValueIsRecord,
 	createValidationError,
 	type ValidationError,
@@ -154,20 +155,11 @@ function validateSessionDateRange(value: unknown): SessionDateRangeValidationRes
 }
 
 function createInvalidSessionDateIssue(value: unknown, path: string): ValidationIssue | null {
-	if (typeof value === 'string' && checkIfSessionDateIsValid(value)) {
+	if (typeof value === 'string' && checkIfIsoDateIsValid(value)) {
 		return null;
 	}
 
 	return createValidationIssue('invalid-date', path, 'Value must be a real YYYY-MM-DD date.');
-}
-
-function checkIfSessionDateIsValid(value: string): boolean {
-	try {
-		const sessionDate = Temporal.PlainDate.from(value);
-		return sessionDate.toString() === value;
-	} catch {
-		return false;
-	}
 }
 
 function selectUniqueTradingLineIds(tradingLineIds: readonly string[]): readonly string[] {

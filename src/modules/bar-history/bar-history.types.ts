@@ -45,6 +45,7 @@ export type ValidationIssue = Readonly<{
 		| 'invalid-type'
 		| 'invalid-value'
 		| 'negative-number'
+		| 'non-positive-price'
 		| 'unsorted-session-date';
 	path: string;
 	message: string;

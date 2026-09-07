@@ -1,5 +1,9 @@
 /* eslint-disable no-await-in-loop -- BYMADATA historical requests are intentionally paced, and panel requests stay sequential to avoid undocumented anonymous-rate bursts. */
-import { checkIfValueIsRecord, createValidationError } from '#lib/utils/validation.ts';
+import {
+	checkIfIsoDateIsValid,
+	checkIfValueIsRecord,
+	createValidationError,
+} from '#lib/utils/validation.ts';
 
 import { buildOpenBymadataSource } from '../adapters/index.ts';
 import { validateBarHistory } from '../utils/index.ts';
@@ -383,7 +387,7 @@ function validateUniqueTradingLineIds(
 }
 
 function validateSessionDate(value: unknown, path: string): SessionDateValidationResult {
-	if (typeof value === 'string' && checkIfSessionDateIsValid(value)) {
+	if (typeof value === 'string' && checkIfIsoDateIsValid(value)) {
 		return { isValid: true, value, issues: [] };
 	}
 
@@ -406,14 +410,6 @@ function validatePanel(value: unknown, path: string): ValidationIssue[] {
 	}
 
 	return [createValidationIssue('invalid-value', path, 'Provider panel is not supported.')];
-}
-
-function checkIfSessionDateIsValid(value: string): boolean {
-	try {
-		return Temporal.PlainDate.from(value).toString() === value;
-	} catch {
-		return false;
-	}
 }
 
 function selectHistoricalLines(

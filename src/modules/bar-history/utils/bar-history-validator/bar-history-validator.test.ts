@@ -11,6 +11,22 @@ describe('validateDailyBars', () => {
 		expect(result).toEqual({ isValid: true, issues: [] });
 	});
 
+	test('rejects zero prices', () => {
+		const result = validateDailyBars(
+			[createBar('2026-09-01', { open: 0, high: 0, low: 0, close: 0, volume: 0 })],
+			true,
+			'bars',
+		);
+
+		expect(result.isValid).toBe(false);
+		expect(result.issues.map(({ code, path }) => ({ code, path }))).toEqual([
+			{ code: 'non-positive-price', path: 'bars[0].open' },
+			{ code: 'non-positive-price', path: 'bars[0].high' },
+			{ code: 'non-positive-price', path: 'bars[0].low' },
+			{ code: 'non-positive-price', path: 'bars[0].close' },
+		]);
+	});
+
 	test('rejects missing, non-finite, and negative numeric values', () => {
 		const result = validateDailyBars(
 			[

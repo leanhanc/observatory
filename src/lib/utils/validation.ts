@@ -40,6 +40,14 @@ export function checkIfValueIsRecord(value: unknown): value is Record<string, un
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+export function checkIfIsoDateIsValid(value: string): boolean {
+	try {
+		return Temporal.PlainDate.from(value).toString() === value;
+	} catch {
+		return false;
+	}
+}
+
 export function createValidationError<Issue>(issues: readonly Issue[]): ValidationError<Issue> {
 	return { isValid: false, issues };
 }

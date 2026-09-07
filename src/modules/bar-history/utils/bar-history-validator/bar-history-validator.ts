@@ -1,6 +1,7 @@
 import * as v from 'valibot';
 
 import {
+	checkIfIsoDateIsValid,
 	checkIfValueIsRecord,
 	createValidationError,
 	createValibotObjectPath,
@@ -24,6 +25,7 @@ const messages = {
 	invalidUtcInstant: 'Value must be a valid UTC ISO-8601 instant.',
 	invalidValue: 'Value is not supported by storage schema v1.',
 	negativeNumber: 'Value must not be negative.',
+	nonPositivePrice: 'Price must be greater than zero.',
 	sourceObject: 'Source must be an object.',
 } as const;
 
@@ -38,13 +40,14 @@ const issueCodesByMessage: Readonly<Record<string, ValidationIssue['code']>> = {
 	[messages.invalidUtcInstant]: 'invalid-date',
 	[messages.invalidValue]: 'invalid-value',
 	[messages.negativeNumber]: 'negative-number',
+	[messages.nonPositivePrice]: 'non-positive-price',
 	[messages.sourceObject]: 'invalid-type',
 };
 
 const sessionDateSchema = v.pipe(
 	v.string(messages.invalidSessionDate),
 	v.isoDate(messages.invalidSessionDate),
-	v.check(checkIfSessionDateIsValid, messages.invalidSessionDate),
+	v.check(checkIfIsoDateIsValid, messages.invalidSessionDate),
 );
 
 const utcInstantSchema = v.pipe(
@@ -65,6 +68,11 @@ const nonNegativeNumberSchema = v.pipe(
 	v.minValue(0, messages.negativeNumber),
 );
 
+const positivePriceSchema = v.pipe(
+	nonNegativeNumberSchema,
+	v.minValue(Number.MIN_VALUE, messages.nonPositivePrice),
+);
+
 const sourceSchema = v.strictObject(
 	{
 		provider: v.literal('open-bymadata', messages.invalidValue),
@@ -77,10 +85,10 @@ const dailyBarSchema = v.pipe(
 	v.strictObject(
 		{
 			sessionDate: sessionDateSchema,
-			open: nonNegativeNumberSchema,
-			high: nonNegativeNumberSchema,
-			low: nonNegativeNumberSchema,
-			close: nonNegativeNumberSchema,
+			open: positivePriceSchema,
+			high: positivePriceSchema,
+			low: positivePriceSchema,
+			close: positivePriceSchema,
 			volume: nonNegativeNumberSchema,
 		},
 		messages.dailyBarObject,
@@ -292,15 +300,6 @@ function validateBarsDoNotExceedCheckThrough(
 
 function resolveIssueCode(issue: v.BaseIssue<unknown>): ValidationIssue['code'] {
 	return issueCodesByMessage[issue.message] ?? 'invalid-value';
-}
-
-function checkIfSessionDateIsValid(value: string): boolean {
-	try {
-		const sessionDate = Temporal.PlainDate.from(value);
-		return sessionDate.toString() === value;
-	} catch {
-		return false;
-	}
 }
 
 function checkIfUtcInstantIsValid(value: string): boolean {

@@ -92,7 +92,7 @@ Alternative considered: use the historical endpoint for every line every day. Re
 
 The Open BYMADATA adapter owns provider field names, timestamps, panel categories, symbols, and carried-close detection. It emits normalized candidate bars or explicit adapter failures.
 
-Rows with `open = high = low = volume = 0` and a carried close are omitted before Daily Bar validation. This rule is provider-specific; zero volume by itself remains legal in the domain. Currency and settlement identity come from the catalog entry rather than being inferred from an individual bar.
+Rows with `open = high = low = volume = 0` and a carried close are omitted before Daily Bar validation. This rule is provider-specific; zero volume by itself remains legal in the domain, while every OHLC price must be greater than zero. Currency and settlement identity come from the catalog entry rather than being inferred from an individual bar.
 
 Candidate bars then pass through pure reconciliation and full-history validation. Reconciliation uses `sessionDate` as identity, sorts oldest to newest, adds new sessions, leaves identical sessions unchanged, and replaces differing valid sessions as corrections.
 

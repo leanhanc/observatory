@@ -147,7 +147,7 @@ const reconciliationRequestSchema = v.strictObject({
 	tradingLineId: nonEmptyStringSchema,
 	source: sourceSchema,
 	incomingBars: v.unknown(),
-	throughSession: sessionDateSchema,
+	requestedThroughSession: sessionDateSchema,
 	checkedAt: utcInstantSchema,
 	reconciliationWindow: v.nullable(sessionDateRangeSchema),
 });
@@ -203,7 +203,7 @@ export function validateReconciliationRequest(input: ReconcileBarHistoryInput): 
 		return fromIssues(issues);
 	}
 
-	const { reconciliationWindow, throughSession } = requestValidation.output;
+	const { reconciliationWindow, requestedThroughSession } = requestValidation.output;
 
 	if (reconciliationWindow.start > reconciliationWindow.end) {
 		issues.push(
@@ -215,7 +215,7 @@ export function validateReconciliationRequest(input: ReconcileBarHistoryInput): 
 		);
 	}
 
-	if (reconciliationWindow.end !== throughSession) {
+	if (reconciliationWindow.end !== requestedThroughSession) {
 		issues.push(
 			createIssue(
 				'invalid-value',

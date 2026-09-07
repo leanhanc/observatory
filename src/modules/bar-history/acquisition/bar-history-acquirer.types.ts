@@ -6,12 +6,9 @@ import type {
 	SessionDateRange,
 	ValidationIssue,
 } from '../bar-history.types.ts';
+import type { BAR_HISTORY_ACQUISITION_MODES } from './bar-history-acquirer.constants.ts';
 
-export type BarHistoryAcquisitionMode =
-	| 'catch-up'
-	| 'initial-backfill'
-	| 'ordinary-refresh'
-	| 'reconciliation';
+export type BarHistoryAcquisitionMode = (typeof BAR_HISTORY_ACQUISITION_MODES)[number];
 
 export type BarHistoryAcquisitionLine = Readonly<{
 	tradingLine: OpenBymadataTradingLineDescriptor;
@@ -21,7 +18,7 @@ export type BarHistoryAcquisitionLine = Readonly<{
 
 export type BarHistoryAcquisitionRequest = Readonly<{
 	lines: readonly BarHistoryAcquisitionLine[];
-	throughSession: string;
+	requestedThroughSession: string;
 }>;
 
 export type BarHistoryAcquisitionFailureReason =

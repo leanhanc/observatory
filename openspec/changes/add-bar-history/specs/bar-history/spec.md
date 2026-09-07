@@ -29,11 +29,11 @@ Each Daily Bar SHALL contain `sessionDate`, `open`, `high`, `low`, `close`, and 
 
 ### Requirement: The completed-session cutoff is explicit
 
-Every update SHALL receive `throughSession` from its scheduled caller. Bar History SHALL treat it as the latest completed Trading Session the caller has authorized for acceptance; it SHALL not infer that session from its own clock. Provider bars later than `throughSession` SHALL be excluded.
+Every update SHALL receive `requestedThroughSession` from its scheduled caller. Bar History SHALL treat it as the latest completed Trading Session the caller has authorized for acceptance; it SHALL not infer that session from its own clock. Provider bars later than `requestedThroughSession` SHALL be excluded.
 
 #### Scenario: Historical data includes an active session
 
-- **WHEN** a historical response includes a bar later than the supplied `throughSession`
+- **WHEN** a historical response includes a bar later than the supplied `requestedThroughSession`
 - **THEN** that bar is excluded from the update
 
 ### Requirement: Daily Bar values are validated
@@ -106,9 +106,14 @@ For an existing history, the system SHALL request the interval after `checkedThr
 - **WHEN** the same completed interval is processed more than once
 - **THEN** each session date occurs at most once and check progress does not regress
 
+#### Scenario: Requested session predates stored check progress
+
+- **WHEN** any update mode for an existing history requests a session before its `checkedThroughSession`
+- **THEN** that Trading Line fails with a check-progress regression instead of reporting a normal unchanged result
+
 ### Requirement: Acquisition mode selects an appropriate provider response
 
-The system SHALL select provider data according to the work required for each Trading Line. An initial backfill, catch-up interval, or reconciliation SHALL use dated historical data. An ordinary refresh MAY use a shared provider panel only when the scheduled caller has established that the panel represents the single completed session being accepted. A panel row has no session date of its own, so the system SHALL assign only the supplied `throughSession`; it SHALL not accept a second date for that row.
+The system SHALL select provider data according to the work required for each Trading Line. An initial backfill, catch-up interval, or reconciliation SHALL use dated historical data. An ordinary refresh MAY use a shared provider panel only when the scheduled caller has established that the panel represents the single completed session being accepted. A panel row has no session date of its own, so the system SHALL assign only the supplied `requestedThroughSession`; it SHALL not accept a second date for that row.
 
 #### Scenario: Initial backfill uses historical data
 
@@ -123,7 +128,7 @@ The system SHALL select provider data according to the work required for each Tr
 #### Scenario: Ordinary refresh shares a panel
 
 - **WHEN** several Trading Lines need only the single completed session represented by the same provider panel
-- **THEN** the system obtains that panel once and assigns its rows the supplied `throughSession`
+- **THEN** the system obtains that panel once and assigns its rows the supplied `requestedThroughSession`
 
 #### Scenario: Reconciliation uses historical data
 
@@ -175,6 +180,33 @@ An update SHALL return exactly one result for every requested Trading Line. Each
 
 - **WHEN** a requested Trading Line is already checked through the target session and no reconciliation was requested
 - **THEN** its result is `unchanged`
+
+#### Scenario: Update request contains a duplicate Trading Line
+
+- **WHEN** the same Trading Line identifier occurs more than once in an update request
+- **THEN** the complete request is rejected before stored history or provider data is read
+
+#### Scenario: Requested mode disagrees with stored state
+
+- **WHEN** one requested initial backfill already has stored history, or a non-backfill mode has no stored history
+- **THEN** that Trading Line fails without preventing eligible Trading Lines from being updated
+
+### Requirement: Accepted corrections are logged after persistence
+
+Every provider correction SHALL produce one structured `market-history-correction` event only after
+the corrected Bar History has been stored successfully. The event SHALL identify the Trading Line
+and session and include the previous and corrected Daily Bars. Failed reconciliation or persistence
+SHALL NOT report a correction as accepted.
+
+#### Scenario: Corrected history is stored
+
+- **WHEN** reconciliation replaces a Daily Bar and persistence succeeds
+- **THEN** the update returns the correction and emits one `market-history-correction` event with its old and new values
+
+#### Scenario: Corrected history cannot be stored
+
+- **WHEN** reconciliation finds a correction but persistence fails
+- **THEN** the Trading Line fails and no `market-history-correction` event is emitted
 
 ### Requirement: Batch reads are explicit and range-aware
 

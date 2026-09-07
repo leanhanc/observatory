@@ -44,7 +44,7 @@ describe('Open BYMADATA adapter', () => {
 					createTradingLine('empty', 'EMPTY', panel),
 					createTradingLine('real', 'REAL', panel),
 				],
-				throughSession: '2026-09-03',
+				requestedThroughSession: '2026-09-03',
 			});
 			expect(result).toMatchObject({
 				ok: true,
@@ -73,7 +73,7 @@ describe('Open BYMADATA adapter', () => {
 			tradingLine: aaplArs,
 			fromEpochSeconds: 0,
 			toEpochSeconds: 2_000_000_000,
-			throughSession: '2026-09-07',
+			requestedThroughSession: '2026-09-07',
 		});
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
@@ -96,7 +96,7 @@ describe('Open BYMADATA adapter', () => {
 			tradingLine: aaplArs,
 			fromEpochSeconds: 1_788_231_600,
 			toEpochSeconds: 1_788_404_400,
-			throughSession: '2026-09-03',
+			requestedThroughSession: '2026-09-03',
 		});
 
 		expect(requests).toHaveLength(1);
@@ -141,7 +141,7 @@ describe('Open BYMADATA adapter', () => {
 		const adapter = createOpenBymadataAdapter(createFixtureFetch(fixture, requests));
 		const result = await adapter.fetchPanel({
 			tradingLines: [aaplArs, aaplMep, aaplCcl],
-			throughSession: '2026-09-03',
+			requestedThroughSession: '2026-09-03',
 		});
 
 		expect(requests).toHaveLength(1);
@@ -184,11 +184,11 @@ describe('Open BYMADATA adapter', () => {
 
 		const leadingResult = await adapter.fetchPanel({
 			tradingLines: [createTradingLine('equity-ggal-ars', 'GGAL', 'leading-equity')],
-			throughSession: '2026-09-03',
+			requestedThroughSession: '2026-09-03',
 		});
 		const generalResult = await adapter.fetchPanel({
 			tradingLines: [createTradingLine('equity-a3-ars', 'A3', 'general-equity')],
-			throughSession: '2026-09-03',
+			requestedThroughSession: '2026-09-03',
 		});
 
 		expect(leadingResult).toMatchObject({
@@ -206,7 +206,7 @@ describe('Open BYMADATA adapter', () => {
 		const adapter = createOpenBymadataAdapter(createFixtureFetch(fixture));
 		const result = await adapter.fetchPanel({
 			tradingLines: [createTradingLine('cedear-missing-ars', 'MISSING', 'cedears')],
-			throughSession: '2026-09-03',
+			requestedThroughSession: '2026-09-03',
 		});
 
 		expect(result).toEqual({
@@ -228,7 +228,7 @@ describe('Open BYMADATA adapter', () => {
 			tradingLine: createTradingLine('cedear-inactive-ars', 'INACTIVE', 'cedears'),
 			fromEpochSeconds: 1,
 			toEpochSeconds: 2,
-			throughSession: '2026-09-03',
+			requestedThroughSession: '2026-09-03',
 		});
 
 		expect(result).toEqual({
@@ -255,7 +255,7 @@ describe('Open BYMADATA adapter', () => {
 			tradingLine: aaplArs,
 			fromEpochSeconds: boundaryTimestamp,
 			toEpochSeconds: incompleteSessionTimestamp,
-			throughSession: '2026-09-03',
+			requestedThroughSession: '2026-09-03',
 		});
 
 		expect(result).toMatchObject({
@@ -270,7 +270,7 @@ describe('Open BYMADATA adapter', () => {
 		const adapter = createOpenBymadataAdapter(createFixtureFetch(fixture, requests));
 		const result = await adapter.fetchPanel({
 			tradingLines: [aaplArs, createTradingLine('equity-ggal-ars', 'GGAL', 'leading-equity')],
-			throughSession: '2026-09-04',
+			requestedThroughSession: '2026-09-04',
 		});
 
 		expect(requests).toHaveLength(0);
@@ -296,11 +296,11 @@ describe('Open BYMADATA adapter', () => {
 			tradingLine: aaplArs,
 			fromEpochSeconds: 1,
 			toEpochSeconds: 2,
-			throughSession: '2026-09-03',
+			requestedThroughSession: '2026-09-03',
 		});
 		const incompleteResult = await incompleteAdapter.fetchPanel({
 			tradingLines: [createTradingLine('equity-a3-ars', 'A3', 'general-equity')],
-			throughSession: '2026-09-03',
+			requestedThroughSession: '2026-09-03',
 		});
 
 		expect(malformedResult).toMatchObject({ ok: false, reason: 'invalid-response' });
@@ -312,7 +312,7 @@ describe('Open BYMADATA adapter', () => {
 		const adapter = createOpenBymadataAdapter(createFixtureFetch([], requests));
 		const result = await adapter.fetchPanel({
 			tradingLines: [aaplArs, createTradingLine('another-aapl-line', 'AAPL', 'cedears')],
-			throughSession: '2026-09-03',
+			requestedThroughSession: '2026-09-03',
 		});
 
 		expect(requests).toHaveLength(0);
@@ -324,7 +324,7 @@ describe('Open BYMADATA adapter', () => {
 		const adapter = createOpenBymadataAdapter(createFixtureFetch([], requests));
 		const result = await adapter.fetchPanel({
 			tradingLines: [aaplArs, createTradingLine('cedear-aapl-ars', 'AAPLD', 'cedears')],
-			throughSession: '2026-09-03',
+			requestedThroughSession: '2026-09-03',
 		});
 
 		expect(requests).toHaveLength(0);
@@ -337,7 +337,7 @@ describe('Open BYMADATA adapter', () => {
 		);
 		const result = await adapter.fetchPanel({
 			tradingLines: [aaplArs],
-			throughSession: '2026-09-03',
+			requestedThroughSession: '2026-09-03',
 		});
 
 		expect(result).toMatchObject({ ok: false, reason: 'invalid-response' });

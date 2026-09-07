@@ -1,6 +1,7 @@
 export { reconcileBarHistory } from './bar-history.ts';
 export { createBarHistoryReader } from './reader/index.ts';
 export { createBarHistoryStorage } from './storage/index.ts';
+export { createBarHistoryUpdater } from './updater/index.ts';
 export type {
 	BarHistory,
 	BarHistoryCorrection,
@@ -34,3 +35,18 @@ export type {
 	BarHistoryStorageWriteResult,
 	BarHistoryStorageWriteSuccess,
 } from './storage/index.ts';
+export type {
+	BarHistoryUpdate,
+	BarHistoryUpdateFailure,
+	BarHistoryUpdateFailureReason,
+	BarHistoryUpdateLogger,
+	BarHistoryUpdateMode,
+	BarHistoryUpdater,
+	BarHistoryUpdaterOptions,
+	BarHistoryUpdateSuccess,
+	UpdateBarHistoriesFailure,
+	UpdateBarHistoriesRequest,
+	UpdateBarHistoriesResult,
+	UpdateBarHistoriesSuccess,
+	UpdateBarHistoryLine,
+} from './updater/index.ts';

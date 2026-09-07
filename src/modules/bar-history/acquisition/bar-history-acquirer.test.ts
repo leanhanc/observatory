@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { createBarHistoryAcquirer } from './bar-history-acquirer.ts';
+import { createOpenBymadataBarHistoryAcquirer } from './bar-history-acquirer.ts';
 
 import type {
 	OpenBymadataAdapter,
@@ -20,15 +20,15 @@ import type {
 const AAPL = createTradingLine('cedear-aapl-ars', 'AAPL', 'cedears');
 const MSFT = createTradingLine('cedear-msft-ars', 'MSFT', 'cedears');
 const GGAL = createTradingLine('equity-ggal-ars', 'GGAL', 'leading-equity');
-const THROUGH_SESSION = '2026-09-07';
+const REQUESTED_THROUGH_SESSION = '2026-09-07';
 
-describe('createBarHistoryAcquirer', () => {
+describe('createOpenBymadataBarHistoryAcquirer', () => {
 	test('backfills from the explicit historical lower bound', async () => {
 		const adapter = createFakeAdapter();
-		const acquirer = createBarHistoryAcquirer(adapter.adapter, adapter.pause);
+		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
 
 		const result = await acquirer.acquire({
-			throughSession: THROUGH_SESSION,
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			lines: [createLine(AAPL, null, 'initial-backfill')],
 		});
 
@@ -36,8 +36,8 @@ describe('createBarHistoryAcquirer', () => {
 			{
 				tradingLine: AAPL,
 				fromEpochSeconds: toEpochSeconds('2000-01-01'),
-				toEpochSeconds: toEpochSeconds(THROUGH_SESSION),
-				throughSession: THROUGH_SESSION,
+				toEpochSeconds: toEpochSeconds(REQUESTED_THROUGH_SESSION),
+				requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			},
 		]);
 		expect(result).toMatchObject({
@@ -54,16 +54,16 @@ describe('createBarHistoryAcquirer', () => {
 
 	test('catches up from the calendar day after each line check progress', async () => {
 		const adapter = createFakeAdapter();
-		const acquirer = createBarHistoryAcquirer(adapter.adapter, adapter.pause);
+		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
 
 		await acquirer.acquire({
-			throughSession: THROUGH_SESSION,
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			lines: [createLine(AAPL, createHistory(AAPL, '2026-09-04'), 'catch-up')],
 		});
 
 		expect(adapter.historyRequests[0]).toMatchObject({
 			fromEpochSeconds: toEpochSeconds('2026-09-05'),
-			toEpochSeconds: toEpochSeconds(THROUGH_SESSION),
+			toEpochSeconds: toEpochSeconds(REQUESTED_THROUGH_SESSION),
 		});
 	});
 
@@ -73,26 +73,32 @@ describe('createBarHistoryAcquirer', () => {
 			fetchHistory: async (request) => ({
 				ok: true,
 				source: createSource(request.tradingLine),
-				bars: [createDailyBar(firstAvailableSession), createDailyBar(THROUGH_SESSION)],
+				bars: [
+					createDailyBar(firstAvailableSession),
+					createDailyBar(REQUESTED_THROUGH_SESSION),
+				],
 			}),
 		});
-		const acquirer = createBarHistoryAcquirer(adapter.adapter, adapter.pause);
+		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
 
 		const result = await acquirer.acquire({
-			throughSession: THROUGH_SESSION,
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			lines: [createLine(AAPL, createHistory(AAPL, '2026-09-04'), 'reconciliation')],
 		});
 
 		expect(adapter.historyRequests[0]).toMatchObject({
 			fromEpochSeconds: toEpochSeconds('2000-01-01'),
-			toEpochSeconds: toEpochSeconds(THROUGH_SESSION),
+			toEpochSeconds: toEpochSeconds(REQUESTED_THROUGH_SESSION),
 		});
 		expect(result).toMatchObject({
 			ok: true,
 			lines: [
 				{
 					status: 'available',
-					reconciliationWindow: { start: firstAvailableSession, end: THROUGH_SESSION },
+					reconciliationWindow: {
+						start: firstAvailableSession,
+						end: REQUESTED_THROUGH_SESSION,
+					},
 				},
 			],
 		});
@@ -106,10 +112,10 @@ describe('createBarHistoryAcquirer', () => {
 				bars: [],
 			}),
 		});
-		const acquirer = createBarHistoryAcquirer(adapter.adapter, adapter.pause);
+		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
 
 		const result = await acquirer.acquire({
-			throughSession: THROUGH_SESSION,
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			lines: [createLine(AAPL, createHistory(AAPL, '2026-09-04'), 'reconciliation')],
 		});
 
@@ -118,7 +124,7 @@ describe('createBarHistoryAcquirer', () => {
 			lines: [
 				{
 					status: 'available',
-					reconciliationWindow: { start: '2000-01-01', end: THROUGH_SESSION },
+					reconciliationWindow: { start: '2000-01-01', end: REQUESTED_THROUGH_SESSION },
 				},
 			],
 		});
@@ -132,14 +138,14 @@ describe('createBarHistoryAcquirer', () => {
 					status: 'found' as const,
 					tradingLineId: tradingLine.tradingLineId,
 					source: createSource(tradingLine),
-					bar: createDailyBar(THROUGH_SESSION),
+					bar: createDailyBar(REQUESTED_THROUGH_SESSION),
 				})),
 			}),
 		});
-		const acquirer = createBarHistoryAcquirer(adapter.adapter, adapter.pause);
+		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
 
 		const result = await acquirer.acquire({
-			throughSession: THROUGH_SESSION,
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			lines: [
 				createLine(GGAL, createHistory(GGAL, '2026-09-04'), 'ordinary-refresh'),
 				createLine(AAPL, createHistory(AAPL, '2026-09-04'), 'ordinary-refresh'),
@@ -148,15 +154,24 @@ describe('createBarHistoryAcquirer', () => {
 		});
 
 		expect(adapter.panelRequests).toEqual([
-			{ tradingLines: [GGAL], throughSession: THROUGH_SESSION },
-			{ tradingLines: [AAPL, MSFT], throughSession: THROUGH_SESSION },
+			{ tradingLines: [GGAL], requestedThroughSession: REQUESTED_THROUGH_SESSION },
+			{ tradingLines: [AAPL, MSFT], requestedThroughSession: REQUESTED_THROUGH_SESSION },
 		]);
 		expect(result).toMatchObject({
 			ok: true,
 			lines: [
-				{ tradingLineId: GGAL.tradingLineId, bars: [{ sessionDate: THROUGH_SESSION }] },
-				{ tradingLineId: AAPL.tradingLineId, bars: [{ sessionDate: THROUGH_SESSION }] },
-				{ tradingLineId: MSFT.tradingLineId, bars: [{ sessionDate: THROUGH_SESSION }] },
+				{
+					tradingLineId: GGAL.tradingLineId,
+					bars: [{ sessionDate: REQUESTED_THROUGH_SESSION }],
+				},
+				{
+					tradingLineId: AAPL.tradingLineId,
+					bars: [{ sessionDate: REQUESTED_THROUGH_SESSION }],
+				},
+				{
+					tradingLineId: MSFT.tradingLineId,
+					bars: [{ sessionDate: REQUESTED_THROUGH_SESSION }],
+				},
 			],
 		});
 	});
@@ -177,10 +192,10 @@ describe('createBarHistoryAcquirer', () => {
 				events.push(`pause:${milliseconds}`);
 			},
 		});
-		const acquirer = createBarHistoryAcquirer(adapter.adapter, adapter.pause);
+		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
 
 		const result = await acquirer.acquire({
-			throughSession: THROUGH_SESSION,
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			lines: [
 				createLine(AAPL, null, 'initial-backfill'),
 				createLine(MSFT, null, 'initial-backfill'),
@@ -220,10 +235,10 @@ describe('createBarHistoryAcquirer', () => {
 				],
 			}),
 		});
-		const acquirer = createBarHistoryAcquirer(adapter.adapter, adapter.pause);
+		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
 
 		const result = await acquirer.acquire({
-			throughSession: THROUGH_SESSION,
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			lines: [
 				createLine(AAPL, createHistory(AAPL, '2026-09-04'), 'ordinary-refresh'),
 				createLine(MSFT, createHistory(MSFT, '2026-09-04'), 'ordinary-refresh'),
@@ -245,11 +260,11 @@ describe('createBarHistoryAcquirer', () => {
 
 	test('returns not-required without fetching an already covered line', async () => {
 		const adapter = createFakeAdapter();
-		const acquirer = createBarHistoryAcquirer(adapter.adapter, adapter.pause);
+		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
 
 		const result = await acquirer.acquire({
-			throughSession: THROUGH_SESSION,
-			lines: [createLine(AAPL, createHistory(AAPL, THROUGH_SESSION), 'catch-up')],
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
+			lines: [createLine(AAPL, createHistory(AAPL, REQUESTED_THROUGH_SESSION), 'catch-up')],
 		});
 
 		expect(result).toEqual({
@@ -262,9 +277,9 @@ describe('createBarHistoryAcquirer', () => {
 
 	test('rejects invalid requests before calling the provider', async () => {
 		const adapter = createFakeAdapter();
-		const acquirer = createBarHistoryAcquirer(adapter.adapter, adapter.pause);
+		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
 		const invalidRequest = {
-			throughSession: '2026-02-30',
+			requestedThroughSession: '2026-02-30',
 			lines: [
 				createLine(AAPL, createHistory(AAPL, '2026-09-04'), 'ordinary-refresh'),
 				createLine(AAPL, null, 'initial-backfill'),
@@ -278,7 +293,7 @@ describe('createBarHistoryAcquirer', () => {
 			ok: false,
 			reason: 'invalid-request',
 			issues: [
-				{ code: 'invalid-date', path: 'throughSession' },
+				{ code: 'invalid-date', path: 'requestedThroughSession' },
 				{ code: 'invalid-value', path: 'lines[2].existingHistory.tradingLineId' },
 				{ code: 'invalid-value', path: 'lines[1].tradingLine.tradingLineId' },
 			],
@@ -287,21 +302,21 @@ describe('createBarHistoryAcquirer', () => {
 		expect(adapter.panelRequests).toEqual([]);
 	});
 
-	test('rejects source drift and regressing reconciliation before calling the provider', async () => {
+	test('rejects source drift and regressing check progress before calling the provider', async () => {
 		const adapter = createFakeAdapter();
-		const acquirer = createBarHistoryAcquirer(adapter.adapter, adapter.pause);
+		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
 		const historyWithSourceDrift = {
 			...createHistory(AAPL, '2026-09-04'),
 			source: { provider: 'open-bymadata' as const, symbol: 'MSFT 24HS' },
 		};
 
 		const sourceDriftResult = await acquirer.acquire({
-			throughSession: THROUGH_SESSION,
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			lines: [createLine(AAPL, historyWithSourceDrift, 'ordinary-refresh')],
 		});
-		const regressingReconciliationResult = await acquirer.acquire({
-			throughSession: THROUGH_SESSION,
-			lines: [createLine(GGAL, createHistory(GGAL, '2026-09-08'), 'reconciliation')],
+		const regressingCheckProgressResult = await acquirer.acquire({
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
+			lines: [createLine(GGAL, createHistory(GGAL, '2026-09-08'), 'catch-up')],
 		});
 
 		expect(sourceDriftResult).toMatchObject({
@@ -309,10 +324,10 @@ describe('createBarHistoryAcquirer', () => {
 			reason: 'invalid-request',
 			issues: [{ path: 'lines[0].existingHistory.source' }],
 		});
-		expect(regressingReconciliationResult).toMatchObject({
+		expect(regressingCheckProgressResult).toMatchObject({
 			ok: false,
 			reason: 'invalid-request',
-			issues: [{ path: 'lines[0].mode' }],
+			issues: [{ path: 'requestedThroughSession' }],
 		});
 		expect(adapter.historyRequests).toEqual([]);
 		expect(adapter.panelRequests).toEqual([]);
@@ -369,7 +384,11 @@ function createDailyBar(sessionDate: string) {
 function createHistoryResult(
 	tradingLine: OpenBymadataTradingLineDescriptor,
 ): OpenBymadataHistoryResult {
-	return { ok: true, source: createSource(tradingLine), bars: [createDailyBar(THROUGH_SESSION)] };
+	return {
+		ok: true,
+		source: createSource(tradingLine),
+		bars: [createDailyBar(REQUESTED_THROUGH_SESSION)],
+	};
 }
 
 function createProviderFailure(

@@ -56,7 +56,7 @@ export type ReconcileBarHistoryInput = Readonly<{
 	tradingLineId: string;
 	source: BarHistorySource;
 	incomingBars: readonly DailyBar[];
-	throughSession: string;
+	requestedThroughSession: string;
 	checkedAt: string;
 	reconciliationWindow: SessionDateRange | null;
 }>;

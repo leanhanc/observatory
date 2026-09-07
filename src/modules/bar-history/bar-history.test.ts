@@ -120,7 +120,7 @@ describe('reconcileBarHistory', () => {
 			createInput({
 				existingHistory,
 				incomingBars: [],
-				throughSession: '2026-09-04',
+				requestedThroughSession: '2026-09-04',
 			}),
 		);
 
@@ -176,14 +176,14 @@ describe('reconcileBarHistory', () => {
 			createInput({
 				existingHistory,
 				incomingBars: existingHistory.bars,
-				throughSession: '2026-09-04',
+				requestedThroughSession: '2026-09-04',
 				reconciliationWindow: { start: '2026-09-01', end: '2026-09-02' },
 			}),
 		);
 		const initialHistoryResult = reconcileBarHistory(
 			createInput({
 				incomingBars: [createBar('2026-09-01')],
-				throughSession: '2026-09-04',
+				requestedThroughSession: '2026-09-04',
 				reconciliationWindow: { start: '2026-09-01', end: '2026-09-01' },
 			}),
 		);
@@ -229,7 +229,7 @@ describe('reconcileBarHistory', () => {
 			}),
 		);
 		const regressedProgress = reconcileBarHistory(
-			createInput({ existingHistory, throughSession: '2026-09-01' }),
+			createInput({ existingHistory, requestedThroughSession: '2026-09-01' }),
 		);
 
 		expect(wrongTradingLine).toMatchObject({ ok: false, reason: 'trading-line-mismatch' });
@@ -258,7 +258,7 @@ function createInput(overrides: Partial<ReconcileBarHistoryInput> = {}): Reconci
 		tradingLineId: 'cedear-aapl-ars',
 		source,
 		incomingBars: [],
-		throughSession: '2026-09-03',
+		requestedThroughSession: '2026-09-03',
 		checkedAt: '2026-09-03T21:10:00Z',
 		reconciliationWindow: null,
 		...overrides,

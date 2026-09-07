@@ -35,6 +35,12 @@ updateBarHistories(request);
 
 `updateBarHistories` orchestrates fetch, transformation, reconciliation, validation, and persistence. Pure domain functions implement transformation-independent validation and reconciliation. Provider and storage access sit behind narrow adapters.
 
+The updater receives catalog-resolved Trading Line descriptors and an explicit acquisition mode for
+each line. It loads storage itself, creates the Open BYMADATA adapter internally, and returns compact
+per-line statuses and corrections rather than returning complete histories. Runtime options may
+replace provider fetch, pacing, and the current-instant source for deterministic tests without
+exposing acquisition as an application-facing operation.
+
 Bar History does not try to interpret identifiers such as `cedear-aapl-mep`. The instrument catalog tells it which Trading Lines to update and how Open BYMADATA identifies each one. We can decide how the catalog passes that information during implementation.
 
 Alternative considered: expose fetch, merge, and storage as separate application steps. Rejected because callers could skip validation, store provider-shaped rows, or duplicate orchestration policy.
@@ -67,10 +73,10 @@ Alternative considered: one file per bar or separate metadata and bars files. Re
 
 ### 3. Incremental refresh and reconciliation are distinct acquisition modes
 
-The scheduled caller provides an explicit `throughSession` that it has determined is completed. Bar History does not guess the latest completed session from wall-clock time.
+The scheduled caller provides an explicit `requestedThroughSession` that it has determined is completed. Bar History does not guess the latest completed session from wall-clock time.
 
 - **Initial backfill:** request all daily history currently available for each Trading Line.
-- **Ordinary refresh:** fetch the newest completed session from BYMA's batched CEDEAR, leading-equity, and general-equity panels when the stored line is already caught up to the preceding session. Because panel rows have no date, the adapter assigns the one supplied `throughSession`; it does not accept a second date that could contradict it.
+- **Ordinary refresh:** fetch the newest completed session from BYMA's batched CEDEAR, leading-equity, and general-equity panels when the stored line is already caught up to the preceding session. Because panel rows have no date, the adapter assigns the one supplied `requestedThroughSession`; it does not accept a second date that could contradict it.
 - **Catch-up:** when more than the ordinary refresh interval is missing, request the missing historical interval for that Trading Line before advancing progress.
 - **Reconciliation:** request the provider's complete currently available historical window, intended to run staggered approximately monthly.
 
@@ -128,9 +134,21 @@ Alternative considered: conditional writes and a universe manifest. Deferred unt
 
 Fetches may be shared, but reconciliation and persistence commit independently per Trading Line. Results preserve every requested identifier and use stable status/failure unions instead of exceptions for expected per-line outcomes.
 
+The complete update request is validated before any storage or provider access, and duplicate
+Trading Line identifiers are rejected. Storage reads and independent writes may run concurrently.
+A missing object is expected only for initial backfill; disagreement between the requested mode and
+stored state fails that line without hiding eligible lines. A requested session older than an
+existing history's check progress also fails that line rather than being mistaken for an ordinary
+no-op. Lines eligible for acquisition are sent through one internal batch so panel requests remain
+shared.
+
 Provider-wide or storage-wide failures may produce failures for multiple lines, but successful lines are not rolled back. Unexpected programming errors may still reject the outer operation.
 
-The reconciliation result carries structured old/new correction details. Application orchestration logs each correction through the shared logger at `src/modules/logger`, using the event name `market-history-correction`. Pure domain reconciliation does not log or emit side effects itself.
+The reconciliation result carries structured old/new correction details. After the replacement has
+been stored successfully, application orchestration logs each correction through the shared logger
+at `src/modules/logger`, using the event name `market-history-correction`. Failed reconciliation or
+persistence never produces a correction event. Pure domain reconciliation does not log or emit side
+effects itself.
 
 ## Risks / Trade-offs
 

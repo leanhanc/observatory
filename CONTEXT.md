@@ -39,3 +39,31 @@ _Avoid_: Daily Bar when referring to the market-data record
 **Bar History**:
 The chronological sequence of Daily Bars for one Trading Line.
 _Avoid_: Candle history, price history
+
+**Checked-Through Session**:
+The latest completed Trading Session through which Observatory has accepted an answer from the market-data source, even when no real Daily Bar existed for that session.
+_Avoid_: Latest bar, last trading date
+
+**Requested-Through Session**:
+The latest completed Trading Session an update is authorized to accept. It becomes the Checked-Through Session only after the requested interval is accepted and stored successfully.
+_Avoid_: Requested interval, requested sessions, Checked-Through Session before acceptance
+
+**Acquisition Mode**:
+The declared kind of work needed to bring one Bar History through a requested completed Trading Session: Initial Backfill, Ordinary Refresh, Catch-up, or Reconciliation.
+_Avoid_: Inferring the required work from the newest Daily Bar
+
+**Initial Backfill**:
+The first population of a Trading Line's Bar History with all completed Daily Bars currently available from its source.
+_Avoid_: Refresh, Reconciliation
+
+**Ordinary Refresh**:
+The addition of one newly completed Trading Session when Bar History was already checked through the preceding accepted interval.
+_Avoid_: Using a current market row to recreate missed sessions
+
+**Catch-up**:
+The recovery of the completed interval after the Checked-Through Session when Bar History may have missed more than the newest session.
+_Avoid_: Ordinary Refresh
+
+**Reconciliation**:
+The deliberate recheck of previously accepted sessions against the source to detect corrections while preserving valid history outside the source's available window.
+_Avoid_: Initial Backfill, ordinary daily update

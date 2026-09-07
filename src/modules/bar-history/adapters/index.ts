@@ -1,4 +1,8 @@
-export { buildOpenBymadataSource, createOpenBymadataAdapter } from './open-bymadata';
+export {
+	buildOpenBymadataSource,
+	createOpenBymadataAdapter,
+	OPEN_BYMADATA_PANELS,
+} from './open-bymadata';
 export type {
 	OpenBymadataAdapter,
 	OpenBymadataFailure,

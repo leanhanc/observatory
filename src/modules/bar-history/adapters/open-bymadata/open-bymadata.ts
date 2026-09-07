@@ -103,7 +103,7 @@ async function fetchHistory(
 		);
 	}
 
-	const bars = normalizeHistorySeries(series, request.throughSession);
+	const bars = normalizeHistorySeries(series, request.requestedThroughSession);
 
 	if (!bars) {
 		return createFailure(
@@ -155,7 +155,11 @@ async function fetchPanel(
 		);
 	}
 
-	const lines = matchPanelRows(request.tradingLines, parsedRows.rows, request.throughSession);
+	const lines = matchPanelRows(
+		request.tradingLines,
+		parsedRows.rows,
+		request.requestedThroughSession,
+	);
 	return { ok: true, lines };
 }
 
@@ -356,13 +360,13 @@ function checkIfHistorySeriesAreAligned(series: OpenBymadataHistorySeries): bool
 
 function normalizeHistorySeries(
 	series: OpenBymadataHistorySeries,
-	throughSession: string,
+	requestedThroughSession: string,
 ): DailyBar[] | null {
 	try {
 		return series.timestamps.flatMap((timestamp, index) => {
 			const sessionDate = convertTimestampToSessionDate(timestamp);
 
-			if (sessionDate > throughSession) {
+			if (sessionDate > requestedThroughSession) {
 				return [];
 			}
 

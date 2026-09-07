@@ -1,6 +1,7 @@
 import type { BarHistorySource, DailyBar } from '../../bar-history.types.ts';
+import type { OPEN_BYMADATA_PANELS } from './open-bymadata.constants.ts';
 
-export type OpenBymadataPanel = 'cedears' | 'general-equity' | 'leading-equity';
+export type OpenBymadataPanel = (typeof OPEN_BYMADATA_PANELS)[number];
 
 export type OpenBymadataTradingLineDescriptor = Readonly<{
 	tradingLineId: string;
@@ -12,12 +13,12 @@ export type OpenBymadataHistoryRequest = Readonly<{
 	tradingLine: OpenBymadataTradingLineDescriptor;
 	fromEpochSeconds: number;
 	toEpochSeconds: number;
-	throughSession: string;
+	requestedThroughSession: string;
 }>;
 
 export type OpenBymadataPanelRequest = Readonly<{
 	tradingLines: readonly OpenBymadataTradingLineDescriptor[];
-	throughSession: string;
+	requestedThroughSession: string;
 }>;
 
 export type OpenBymadataHistorySeries = Readonly<{

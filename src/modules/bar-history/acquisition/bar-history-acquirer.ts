@@ -5,8 +5,9 @@ import {
 	createValidationError,
 } from '#lib/utils/validation.ts';
 
-import { buildOpenBymadataSource } from '../adapters/index.ts';
+import { buildOpenBymadataSource, OPEN_BYMADATA_PANELS } from '../adapters/index.ts';
 import { validateBarHistory } from '../utils/index.ts';
+import { BAR_HISTORY_ACQUISITION_MODES } from './bar-history-acquirer.constants.ts';
 
 import type { ValidationError } from '#lib/utils/validation.ts';
 import type {
@@ -35,13 +36,8 @@ import type {
 const HISTORY_START_SESSION = '2000-01-01';
 const HISTORICAL_REQUEST_PAUSE_MS = 2_000;
 const TIMEZONE = 'America/Argentina/Buenos_Aires';
-const ACQUISITION_MODES = new Set<BarHistoryAcquisitionMode>([
-	'catch-up',
-	'initial-backfill',
-	'ordinary-refresh',
-	'reconciliation',
-]);
-const PANELS = new Set<OpenBymadataPanel>(['cedears', 'general-equity', 'leading-equity']);
+const supportedAcquisitionModes = new Set<BarHistoryAcquisitionMode>(BAR_HISTORY_ACQUISITION_MODES);
+const supportedPanels = new Set<OpenBymadataPanel>(OPEN_BYMADATA_PANELS);
 
 /**
  * Acquires normalized Daily Bar candidates using caller-authorized update modes.
@@ -49,7 +45,7 @@ const PANELS = new Set<OpenBymadataPanel>(['cedears', 'general-equity', 'leading
  * It does not reconcile candidates, write storage, or decide whether an undated provider panel
  * represents a completed session. The scheduled caller makes that last decision.
  */
-export function createBarHistoryAcquirer(
+export function createOpenBymadataBarHistoryAcquirer(
 	adapter: OpenBymadataAdapter,
 	pause: BarHistoryPause = Bun.sleep,
 ): BarHistoryAcquirer {
@@ -69,19 +65,19 @@ async function acquireBarHistories(
 		return createInvalidRequestFailure(requestValidation.issues);
 	}
 
-	const { lines, throughSession } = requestValidation.request;
+	const { lines, requestedThroughSession } = requestValidation.request;
 	const resultsByTradingLineId = new Map<string, BarHistoryAcquisitionLineResult>();
-	const historicalLines = selectHistoricalLines(lines, throughSession);
-	const panelLines = selectOrdinaryRefreshLines(lines, throughSession);
+	const historicalLines = selectHistoricalLines(lines, requestedThroughSession);
+	const panelLines = selectOrdinaryRefreshLines(lines, requestedThroughSession);
 
 	await acquireHistoricalLines(
 		adapter,
 		pause,
 		historicalLines,
-		throughSession,
+		requestedThroughSession,
 		resultsByTradingLineId,
 	);
-	await acquirePanelLines(adapter, panelLines, throughSession, resultsByTradingLineId);
+	await acquirePanelLines(adapter, panelLines, requestedThroughSession, resultsByTradingLineId);
 
 	const results = lines.map((line) => {
 		const result = resultsByTradingLineId.get(line.tradingLine.tradingLineId);
@@ -107,29 +103,32 @@ function validateAcquisitionRequest(value: unknown): AcquisitionRequestValidatio
 		]);
 	}
 
-	const throughSessionValidation = validateSessionDate(value.throughSession, 'throughSession');
+	const requestedThroughSessionValidation = validateSessionDate(
+		value.requestedThroughSession,
+		'requestedThroughSession',
+	);
 	const linesValidation = validateAcquisitionLines(value.lines);
 
-	if (!throughSessionValidation.isValid || !linesValidation.isValid) {
+	if (!requestedThroughSessionValidation.isValid || !linesValidation.isValid) {
 		return createValidationError([
-			...selectValidationIssues(throughSessionValidation),
+			...selectValidationIssues(requestedThroughSessionValidation),
 			...selectValidationIssues(linesValidation),
 		]);
 	}
 
-	const reconciliationProgressIssues = validateReconciliationProgress(
+	const checkProgressIssues = validateCheckProgress(
 		linesValidation.value,
-		throughSessionValidation.value,
+		requestedThroughSessionValidation.value,
 	);
 
-	if (reconciliationProgressIssues.length > 0) {
-		return createValidationError(reconciliationProgressIssues);
+	if (checkProgressIssues.length > 0) {
+		return createValidationError(checkProgressIssues);
 	}
 
 	return {
 		isValid: true,
 		request: {
-			throughSession: throughSessionValidation.value,
+			requestedThroughSession: requestedThroughSessionValidation.value,
 			lines: linesValidation.value,
 		},
 	};
@@ -247,7 +246,10 @@ function validateTradingLine(value: unknown, path: string): TradingLineValidatio
 }
 
 function validateAcquisitionMode(value: unknown, path: string): AcquisitionModeValidationResult {
-	if (typeof value === 'string' && ACQUISITION_MODES.has(value as BarHistoryAcquisitionMode)) {
+	if (
+		typeof value === 'string' &&
+		supportedAcquisitionModes.has(value as BarHistoryAcquisitionMode)
+	) {
 		return { isValid: true, value: value as BarHistoryAcquisitionMode, issues: [] };
 	}
 
@@ -336,24 +338,24 @@ function validateHistorySource(
 	);
 }
 
-function validateReconciliationProgress(
+function validateCheckProgress(
 	lines: readonly BarHistoryAcquisitionLine[],
-	throughSession: string,
+	requestedThroughSession: string,
 ): ValidationIssue[] {
 	return lines.flatMap((line, index) => {
-		if (line.mode !== 'reconciliation' || !line.existingHistory) {
+		if (!line.existingHistory) {
 			return [];
 		}
 
-		if (throughSession >= line.existingHistory.checkedThroughSession) {
+		if (requestedThroughSession >= line.existingHistory.checkedThroughSession) {
 			return [];
 		}
 
 		return [
 			createValidationIssue(
 				'invalid-value',
-				`lines[${index}].mode`,
-				'Reconciliation cannot move behind the stored check progress.',
+				'requestedThroughSession',
+				`Requested session moves behind the check progress for lines[${index}].`,
 			),
 		];
 	});
@@ -405,7 +407,7 @@ function validateNonBlankString(value: unknown, path: string): ValidationIssue[]
 }
 
 function validatePanel(value: unknown, path: string): ValidationIssue[] {
-	if (typeof value === 'string' && PANELS.has(value as OpenBymadataPanel)) {
+	if (typeof value === 'string' && supportedPanels.has(value as OpenBymadataPanel)) {
 		return [];
 	}
 
@@ -414,7 +416,7 @@ function validatePanel(value: unknown, path: string): ValidationIssue[] {
 
 function selectHistoricalLines(
 	lines: readonly BarHistoryAcquisitionLine[],
-	throughSession: string,
+	requestedThroughSession: string,
 ): readonly BarHistoryAcquisitionLine[] {
 	return lines.filter((line) => {
 		if (line.mode === 'initial-backfill' || line.mode === 'reconciliation') {
@@ -425,19 +427,19 @@ function selectHistoricalLines(
 			return false;
 		}
 
-		return line.existingHistory.checkedThroughSession < throughSession;
+		return line.existingHistory.checkedThroughSession < requestedThroughSession;
 	});
 }
 
 function selectOrdinaryRefreshLines(
 	lines: readonly BarHistoryAcquisitionLine[],
-	throughSession: string,
+	requestedThroughSession: string,
 ): readonly BarHistoryAcquisitionLine[] {
 	return lines.filter(
 		(line) =>
 			line.mode === 'ordinary-refresh' &&
 			line.existingHistory !== null &&
-			line.existingHistory.checkedThroughSession < throughSession,
+			line.existingHistory.checkedThroughSession < requestedThroughSession,
 	);
 }
 
@@ -445,7 +447,7 @@ async function acquireHistoricalLines(
 	adapter: OpenBymadataAdapter,
 	pause: BarHistoryPause,
 	lines: readonly BarHistoryAcquisitionLine[],
-	throughSession: string,
+	requestedThroughSession: string,
 	resultsByTradingLineId: Map<string, BarHistoryAcquisitionLineResult>,
 ): Promise<void> {
 	for (const [index, line] of lines.entries()) {
@@ -453,7 +455,7 @@ async function acquireHistoricalLines(
 			await pause(HISTORICAL_REQUEST_PAUSE_MS);
 		}
 
-		const result = await acquireHistoricalLine(adapter, line, throughSession);
+		const result = await acquireHistoricalLine(adapter, line, requestedThroughSession);
 		resultsByTradingLineId.set(line.tradingLine.tradingLineId, result);
 	}
 }
@@ -461,14 +463,14 @@ async function acquireHistoricalLines(
 async function acquireHistoricalLine(
 	adapter: OpenBymadataAdapter,
 	line: BarHistoryAcquisitionLine,
-	throughSession: string,
+	requestedThroughSession: string,
 ): Promise<BarHistoryAcquisitionLineResult> {
-	const range = createHistoricalRange(line, throughSession);
+	const range = createHistoricalRange(line, requestedThroughSession);
 	const result = await adapter.fetchHistory({
 		tradingLine: line.tradingLine,
 		fromEpochSeconds: convertSessionDateToEpochSeconds(range.start),
 		toEpochSeconds: convertSessionDateToEpochSeconds(range.end),
-		throughSession,
+		requestedThroughSession,
 	});
 
 	if (!result.ok) {
@@ -516,16 +518,16 @@ function selectEarliestSessionDate(bars: readonly DailyBar[]): string | null {
 
 function createHistoricalRange(
 	line: BarHistoryAcquisitionLine,
-	throughSession: string,
+	requestedThroughSession: string,
 ): SessionDateRange {
 	if (line.mode === 'catch-up' && line.existingHistory) {
 		return {
 			start: getNextSessionDate(line.existingHistory.checkedThroughSession),
-			end: throughSession,
+			end: requestedThroughSession,
 		};
 	}
 
-	return { start: HISTORY_START_SESSION, end: throughSession };
+	return { start: HISTORY_START_SESSION, end: requestedThroughSession };
 }
 
 function getNextSessionDate(sessionDate: string): string {
@@ -539,7 +541,7 @@ function convertSessionDateToEpochSeconds(sessionDate: string): number {
 async function acquirePanelLines(
 	adapter: OpenBymadataAdapter,
 	lines: readonly BarHistoryAcquisitionLine[],
-	throughSession: string,
+	requestedThroughSession: string,
 	resultsByTradingLineId: Map<string, BarHistoryAcquisitionLineResult>,
 ): Promise<void> {
 	const linesByPanel = groupLinesByPanel(lines);
@@ -547,7 +549,7 @@ async function acquirePanelLines(
 	for (const panelLines of linesByPanel.values()) {
 		const result = await adapter.fetchPanel({
 			tradingLines: panelLines.map((line) => line.tradingLine),
-			throughSession,
+			requestedThroughSession,
 		});
 
 		if (!result.ok) {
@@ -676,7 +678,7 @@ type AcquisitionRequestValidationResult =
 			isValid: true;
 			request: Readonly<{
 				lines: readonly BarHistoryAcquisitionLine[];
-				throughSession: string;
+				requestedThroughSession: string;
 			}>;
 	  }>
 	| ValidationError<ValidationIssue>;

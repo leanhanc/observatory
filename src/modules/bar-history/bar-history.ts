@@ -170,9 +170,9 @@ function validateExistingIdentity(input: ReconcileBarHistoryInput): BarHistoryFa
  * the caller claims to have checked.
  */
 function validateCheckedThroughSession(input: ReconcileBarHistoryInput): BarHistoryFailure | null {
-	const { existingHistory, incomingBars, throughSession } = input;
+	const { existingHistory, incomingBars, requestedThroughSession } = input;
 	const hasRegressedProgress =
-		existingHistory !== null && throughSession < existingHistory.checkedThroughSession;
+		existingHistory !== null && requestedThroughSession < existingHistory.checkedThroughSession;
 
 	if (hasRegressedProgress) {
 		return createFailure(
@@ -184,7 +184,7 @@ function validateCheckedThroughSession(input: ReconcileBarHistoryInput): BarHist
 
 	const barsAfterCheckThrough = incomingBars
 		.map((bar, index) => ({ bar, index }))
-		.filter(({ bar }) => bar.sessionDate > throughSession);
+		.filter(({ bar }) => bar.sessionDate > requestedThroughSession);
 
 	if (barsAfterCheckThrough.length === 0) {
 		return null;
@@ -193,7 +193,7 @@ function validateCheckedThroughSession(input: ReconcileBarHistoryInput): BarHist
 	const issues = barsAfterCheckThrough.map<ValidationIssue>(({ bar, index }) => ({
 		code: 'bar-after-check-through',
 		path: `incomingBars[${index}].sessionDate`,
-		message: `Session ${bar.sessionDate} is later than ${throughSession}.`,
+		message: `Session ${bar.sessionDate} is later than ${requestedThroughSession}.`,
 	}));
 
 	return createFailure(
@@ -306,7 +306,7 @@ function buildCandidateHistory(
 		existingHistory,
 		reconciliationWindow,
 		source,
-		throughSession,
+		requestedThroughSession,
 		tradingLineId,
 	} = input;
 	const isInitialBackfill = existingHistory === null;
@@ -323,7 +323,7 @@ function buildCandidateHistory(
 		priceAdjustment: 'none',
 		backfilledAt,
 		lastReconciledAt,
-		checkedThroughSession: throughSession,
+		checkedThroughSession: requestedThroughSession,
 		bars,
 	};
 }

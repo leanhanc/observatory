@@ -1,4 +1,5 @@
-export { createBarHistoryAcquirer } from './bar-history-acquirer.ts';
+export { createOpenBymadataBarHistoryAcquirer } from './bar-history-acquirer.ts';
+export { BAR_HISTORY_ACQUISITION_MODES } from './bar-history-acquirer.constants.ts';
 export type {
 	BarHistoryAcquirer,
 	BarHistoryAcquisitionFailure,

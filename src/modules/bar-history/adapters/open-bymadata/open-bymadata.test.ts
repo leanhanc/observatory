@@ -57,38 +57,35 @@ describe('Open BYMADATA adapter', () => {
 		});
 	});
 
-	test('preserves suspicious dated rows for domain validation', async () => {
+	test('excludes historical Continuity Data without hiding other invalid rows', async () => {
 		const adapter = createOpenBymadataAdapter(
 			createFixtureFetch({
 				s: 'ok',
-				t: [1, 2, 3, 4, 5, 6, 7].map((day) => toEpochSeconds(`2026-09-0${day}T03:00:00Z`)),
-				o: [0, 100, 1, 0, 0, 0, 0],
-				h: [0, 103, 0, 1, 0, 0, 0],
-				l: [0, 99, 0, 0, 1, 0, 0],
-				c: [102, 102, 102, 102, 102, 102, -1],
-				v: [0, 0, 0, 0, 0, 1, 0],
+				t: [1, 2, 3, 4].map((day) => toEpochSeconds(`2026-09-0${day}T03:00:00Z`)),
+				o: [0, 100, 100, 0],
+				h: [0, 103, 0, 0],
+				l: [0, 99, 99, 0],
+				c: [102, 102, 102, 0],
+				v: [0, 0, 1, 0],
 			}),
 		);
 		const result = await adapter.fetchHistory({
 			tradingLine: AAPL,
 			fromEpochSeconds: 0,
 			toEpochSeconds: 2_000_000_000,
-			requestedThroughSession: '2026-09-07',
+			requestedThroughSession: '2026-09-04',
 		});
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 		expect(result.bars.map((bar) => bar.sessionDate)).toEqual([
-			'2026-09-01',
 			'2026-09-02',
 			'2026-09-03',
 			'2026-09-04',
-			'2026-09-05',
-			'2026-09-06',
-			'2026-09-07',
 		]);
-		expect(result.bars[0]).toMatchObject({ open: 0, close: 102, volume: 0 });
-		expect(result.bars[1]).toMatchObject({ open: 100, volume: 0 });
+		expect(result.bars[0]).toMatchObject({ open: 100, high: 103, volume: 0 });
+		expect(result.bars[1]).toMatchObject({ open: 100, high: 0, volume: 1 });
+		expect(result.bars[2]).toMatchObject({ open: 0, high: 0, close: 0, volume: 0 });
 	});
 
 	test('treats a successful no-data history as an empty series', async () => {

@@ -38,7 +38,12 @@ Every update SHALL receive `requestedThroughSession` from its scheduled caller. 
 
 ### Requirement: Daily Bar values are validated
 
-The system SHALL reject a Daily Bar when any OHLCV field is missing or non-finite; when any OHLC price is zero or negative; when volume is negative; when `low` exceeds `high`; or when `open` or `close` lies outside the inclusive low-to-high range. Zero volume alone SHALL remain valid.
+The system SHALL exclude provider-specific Continuity Data before domain validation only when the source row has zero volume, a positive retained close, and at least one zero open, high, or low value. It SHALL reject any remaining Daily Bar when an OHLCV field is missing or non-finite; when any OHLC price is zero or negative; when volume is negative; when `low` exceeds `high`; or when `open` or `close` lies outside the inclusive low-to-high range. Zero volume alone SHALL remain valid.
+
+#### Scenario: Historical Continuity Data is excluded
+
+- **WHEN** Open BYMADATA returns a dated row with zero volume, a positive retained close, and one or more zero open, high, or low values
+- **THEN** the provider adapter excludes that row before it can become a Daily Bar
 
 #### Scenario: Invalid price range rejects the update
 
@@ -52,7 +57,7 @@ The system SHALL reject a Daily Bar when any OHLCV field is missing or non-finit
 
 #### Scenario: Zero price rejects the update
 
-- **WHEN** a supplied bar contains zero for any OHLC price after provider-specific no-trade rows have been excluded
+- **WHEN** a supplied row contains zero for any OHLC price but does not match the provider's Continuity Data signature
 - **THEN** the update for that Trading Line fails and its previously stored history remains unchanged
 
 ### Requirement: Stored prices are raw market facts

@@ -102,7 +102,7 @@ Current-market panels were considered for the daily update because they cover ma
 
 The Open BYMADATA adapter owns provider field names, timestamps, and symbols for dated history. It emits normalized candidate bars or explicit adapter failures.
 
-All dated provider rows are passed to domain validation. Suspicious zero-price rows are rejected rather than silently interpreted as Continuity Data, because that behavior has been observed only in undated panels. Zero volume by itself remains legal in the domain, while every OHLC price must be greater than zero. Currency and settlement identity come from the catalog entry rather than being inferred from an individual bar.
+Open BYMADATA has also been observed returning dated Continuity Data for sparse CCL history: zero volume, a positive retained close, and at least one zero open, high, or low value. The adapter excludes only rows matching that provider-specific signature. An all-zero row or a zero-price row with positive volume still reaches domain validation and rejects the line, while structurally valid zero-volume OHLC remains legal. Currency and settlement identity come from the catalog entry rather than being inferred from an individual bar.
 
 Candidate bars then pass through pure reconciliation and full-history validation. Reconciliation uses `sessionDate` as identity, sorts oldest to newest, adds new sessions, leaves identical sessions unchanged, and replaces differing valid sessions as corrections.
 
@@ -170,7 +170,7 @@ effects itself.
 2. Add the Open BYMADATA historical adapter and fixtures for real, sparse, corrected, empty, and malformed responses.
 3. Add the Bun/Railway storage adapter and integration-test `<trading-line-id>/v1/history.json` replacement.
 4. Wire batch reads and updates to Trading Line entries supplied by the instrument catalog.
-5. Backfill a small canary set covering ARS, MEP, CCL, equity, sparse, and inactive lines; inspect stored source information and history density.
+5. Backfill a small canary set covering ARS, MEP, CCL, equity, sparse, and synthetic no-data behavior; inspect stored source information and history density.
 6. Backfill the configured universe in rate-limited batches, then enable dated refresh and staggered reconciliation orchestration.
 
-Because no production Bar History exists yet, no data migration or rollback procedure is required. Before enabling consumers, failed rollout data can be discarded and backfilled again from the provider.
+The canary backfill created the first validated Bar Histories under schema v1. No representation migration is required; before enabling consumers, failed rollout data can still be discarded and backfilled again from the provider.

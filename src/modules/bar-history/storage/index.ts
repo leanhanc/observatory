@@ -1,4 +1,5 @@
 export { createBarHistoryStorage } from './bar-history-storage.ts';
+export { buildBarHistoryStorageKey } from './bar-history-storage-key.ts';
 export type {
 	BarHistoryStorage,
 	BarHistoryStorageConfiguration,

@@ -86,7 +86,16 @@ async function fetchHistory(
 		);
 	}
 
-	return { ok: true, source, bars };
+	const realBars = bars.filter((bar) => !checkIfDailyBarIsContinuityData(bar));
+	return { ok: true, source, bars: realBars };
+}
+
+function checkIfDailyBarIsContinuityData(bar: DailyBar): boolean {
+	const hasNoVolume = bar.volume === 0;
+	const hasRetainedClose = bar.close > 0;
+	const hasMissingRangePrice = bar.open === 0 || bar.high === 0 || bar.low === 0;
+
+	return hasNoVolume && hasRetainedClose && hasMissingRangePrice;
 }
 
 function createHistoryUrl(symbol: string, request: OpenBymadataHistoryRequest): URL {

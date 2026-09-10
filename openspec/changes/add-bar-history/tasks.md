@@ -13,7 +13,7 @@
 
 - [x] 3.1 Implement catalog-resolved mapping for dated historical requests; verify fixtures cover ARS, MEP, CCL, equity, empty, and malformed provider responses.
 - [x] 3.2 Normalize provider timestamps into Buenos Aires session dates and exclude active sessions; verify timezone-boundary and incomplete-session tests.
-- [x] 3.3 Preserve dated provider rows for domain validation; verify suspicious zero-price rows are rejected while structurally valid zero-volume bars remain accepted.
+- [x] 3.3 Exclude Open BYMADATA Continuity Data matching the observed zero-volume, retained-close, and missing-range-price signature; verify all-zero and other zero-price rows are rejected while structurally valid zero-volume bars remain accepted.
 - [x] 3.4 Implement caller-selected initial-backfill, refresh, and reconciliation acquisition modes; verify dated missing-interval requests, sequential two-second historical pacing, and no storage writes.
 
 ## 4. Bun and Railway Storage
@@ -31,7 +31,7 @@
 
 ## 6. Integration and Rollout Verification
 
-- [ ] 6.1 Run a canary backfill against a private Railway Bucket for representative ARS, MEP, CCL, sparse, equity, and inactive lines; verify stored keys, provenance, check progress, ordering, and invalid-row rejection.
+- [x] 6.1 Run a canary backfill against a private Railway Bucket for representative ARS, MEP, CCL, sparse, and equity lines plus the synthetic no-data path; verify stored keys, provenance, check progress, ordering, temporary-object cleanup, and invalid-row rejection.
 - [ ] 6.2 Verify dated historical refresh followed by analysis-facing reads uses completed-session data and explicit freshness, with the scheduled orchestration prevented from overlapping itself.
 - [ ] 6.3 Verify staggered full-window reconciliation catches a known correction, preserves older retained history, and stays within observed provider request limits.
 - [ ] 6.4 Run the project test, type-check, formatting, and strict OpenSpec validation commands; verify all checks pass before enabling the configured-universe backfill.

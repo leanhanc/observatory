@@ -108,9 +108,37 @@ therefore records values such as `AAPL 24HS`.
 ### Continuity Data
 
 The CEDEAR and general-equity panels contained rows with zero open, high, low, and volume while
-`closingPrice` retained a prior value. This confirms that Continuity Data must be excluded before
-domain validation. Historical AAPL, AAPLD, and AAPLC probes did not contain those synthetic rows;
-sessions without trades were absent from the returned arrays.
+`closingPrice` retained a prior value. The full AAPLC backfill later showed the same behavior in the
+dated historical endpoint: 157 of 485 returned rows through 2026-09-08 had zero volume, a positive
+retained close, and at least one zero open, high, or low value. None of those rows had positive
+volume, and no structurally valid zero-volume row was observed. The adapter therefore excludes that
+exact provider signature as Continuity Data. All-zero rows and other invalid dated rows continue to
+fail domain validation.
+
+The pilot also exposed one genuinely inconsistent GGAL row on 2025-01-17: its reported close was
+`7351.911`, below its reported low of `7370.666`, with positive volume. Observatory rejected the
+complete GGAL update rather than repairing or hiding the provider value. YPFD was selected as the
+representative Argentine-equity pilot line instead; its 486 returned bars through 2026-09-08 passed
+the same validation unchanged.
+
+### Railway canary backfill
+
+On 2026-09-09, the local canary command wrote and read back these schema-v1 histories from the
+private Railway Bucket, all checked through 2026-09-08:
+
+| Trading Line      | Real Daily Bars | Stored range                  |
+| ----------------- | --------------: | ----------------------------- |
+| `cedear-aapl-ars` |             486 | 2024-09-09 through 2026-09-08 |
+| `cedear-aapl-mep` |             486 | 2024-09-09 through 2026-09-08 |
+| `cedear-aapl-ccl` |             328 | 2024-11-06 through 2026-09-08 |
+| `equity-ypfd-ars` |             486 | 2024-09-09 through 2026-09-08 |
+
+Every retained object used its canonical `<trading-line-id>/v1/history.json` key, recorded its exact
+Open BYMADATA `24HS` source symbol and raw-price policy, and passed analysis-facing readback. A
+synthetic `no_data` response produced a valid empty history, which was deleted after verification.
+A deliberately invalid zero-price history was rejected before upload, and the live malformed GGAL
+row independently confirmed that one bad provider row rejects the complete Trading Line update.
+The Railway replacement integration test also passed and removed its temporary object afterward.
 
 ## Provider behavior not yet established
 

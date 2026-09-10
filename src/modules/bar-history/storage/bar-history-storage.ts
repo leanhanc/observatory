@@ -1,4 +1,5 @@
 import { validateBarHistory } from '../utils/index.ts';
+import { buildBarHistoryStorageKey } from './bar-history-storage-key.ts';
 
 import type { BarHistory, ValidationIssue } from '../bar-history.types.ts';
 import type {
@@ -139,10 +140,6 @@ function parseStoredHistoryJSON(
 	} catch {
 		return createFailure('invalid-stored-history', 'The stored Bar History is not valid JSON.');
 	}
-}
-
-function buildBarHistoryStorageKey(tradingLineId: string): string {
-	return `${tradingLineId}/v1/history.json`;
 }
 
 function createFailure(

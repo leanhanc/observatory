@@ -10,6 +10,7 @@
 		"format:fix": "oxfmt --write .",
 		"test": "bun test",
 		"test:storage-integration": "bun test src/modules/bar-history/storage/bar-history-storage.integration.test.ts",
+		"canary:bar-history": "bun scripts/bar-history-canary.ts",
 		"observe": "bun scripts/bymadata-observer.ts"
 	},
 	"dependencies": {

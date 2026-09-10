@@ -1,8 +1,9 @@
 # Historical publication observation
 
 Run from the application repository with Bun. This standalone research script writes no Bar
-History and does not advance checked-through progress. Each sample makes four sequential requests:
-market time, then seven days of daily 24HS history for GGAL, YPFD, and AAPL.
+History and does not advance checked-through progress. Each sample makes six sequential requests:
+market time, the CEDEAR and leading-equity panels, then seven days of daily 24HS history for GGAL,
+YPFD, and AAPL.
 
 ```sh
 # One sample (also useful the following morning)
@@ -21,11 +22,12 @@ longer retention. Temporary storage can be cleared by the operating system. Each
 request/response times, selected response headers, and the original response body. The historical
 body contains parallel timestamp and OHLCV arrays. Convert timestamps to Buenos Aires dates.
 
-Compare samples to determine when the target session first appears and when its OHLCV last changes.
-Compare the last evening sample with the morning sample. A bar appearing does not establish
-finality; unchanged samples provide observational evidence, not a provider guarantee. HTTP Date
-and cache headers also do not prove that bar values are final. Record empty responses and errors
-separately from no-trade conclusions.
+Compare panel rows for AAPL, GGAL, and YPFD with the dated historical bars that appear after
+midnight. Determine when each panel row last changes, whether all lines settle together, and whether
+its final OHLCV matches the later historical value. A bar appearing or a market closing does not
+establish finality; unchanged samples provide observational evidence, not a provider guarantee.
+HTTP Date and cache headers also do not prove that bar values are final. Record empty responses and
+errors separately from no-trade conclusions.
 
 Requests are separated by two seconds, time out after 20 seconds, and are never retried
 automatically. Any HTTP or transport failure stops the run after saving the observation. A run is

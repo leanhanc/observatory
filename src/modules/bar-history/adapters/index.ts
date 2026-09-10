@@ -1,16 +1,8 @@
-export {
-	buildOpenBymadataSource,
-	createOpenBymadataAdapter,
-	OPEN_BYMADATA_PANELS,
-} from './open-bymadata';
+export { buildOpenBymadataSource, createOpenBymadataAdapter } from './open-bymadata';
 export type {
 	OpenBymadataAdapter,
 	OpenBymadataFailure,
 	OpenBymadataHistoryRequest,
 	OpenBymadataHistoryResult,
-	OpenBymadataPanel,
-	OpenBymadataPanelLineResult,
-	OpenBymadataPanelRequest,
-	OpenBymadataPanelResult,
 	OpenBymadataTradingLineDescriptor,
 } from './open-bymadata';

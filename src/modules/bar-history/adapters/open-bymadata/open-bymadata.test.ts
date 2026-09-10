@@ -4,96 +4,18 @@ import { createOpenBymadataAdapter } from './open-bymadata.ts';
 
 import type {
 	OpenBymadataFetch,
-	OpenBymadataPanel,
 	OpenBymadataTradingLineDescriptor,
 } from './open-bymadata.types.ts';
 
-const aaplArs = createTradingLine('cedear-aapl-ars', 'AAPL', 'cedears');
-const aaplMep = createTradingLine('cedear-aapl-mep', 'AAPLD', 'cedears');
-const aaplCcl = createTradingLine('cedear-aapl-ccl', 'AAPLC', 'cedears');
+const AAPL = createTradingLine('cedear-aapl-ars', 'AAPL');
 
 describe('Open BYMADATA adapter', () => {
-	test.each(['cedears', 'leading-equity', 'general-equity'] as const)(
-		'excludes placeholders but preserves zero-volume bars in %s',
-		async (panel) => {
-			const rows = [
-				{
-					...createPanelRow('EMPTY'),
-					openingPrice: 0,
-					tradingHighPrice: 0,
-					tradingLowPrice: 0,
-					volume: 0,
-				},
-				{ ...createPanelRow('REAL'), volume: 0 },
-			];
-			const payload =
-				panel === 'cedears'
-					? rows
-					: {
-							content: {
-								page_number: 1,
-								page_count: 1,
-								page_size: 5000,
-								total_elements_count: 2,
-							},
-							data: rows,
-						};
-			const adapter = createOpenBymadataAdapter(createFixtureFetch(payload));
-			const result = await adapter.fetchPanel({
-				tradingLines: [
-					createTradingLine('empty', 'EMPTY', panel),
-					createTradingLine('real', 'REAL', panel),
-				],
-				requestedThroughSession: '2026-09-03',
-			});
-			expect(result).toMatchObject({
-				ok: true,
-				lines: [
-					{ status: 'excluded', reason: 'no-trade-placeholder', tradingLineId: 'empty' },
-					{ status: 'found', tradingLineId: 'real', bar: { open: 100, volume: 0 } },
-				],
-			});
-			if (result.ok) expect(result.lines[0]).not.toHaveProperty('bar');
-		},
-	);
-
-	test('filters only the exact historical placeholder shape', async () => {
-		const adapter = createOpenBymadataAdapter(
-			createFixtureFetch({
-				s: 'ok',
-				t: [1, 2, 3, 4, 5, 6, 7].map((day) => toEpochSeconds(`2026-09-0${day}T03:00:00Z`)),
-				o: [0, 100, 1, 0, 0, 0, 0],
-				h: [0, 103, 0, 1, 0, 0, 0],
-				l: [0, 99, 0, 0, 1, 0, 0],
-				c: [102, 102, 102, 102, 102, 102, -1],
-				v: [0, 0, 0, 0, 0, 1, 0],
-			}),
-		);
-		const result = await adapter.fetchHistory({
-			tradingLine: aaplArs,
-			fromEpochSeconds: 0,
-			toEpochSeconds: 2_000_000_000,
-			requestedThroughSession: '2026-09-07',
-		});
-		expect(result.ok).toBe(true);
-		if (!result.ok) return;
-		expect(result.bars.map((bar) => bar.sessionDate)).toEqual([
-			'2026-09-02',
-			'2026-09-03',
-			'2026-09-04',
-			'2026-09-05',
-			'2026-09-06',
-			'2026-09-07',
-		]);
-		expect(result.bars[0]).toMatchObject({ open: 100, volume: 0 });
-	});
-
 	test('builds a daily 24HS request and normalizes parallel history series', async () => {
 		const fixture = await readFixture('history.json');
 		const requests: Request[] = [];
 		const adapter = createOpenBymadataAdapter(createFixtureFetch(fixture, requests));
 		const result = await adapter.fetchHistory({
-			tradingLine: aaplArs,
+			tradingLine: AAPL,
 			fromEpochSeconds: 1_788_231_600,
 			toEpochSeconds: 1_788_404_400,
 			requestedThroughSession: '2026-09-03',
@@ -135,97 +57,45 @@ describe('Open BYMADATA adapter', () => {
 		});
 	});
 
-	test('matches ARS, MEP, and CCL lines from one CEDEAR panel request', async () => {
-		const fixture = await readFixture('cedears-panel.json');
-		const requests: Request[] = [];
-		const adapter = createOpenBymadataAdapter(createFixtureFetch(fixture, requests));
-		const result = await adapter.fetchPanel({
-			tradingLines: [aaplArs, aaplMep, aaplCcl],
-			requestedThroughSession: '2026-09-03',
-		});
-
-		expect(requests).toHaveLength(1);
-		expect(await requests[0]?.json()).toEqual({
-			excludeZeroPxAndQty: false,
-			T1: true,
-			T0: false,
-			page_size: 5_000,
-		});
-		expect(result.ok).toBe(true);
-		if (!result.ok) return;
-
-		expect(result.lines.map((line) => [line.tradingLineId, line.status])).toEqual([
-			['cedear-aapl-ars', 'found'],
-			['cedear-aapl-mep', 'found'],
-			['cedear-aapl-ccl', 'found'],
-		]);
-		expect(result.lines[0]).toMatchObject({
-			status: 'found',
-			bar: {
-				sessionDate: '2026-09-03',
-				open: 25_960,
-				high: 26_200,
-				low: 25_240,
-				close: 25_380,
-				volume: 134_573,
-			},
-		});
-	});
-
-	test('reads both wrapped equity panels', async () => {
-		const leadingFixture = await readFixture('leading-equity-panel.json');
-		const generalFixture = await readFixture('general-equity-panel.json');
+	test('preserves suspicious dated rows for domain validation', async () => {
 		const adapter = createOpenBymadataAdapter(
-			createPanelFixtureFetch({
-				'leading-equity': leadingFixture,
-				'general-equity': generalFixture,
+			createFixtureFetch({
+				s: 'ok',
+				t: [1, 2, 3, 4, 5, 6, 7].map((day) => toEpochSeconds(`2026-09-0${day}T03:00:00Z`)),
+				o: [0, 100, 1, 0, 0, 0, 0],
+				h: [0, 103, 0, 1, 0, 0, 0],
+				l: [0, 99, 0, 0, 1, 0, 0],
+				c: [102, 102, 102, 102, 102, 102, -1],
+				v: [0, 0, 0, 0, 0, 1, 0],
 			}),
 		);
-
-		const leadingResult = await adapter.fetchPanel({
-			tradingLines: [createTradingLine('equity-ggal-ars', 'GGAL', 'leading-equity')],
-			requestedThroughSession: '2026-09-03',
-		});
-		const generalResult = await adapter.fetchPanel({
-			tradingLines: [createTradingLine('equity-a3-ars', 'A3', 'general-equity')],
-			requestedThroughSession: '2026-09-03',
+		const result = await adapter.fetchHistory({
+			tradingLine: AAPL,
+			fromEpochSeconds: 0,
+			toEpochSeconds: 2_000_000_000,
+			requestedThroughSession: '2026-09-07',
 		});
 
-		expect(leadingResult).toMatchObject({
-			ok: true,
-			lines: [{ status: 'found', tradingLineId: 'equity-ggal-ars' }],
-		});
-		expect(generalResult).toMatchObject({
-			ok: true,
-			lines: [{ status: 'found', tradingLineId: 'equity-a3-ars' }],
-		});
-	});
-
-	test('reports a requested line missing from an otherwise valid panel', async () => {
-		const fixture = await readFixture('cedears-panel.json');
-		const adapter = createOpenBymadataAdapter(createFixtureFetch(fixture));
-		const result = await adapter.fetchPanel({
-			tradingLines: [createTradingLine('cedear-missing-ars', 'MISSING', 'cedears')],
-			requestedThroughSession: '2026-09-03',
-		});
-
-		expect(result).toEqual({
-			ok: true,
-			lines: [
-				{
-					status: 'missing',
-					tradingLineId: 'cedear-missing-ars',
-					source: { provider: 'open-bymadata', symbol: 'MISSING 24HS' },
-				},
-			],
-		});
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.bars.map((bar) => bar.sessionDate)).toEqual([
+			'2026-09-01',
+			'2026-09-02',
+			'2026-09-03',
+			'2026-09-04',
+			'2026-09-05',
+			'2026-09-06',
+			'2026-09-07',
+		]);
+		expect(result.bars[0]).toMatchObject({ open: 0, close: 102, volume: 0 });
+		expect(result.bars[1]).toMatchObject({ open: 100, volume: 0 });
 	});
 
 	test('treats a successful no-data history as an empty series', async () => {
 		const fixture = await readFixture('history-no-data.json');
 		const adapter = createOpenBymadataAdapter(createFixtureFetch(fixture));
 		const result = await adapter.fetchHistory({
-			tradingLine: createTradingLine('cedear-inactive-ars', 'INACTIVE', 'cedears'),
+			tradingLine: createTradingLine('cedear-inactive-ars', 'INACTIVE'),
 			fromEpochSeconds: 1,
 			toEpochSeconds: 2,
 			requestedThroughSession: '2026-09-03',
@@ -238,23 +108,24 @@ describe('Open BYMADATA adapter', () => {
 		});
 	});
 
-	test('uses the Buenos Aires date and excludes sessions beyond completed progress', async () => {
+	test('uses the Buenos Aires date and excludes sessions beyond requested progress', async () => {
 		const boundaryTimestamp = toEpochSeconds('2026-09-04T02:30:00Z');
-		const incompleteSessionTimestamp = toEpochSeconds('2026-09-04T03:00:00Z');
-		const fixture = {
-			s: 'ok',
-			t: [boundaryTimestamp, incompleteSessionTimestamp],
-			o: [100, 100],
-			h: [103, 103],
-			l: [99, 99],
-			c: [102, 102],
-			v: [1_000, 1_000],
-		};
-		const adapter = createOpenBymadataAdapter(createFixtureFetch(fixture));
+		const laterSessionTimestamp = toEpochSeconds('2026-09-04T03:00:00Z');
+		const adapter = createOpenBymadataAdapter(
+			createFixtureFetch({
+				s: 'ok',
+				t: [boundaryTimestamp, laterSessionTimestamp],
+				o: [100, 100],
+				h: [103, 103],
+				l: [99, 99],
+				c: [102, 102],
+				v: [1_000, 1_000],
+			}),
+		);
 		const result = await adapter.fetchHistory({
-			tradingLine: aaplArs,
+			tradingLine: AAPL,
 			fromEpochSeconds: boundaryTimestamp,
-			toEpochSeconds: incompleteSessionTimestamp,
+			toEpochSeconds: laterSessionTimestamp,
 			requestedThroughSession: '2026-09-03',
 		});
 
@@ -264,79 +135,13 @@ describe('Open BYMADATA adapter', () => {
 		});
 	});
 
-	test('rejects trading lines from different panels before requesting data', async () => {
-		const fixture = await readFixture('cedears-panel.json');
-		const requests: Request[] = [];
-		const adapter = createOpenBymadataAdapter(createFixtureFetch(fixture, requests));
-		const result = await adapter.fetchPanel({
-			tradingLines: [aaplArs, createTradingLine('equity-ggal-ars', 'GGAL', 'leading-equity')],
-			requestedThroughSession: '2026-09-04',
-		});
-
-		expect(requests).toHaveLength(0);
-		expect(result).toMatchObject({ ok: false, reason: 'invalid-request' });
-	});
-
-	test('rejects malformed and incomplete provider responses', async () => {
-		const malformedFixture = await readFixture('history-malformed.json');
-		const malformedAdapter = createOpenBymadataAdapter(createFixtureFetch(malformedFixture));
-		const incompleteAdapter = createOpenBymadataAdapter(
-			createFixtureFetch({
-				content: {
-					page_number: 1,
-					page_count: 1,
-					page_size: 5_000,
-					total_elements_count: 2,
-				},
-				data: [createPanelRow('A3')],
-			}),
-		);
-
-		const malformedResult = await malformedAdapter.fetchHistory({
-			tradingLine: aaplArs,
+	test('rejects malformed history responses', async () => {
+		const fixture = await readFixture('history-malformed.json');
+		const adapter = createOpenBymadataAdapter(createFixtureFetch(fixture));
+		const result = await adapter.fetchHistory({
+			tradingLine: AAPL,
 			fromEpochSeconds: 1,
 			toEpochSeconds: 2,
-			requestedThroughSession: '2026-09-03',
-		});
-		const incompleteResult = await incompleteAdapter.fetchPanel({
-			tradingLines: [createTradingLine('equity-a3-ars', 'A3', 'general-equity')],
-			requestedThroughSession: '2026-09-03',
-		});
-
-		expect(malformedResult).toMatchObject({ ok: false, reason: 'invalid-response' });
-		expect(incompleteResult).toMatchObject({ ok: false, reason: 'incomplete-response' });
-	});
-
-	test('rejects duplicate catalog symbols before requesting data', async () => {
-		const requests: Request[] = [];
-		const adapter = createOpenBymadataAdapter(createFixtureFetch([], requests));
-		const result = await adapter.fetchPanel({
-			tradingLines: [aaplArs, createTradingLine('another-aapl-line', 'AAPL', 'cedears')],
-			requestedThroughSession: '2026-09-03',
-		});
-
-		expect(requests).toHaveLength(0);
-		expect(result).toMatchObject({ ok: false, reason: 'invalid-request' });
-	});
-
-	test('rejects duplicate Trading Line IDs before requesting data', async () => {
-		const requests: Request[] = [];
-		const adapter = createOpenBymadataAdapter(createFixtureFetch([], requests));
-		const result = await adapter.fetchPanel({
-			tradingLines: [aaplArs, createTradingLine('cedear-aapl-ars', 'AAPLD', 'cedears')],
-			requestedThroughSession: '2026-09-03',
-		});
-
-		expect(requests).toHaveLength(0);
-		expect(result).toMatchObject({ ok: false, reason: 'invalid-request' });
-	});
-
-	test('rejects duplicate provider symbols instead of selecting by row order', async () => {
-		const adapter = createOpenBymadataAdapter(
-			createFixtureFetch([createPanelRow('AAPL'), createPanelRow('AAPL', 99_999)]),
-		);
-		const result = await adapter.fetchPanel({
-			tradingLines: [aaplArs],
 			requestedThroughSession: '2026-09-03',
 		});
 
@@ -347,40 +152,14 @@ describe('Open BYMADATA adapter', () => {
 function createTradingLine(
 	tradingLineId: string,
 	symbol: string,
-	panel: OpenBymadataPanel,
 ): OpenBymadataTradingLineDescriptor {
-	return { tradingLineId, symbol, panel };
+	return { tradingLineId, symbol };
 }
 
 function createFixtureFetch(value: unknown, requests: Request[] = []): OpenBymadataFetch {
 	return (input, init) => {
-		requests.push(createRequest(input, init));
+		requests.push(input instanceof Request ? input : new Request(input.toString(), init));
 		return Promise.resolve(Response.json(value));
-	};
-}
-
-function createPanelFixtureFetch(
-	fixtures: Partial<Record<OpenBymadataPanel, unknown>>,
-): OpenBymadataFetch {
-	return (input, init) => {
-		const request = createRequest(input, init);
-		const panel = request.url.endsWith('/leading-equity') ? 'leading-equity' : 'general-equity';
-		return Promise.resolve(Response.json(fixtures[panel]));
-	};
-}
-
-function createRequest(input: string | URL | Request, init?: RequestInit): Request {
-	return input instanceof Request ? input : new Request(input.toString(), init);
-}
-
-function createPanelRow(symbol: string, closingPrice = 102): Record<string, number | string> {
-	return {
-		symbol,
-		openingPrice: 100,
-		tradingHighPrice: 103,
-		tradingLowPrice: 99,
-		closingPrice,
-		volume: 1_000,
 	};
 }
 

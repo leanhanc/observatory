@@ -7,8 +7,6 @@ import type {
 	OpenBymadataFailure,
 	OpenBymadataHistoryRequest,
 	OpenBymadataHistoryResult,
-	OpenBymadataPanelRequest,
-	OpenBymadataPanelResult,
 	OpenBymadataTradingLineDescriptor,
 } from '../adapters/index.ts';
 import type { BarHistory, BarHistorySource } from '../bar-history.types.ts';
@@ -17,9 +15,9 @@ import type {
 	BarHistoryAcquisitionRequest,
 } from './bar-history-acquirer.types.ts';
 
-const AAPL = createTradingLine('cedear-aapl-ars', 'AAPL', 'cedears');
-const MSFT = createTradingLine('cedear-msft-ars', 'MSFT', 'cedears');
-const GGAL = createTradingLine('equity-ggal-ars', 'GGAL', 'leading-equity');
+const AAPL = createTradingLine('cedear-aapl-ars', 'AAPL');
+const MSFT = createTradingLine('cedear-msft-ars', 'MSFT');
+const GGAL = createTradingLine('equity-ggal-ars', 'GGAL');
 const REQUESTED_THROUGH_SESSION = '2026-09-07';
 
 describe('createOpenBymadataBarHistoryAcquirer', () => {
@@ -52,13 +50,13 @@ describe('createOpenBymadataBarHistoryAcquirer', () => {
 		});
 	});
 
-	test('catches up from the calendar day after each line check progress', async () => {
+	test('refreshes from the calendar day after each line check progress', async () => {
 		const adapter = createFakeAdapter();
 		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
 
 		await acquirer.acquire({
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
-			lines: [createLine(AAPL, createHistory(AAPL, '2026-09-04'), 'catch-up')],
+			lines: [createLine(AAPL, createHistory(AAPL, '2026-09-04'), 'refresh')],
 		});
 
 		expect(adapter.historyRequests[0]).toMatchObject({
@@ -130,32 +128,23 @@ describe('createOpenBymadataBarHistoryAcquirer', () => {
 		});
 	});
 
-	test('shares each ordinary refresh panel and preserves requested line order', async () => {
-		const adapter = createFakeAdapter({
-			fetchPanel: async (request) => ({
-				ok: true,
-				lines: request.tradingLines.map((tradingLine) => ({
-					status: 'found' as const,
-					tradingLineId: tradingLine.tradingLineId,
-					source: createSource(tradingLine),
-					bar: createDailyBar(REQUESTED_THROUGH_SESSION),
-				})),
-			}),
-		});
+	test('uses dated historical data for every refresh line', async () => {
+		const adapter = createFakeAdapter();
 		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
 
 		const result = await acquirer.acquire({
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			lines: [
-				createLine(GGAL, createHistory(GGAL, '2026-09-04'), 'ordinary-refresh'),
-				createLine(AAPL, createHistory(AAPL, '2026-09-04'), 'ordinary-refresh'),
-				createLine(MSFT, createHistory(MSFT, '2026-09-04'), 'ordinary-refresh'),
+				createLine(GGAL, createHistory(GGAL, '2026-09-04'), 'refresh'),
+				createLine(AAPL, createHistory(AAPL, '2026-09-04'), 'refresh'),
+				createLine(MSFT, createHistory(MSFT, '2026-09-04'), 'refresh'),
 			],
 		});
 
-		expect(adapter.panelRequests).toEqual([
-			{ tradingLines: [GGAL], requestedThroughSession: REQUESTED_THROUGH_SESSION },
-			{ tradingLines: [AAPL, MSFT], requestedThroughSession: REQUESTED_THROUGH_SESSION },
+		expect(adapter.historyRequests.map((request) => request.tradingLine)).toEqual([
+			GGAL,
+			AAPL,
+			MSFT,
 		]);
 		expect(result).toMatchObject({
 			ok: true,
@@ -216,55 +205,13 @@ describe('createOpenBymadataBarHistoryAcquirer', () => {
 		});
 	});
 
-	test('treats a carried-close panel row as an empty candidate and a missing symbol as a failure', async () => {
-		const adapter = createFakeAdapter({
-			fetchPanel: async () => ({
-				ok: true,
-				lines: [
-					{
-						status: 'excluded',
-						reason: 'no-trade-placeholder',
-						tradingLineId: AAPL.tradingLineId,
-						source: createSource(AAPL),
-					},
-					{
-						status: 'missing',
-						tradingLineId: MSFT.tradingLineId,
-						source: createSource(MSFT),
-					},
-				],
-			}),
-		});
-		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
-
-		const result = await acquirer.acquire({
-			requestedThroughSession: REQUESTED_THROUGH_SESSION,
-			lines: [
-				createLine(AAPL, createHistory(AAPL, '2026-09-04'), 'ordinary-refresh'),
-				createLine(MSFT, createHistory(MSFT, '2026-09-04'), 'ordinary-refresh'),
-			],
-		});
-
-		expect(result).toMatchObject({
-			ok: true,
-			lines: [
-				{ status: 'available', tradingLineId: AAPL.tradingLineId, bars: [] },
-				{
-					status: 'failed',
-					tradingLineId: MSFT.tradingLineId,
-					reason: 'missing-provider-line',
-				},
-			],
-		});
-	});
-
 	test('returns not-required without fetching an already covered line', async () => {
 		const adapter = createFakeAdapter();
 		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
 
 		const result = await acquirer.acquire({
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
-			lines: [createLine(AAPL, createHistory(AAPL, REQUESTED_THROUGH_SESSION), 'catch-up')],
+			lines: [createLine(AAPL, createHistory(AAPL, REQUESTED_THROUGH_SESSION), 'refresh')],
 		});
 
 		expect(result).toEqual({
@@ -272,7 +219,27 @@ describe('createOpenBymadataBarHistoryAcquirer', () => {
 			lines: [{ status: 'not-required', tradingLineId: AAPL.tradingLineId }],
 		});
 		expect(adapter.historyRequests).toEqual([]);
-		expect(adapter.panelRequests).toEqual([]);
+	});
+
+	test('leaves an empty refresh pending so delayed history can be retried', async () => {
+		const adapter = createFakeAdapter({
+			fetchHistory: async (request) => ({
+				ok: true,
+				source: createSource(request.tradingLine),
+				bars: [],
+			}),
+		});
+		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
+
+		const result = await acquirer.acquire({
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
+			lines: [createLine(AAPL, createHistory(AAPL, '2026-09-06'), 'refresh')],
+		});
+
+		expect(result).toEqual({
+			ok: true,
+			lines: [{ status: 'not-required', tradingLineId: AAPL.tradingLineId }],
+		});
 	});
 
 	test('rejects invalid requests before calling the provider', async () => {
@@ -281,9 +248,9 @@ describe('createOpenBymadataBarHistoryAcquirer', () => {
 		const invalidRequest = {
 			requestedThroughSession: '2026-02-30',
 			lines: [
-				createLine(AAPL, createHistory(AAPL, '2026-09-04'), 'ordinary-refresh'),
+				createLine(AAPL, createHistory(AAPL, '2026-09-04'), 'refresh'),
 				createLine(AAPL, null, 'initial-backfill'),
-				createLine(GGAL, createHistory(AAPL, '2026-09-04'), 'catch-up'),
+				createLine(GGAL, createHistory(AAPL, '2026-09-04'), 'refresh'),
 			],
 		} as unknown as BarHistoryAcquisitionRequest;
 
@@ -299,7 +266,6 @@ describe('createOpenBymadataBarHistoryAcquirer', () => {
 			],
 		});
 		expect(adapter.historyRequests).toEqual([]);
-		expect(adapter.panelRequests).toEqual([]);
 	});
 
 	test('rejects source drift and regressing check progress before calling the provider', async () => {
@@ -312,11 +278,11 @@ describe('createOpenBymadataBarHistoryAcquirer', () => {
 
 		const sourceDriftResult = await acquirer.acquire({
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
-			lines: [createLine(AAPL, historyWithSourceDrift, 'ordinary-refresh')],
+			lines: [createLine(AAPL, historyWithSourceDrift, 'refresh')],
 		});
 		const regressingCheckProgressResult = await acquirer.acquire({
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
-			lines: [createLine(GGAL, createHistory(GGAL, '2026-09-08'), 'catch-up')],
+			lines: [createLine(GGAL, createHistory(GGAL, '2026-09-08'), 'refresh')],
 		});
 
 		expect(sourceDriftResult).toMatchObject({
@@ -330,7 +296,6 @@ describe('createOpenBymadataBarHistoryAcquirer', () => {
 			issues: [{ path: 'requestedThroughSession' }],
 		});
 		expect(adapter.historyRequests).toEqual([]);
-		expect(adapter.panelRequests).toEqual([]);
 	});
 });
 
@@ -345,9 +310,8 @@ function createLine(
 function createTradingLine(
 	tradingLineId: string,
 	symbol: string,
-	panel: OpenBymadataTradingLineDescriptor['panel'],
 ): OpenBymadataTradingLineDescriptor {
-	return { tradingLineId, symbol, panel };
+	return { tradingLineId, symbol };
 }
 
 function createHistory(
@@ -400,33 +364,21 @@ function createProviderFailure(
 
 type FakeAdapterOptions = Readonly<{
 	fetchHistory?: (request: OpenBymadataHistoryRequest) => Promise<OpenBymadataHistoryResult>;
-	fetchPanel?: (request: OpenBymadataPanelRequest) => Promise<OpenBymadataPanelResult>;
 	pause?: (milliseconds: number) => Promise<void>;
 }>;
 
 function createFakeAdapter(options: FakeAdapterOptions = {}) {
 	const historyRequests: OpenBymadataHistoryRequest[] = [];
-	const panelRequests: OpenBymadataPanelRequest[] = [];
 	const adapter: OpenBymadataAdapter = {
 		fetchHistory: async (request) => {
 			historyRequests.push(request);
 			return options.fetchHistory?.(request) ?? createHistoryResult(request.tradingLine);
-		},
-		fetchPanel: async (request) => {
-			panelRequests.push(request);
-			return (
-				(await options.fetchPanel?.(request)) ?? {
-					ok: true,
-					lines: [],
-				}
-			);
 		},
 	};
 
 	return {
 		adapter,
 		historyRequests,
-		panelRequests,
 		pause: options.pause ?? (() => Promise.resolve()),
 	};
 }

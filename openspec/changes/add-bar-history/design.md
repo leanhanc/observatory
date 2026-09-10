@@ -2,7 +2,7 @@
 
 See [proposal.md](./proposal.md) for motivation and [the Bar History specification](./specs/bar-history/spec.md) for behavior. Observatory currently has no production market-data persistence, so this capability establishes its initial market-data contract from the accompanying specification and current domain model.
 
-Open BYMADATA exposes separate BYMA trading lines, approximately two years of daily history, batched current-market panels, and source-specific carried-close rows. The application will run on Bun and Railway within a small hobby budget. Railway Buckets expose private S3-compatible object storage but do not provide object versioning, lifecycle rules, or automatic backups.
+Open BYMADATA exposes separate BYMA trading lines and approximately two years of dated daily history. It also exposes current-market panels, but their rows do not identify the Trading Session they represent. The application will run on Bun and Railway within a small hobby budget. Railway Buckets expose private S3-compatible object storage but do not provide object versioning, lifecycle rules, or automatic backups.
 
 ## Goals / Non-Goals
 
@@ -10,7 +10,7 @@ Open BYMADATA exposes separate BYMA trading lines, approximately two years of da
 
 - Present one small provider-independent Bar History interface to analysis and orchestration code.
 - Keep normalization, validation, and reconciliation deterministic and testable without Railway or network access.
-- Minimize provider requests by sharing batched panel responses across Trading Lines.
+- Keep authoritative history separate from undated current-market observations.
 - Persist complete histories in a simple format that is inspectable and replaceable.
 - Make missing, stale, invalid, or partially updated histories visible to consumers.
 
@@ -18,7 +18,7 @@ Open BYMADATA exposes separate BYMA trading lines, approximately two years of da
 
 - Instrument-catalog management or automatic discovery of BYMA species.
 - Corporate-action ingestion, split/dividend adjustment, or total-return series.
-- Scheduling, market-calendar policy, analysis, snapshot generation, SSR, or browser data access.
+- Scheduling, market-calendar policy, provisional-session analysis, snapshot generation, SSR, or browser data access.
 - Intraday bars, quotes, charts, or redistribution endpoints for raw market data.
 - Historical object revisions, rollback, or a transactionally consistent snapshot across the entire universe.
 
@@ -71,16 +71,20 @@ The initial ID convention is catalog-owned, readable lowercase kebab-case, for e
 
 Alternative considered: one file per bar or separate metadata and bars files. Rejected because it creates more reads and consistency edges without helping histories of this size.
 
-### 3. Incremental refresh and reconciliation are distinct acquisition modes
+### 3. Bar History has three dated acquisition modes
 
 The scheduled caller provides an explicit `requestedThroughSession` that it has determined is completed. Bar History does not guess the latest completed session from wall-clock time.
 
 - **Initial backfill:** request all daily history currently available for each Trading Line.
-- **Ordinary refresh:** fetch the newest completed session from BYMA's batched CEDEAR, leading-equity, and general-equity panels when the stored line is already caught up to the preceding session. Because panel rows have no date, the adapter assigns the one supplied `requestedThroughSession`; it does not accept a second date that could contradict it.
-- **Catch-up:** when more than the ordinary refresh interval is missing, request the missing historical interval for that Trading Line before advancing progress.
+- **Refresh:** request every dated historical row after `checkedThroughSession` through `requestedThroughSession`, whether one session or several may be missing.
 - **Reconciliation:** request the provider's complete currently available historical window, intended to run staggered approximately monthly.
 
-Grouping ordinary refreshes by provider panel avoids one request per Trading Line. Initial backfill, catch-up, and reconciliation may require per-line historical requests and therefore must respect provider limits in their orchestration.
+All three modes use the dated historical endpoint and therefore require one request per Trading Line. Requests must respect provider limits in their orchestration.
+
+The scheduled workflow must not treat market close as proof that the dated endpoint has published
+that session. Authoritative refresh runs after the provider's dated publication checkpoint;
+same-evening analysis may instead compose confirmed Bar History with a separate Provisional Bar.
+Bar History cannot distinguish a publication delay from a legitimate session with no real bar.
 
 Initial backfill and full reconciliation request historical data from the explicit lower bound
 `2000-01-01`; the provider's available history remains the effective limit. Historical requests run
@@ -92,17 +96,15 @@ the requested lower bound. This preserves stored bars older than the provider's 
 history. When a successful response contains no real bars, the requested range remains the
 authoritative window so the shrinkage guard can reject the response when stored real bars exist.
 
-Alternative considered: use the historical endpoint for every line every day. Rejected because reducing the requested date range does not reduce request count, while the panels provide the newest market rows in a small number of batch calls.
+Current-market panels were considered for the daily update because they cover many Trading Lines in a few requests. They are not accepted into Bar History because their rows do not carry a session date; assigning one would turn a caller assumption into a permanent market fact. A future analysis-input capability may use those rows as explicitly provisional data without storing them as Daily Bars.
 
 ### 4. Provider transformation happens before domain validation
 
-The Open BYMADATA adapter owns provider field names, timestamps, panel categories, symbols, and carried-close detection. It emits normalized candidate bars or explicit adapter failures.
+The Open BYMADATA adapter owns provider field names, timestamps, and symbols for dated history. It emits normalized candidate bars or explicit adapter failures.
 
-Rows with `open = high = low = volume = 0` and a carried close are omitted before Daily Bar validation. This rule is provider-specific; zero volume by itself remains legal in the domain, while every OHLC price must be greater than zero. Currency and settlement identity come from the catalog entry rather than being inferred from an individual bar.
+All dated provider rows are passed to domain validation. Suspicious zero-price rows are rejected rather than silently interpreted as Continuity Data, because that behavior has been observed only in undated panels. Zero volume by itself remains legal in the domain, while every OHLC price must be greater than zero. Currency and settlement identity come from the catalog entry rather than being inferred from an individual bar.
 
 Candidate bars then pass through pure reconciliation and full-history validation. Reconciliation uses `sessionDate` as identity, sorts oldest to newest, adds new sessions, leaves identical sessions unchanged, and replaces differing valid sessions as corrections.
-
-Alternative considered: preserve carried-close rows as flat bars. Rejected because they manufacture sessions and distort gap, volatility, liquidity, and structure analysis.
 
 ### 5. One mutable JSON object is stored per Trading Line and schema version
 
@@ -132,15 +134,15 @@ Alternative considered: conditional writes and a universe manifest. Deferred unt
 
 ### 7. Per-line results preserve partial progress
 
-Fetches may be shared, but reconciliation and persistence commit independently per Trading Line. Results preserve every requested identifier and use stable status/failure unions instead of exceptions for expected per-line outcomes.
+Provider requests are coordinated as one batch, but reconciliation and persistence commit independently per Trading Line. Results preserve every requested identifier and use stable status/failure unions instead of exceptions for expected per-line outcomes.
 
 The complete update request is validated before any storage or provider access, and duplicate
 Trading Line identifiers are rejected. Storage reads and independent writes may run concurrently.
 A missing object is expected only for initial backfill; disagreement between the requested mode and
 stored state fails that line without hiding eligible lines. A requested session older than an
 existing history's check progress also fails that line rather than being mistaken for an ordinary
-no-op. Lines eligible for acquisition are sent through one internal batch so panel requests remain
-shared.
+no-op. Lines eligible for acquisition are sent through one internal batch so historical requests
+remain sequentially paced.
 
 Provider-wide or storage-wide failures may produce failures for multiple lines, but successful lines are not rolled back. Unexpected programming errors may still reject the outer operation.
 
@@ -156,17 +158,19 @@ effects itself.
 - **[A second writer could silently replace newer state]** → Enforce one non-overlapping writer per Trading Line; add conditional replacement only after Railway and a suitable client are verified end to end.
 - **[A batch read can span an update and contain lines from different moments]** → Sequence scheduled update before analysis and require consumers to inspect per-line freshness.
 - **[Provider payload or semantics may change]** → Isolate source mapping in the adapter, reject malformed or suspiciously shrinking responses, and preserve explicit source information.
-- **[Anonymous endpoint limits are undocumented]** → Use batched panels for daily refresh, stagger historical reconciliation, and report provider throttling explicitly.
+- **[Dated history may lag behind market close]** → Run authoritative refresh after the observed publication checkpoint and keep same-evening panel data provisional.
+- **[An empty refresh cannot distinguish no trade from delayed publication]** → Keep check progress unchanged and retry the interval until a dated bar is returned.
+- **[Anonymous endpoint limits are undocumented]** → Pace historical requests, stagger work across Trading Lines, and report provider throttling explicitly.
 - **[Whole-value JSON eventually becomes large]** → Measure actual object sizes and memory before introducing streaming or another storage model.
 - **[Sparse CCL histories may be unsuitable for some indicators]** → Preserve real observations and expose freshness; analysis decides whether sample density is sufficient.
 
 ## Migration Plan
 
 1. Introduce schema-v1 domain types, pure validation/reconciliation, and behavior tests.
-2. Add the Open BYMADATA adapter and fixtures for real, carried-close, sparse, corrected, empty, and malformed responses.
+2. Add the Open BYMADATA historical adapter and fixtures for real, sparse, corrected, empty, and malformed responses.
 3. Add the Bun/Railway storage adapter and integration-test `<trading-line-id>/v1/history.json` replacement.
 4. Wire batch reads and updates to Trading Line entries supplied by the instrument catalog.
 5. Backfill a small canary set covering ARS, MEP, CCL, equity, sparse, and inactive lines; inspect stored source information and history density.
-6. Backfill the configured universe in rate-limited batches, then enable ordinary refresh and staggered reconciliation orchestration.
+6. Backfill the configured universe in rate-limited batches, then enable dated refresh and staggered reconciliation orchestration.
 
 Because no production Bar History exists yet, no data migration or rollback procedure is required. Before enabling consumers, failed rollout data can be discarded and backfilled again from the provider.

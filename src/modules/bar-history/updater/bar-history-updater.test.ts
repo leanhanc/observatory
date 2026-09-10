@@ -3,24 +3,27 @@ import { describe, expect, test } from 'bun:test';
 import { createBarHistoryUpdater } from './bar-history-updater.ts';
 
 import type { Logger } from '#modules/logger/index.ts';
-import type { OpenBymadataPanel } from '../adapters/index.ts';
 import type { BarHistory, DailyBar } from '../bar-history.types.ts';
 import type {
 	BarHistoryStorage,
 	BarHistoryStorageFailure,
 	BarHistoryStorageReadResult,
 } from '../storage/index.ts';
-import type { BarHistoryUpdateLogger, UpdateBarHistoryLine } from './bar-history-updater.types.ts';
+import type {
+	BarHistoryUpdateLogger,
+	UpdateBarHistoriesRequest,
+	UpdateBarHistoryLine,
+} from './bar-history-updater.types.ts';
 
-const AAPL = createTradingLine('cedear-aapl-ars', 'AAPL', 'cedears');
-const MSFT = createTradingLine('cedear-msft-ars', 'MSFT', 'cedears');
-const NVDA = createTradingLine('cedear-nvda-ars', 'NVDA', 'cedears');
-const GGAL = createTradingLine('equity-ggal-ars', 'GGAL', 'leading-equity');
+const AAPL = createTradingLine('cedear-aapl-ars', 'AAPL');
+const MSFT = createTradingLine('cedear-msft-ars', 'MSFT');
+const NVDA = createTradingLine('cedear-nvda-ars', 'NVDA');
+const GGAL = createTradingLine('equity-ggal-ars', 'GGAL');
 const REQUESTED_THROUGH_SESSION = '2026-09-07';
 const CHECKED_AT = '2026-09-07T21:10:00Z';
 
 describe('createBarHistoryUpdater', () => {
-	test('updates a mixed batch in request order while sharing panel fetches', async () => {
+	test('updates a mixed batch in request order from dated history', async () => {
 		const storage = createFakeStorage({
 			[MSFT.tradingLineId]: createHistory(MSFT, '2026-09-06'),
 			[NVDA.tradingLineId]: createHistory(NVDA, '2026-09-06'),
@@ -28,9 +31,9 @@ describe('createBarHistoryUpdater', () => {
 			'cedear-amzn-ars': createStorageFailure('unreadable', 'The bucket is unavailable.'),
 		});
 		const provider = createFakeProvider({
-			histories: { 'AAPL 24HS': [createBar(REQUESTED_THROUGH_SESSION)] },
-			panels: {
-				cedears: [createPanelRow('MSFT', { close: 104, high: 105 })],
+			histories: {
+				'AAPL 24HS': [createBar(REQUESTED_THROUGH_SESSION)],
+				'MSFT 24HS': [createBar(REQUESTED_THROUGH_SESSION, { close: 104, high: 105 })],
 			},
 		});
 		const logger = createFakeLogger();
@@ -40,13 +43,10 @@ describe('createBarHistoryUpdater', () => {
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			lines: [
 				createUpdateLine(AAPL, 'initial-backfill'),
-				createUpdateLine(
-					createTradingLine('cedear-amzn-ars', 'AMZN', 'cedears'),
-					'ordinary-refresh',
-				),
-				createUpdateLine(MSFT, 'ordinary-refresh'),
-				createUpdateLine(NVDA, 'ordinary-refresh'),
-				createUpdateLine(GGAL, 'catch-up'),
+				createUpdateLine(createTradingLine('cedear-amzn-ars', 'AMZN'), 'refresh'),
+				createUpdateLine(MSFT, 'refresh'),
+				createUpdateLine(NVDA, 'refresh'),
+				createUpdateLine(GGAL, 'refresh'),
 			],
 		});
 
@@ -59,13 +59,12 @@ describe('createBarHistoryUpdater', () => {
 				{
 					tradingLineId: NVDA.tradingLineId,
 					status: 'failed',
-					reason: 'missing-provider-line',
+					reason: 'request-failed',
 				},
 				{ tradingLineId: GGAL.tradingLineId, status: 'unchanged' },
 			],
 		});
-		expect(provider.calls.filter((url) => url.endsWith('/cedears'))).toHaveLength(1);
-		expect(provider.calls.filter((url) => url.includes('/history?'))).toHaveLength(1);
+		expect(provider.calls.filter((url) => url.includes('/history?'))).toHaveLength(3);
 		expect(storage.writeCalls.map((history) => history.tradingLineId).toSorted()).toEqual(
 			[AAPL.tradingLineId, MSFT.tradingLineId].toSorted(),
 		);
@@ -98,9 +97,7 @@ describe('createBarHistoryUpdater', () => {
 		});
 		const blankResult = await updater.update({
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
-			lines: [
-				createUpdateLine(createTradingLine('   ', 'AAPL', 'cedears'), 'initial-backfill'),
-			],
+			lines: [createUpdateLine(createTradingLine('   ', 'AAPL'), 'initial-backfill')],
 		});
 
 		expect(invalidResult).toMatchObject({ ok: false, reason: 'invalid-request' });
@@ -111,6 +108,31 @@ describe('createBarHistoryUpdater', () => {
 		expect(provider.calls).toEqual([]);
 		expect(logger.calls).toEqual([]);
 		expect(clockCalls).toBe(0);
+	});
+
+	test('rejects the removed panel mode and panel-specific descriptor fields', async () => {
+		const storage = createFakeStorage({
+			[AAPL.tradingLineId]: createHistory(AAPL, '2026-09-06'),
+		});
+		const provider = createFakeProvider({});
+		const logger = createFakeLogger();
+		const updater = createUpdater(storage, provider, logger);
+		const legacyPanelRequest = {
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
+			lines: [
+				{
+					tradingLine: { ...AAPL, panel: 'cedears' },
+					mode: 'ordinary-refresh',
+				},
+			],
+		} as unknown as UpdateBarHistoriesRequest;
+
+		const result = await updater.update(legacyPanelRequest);
+
+		expect(result).toMatchObject({ ok: false, reason: 'invalid-request' });
+		expect(storage.readCalls).toEqual([]);
+		expect(storage.writeCalls).toEqual([]);
+		expect(provider.calls).toEqual([]);
 	});
 
 	test('accepts an empty batch without performing work', async () => {
@@ -141,7 +163,7 @@ describe('createBarHistoryUpdater', () => {
 			[GGAL.tradingLineId]: sourceDriftHistory,
 		});
 		const provider = createFakeProvider({
-			panels: { cedears: [createPanelRow('MSFT')] },
+			histories: { 'MSFT 24HS': [createBar(REQUESTED_THROUGH_SESSION)] },
 		});
 		const logger = createFakeLogger();
 		const updater = createUpdater(storage, provider, logger);
@@ -150,9 +172,9 @@ describe('createBarHistoryUpdater', () => {
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			lines: [
 				createUpdateLine(AAPL, 'initial-backfill'),
-				createUpdateLine(NVDA, 'catch-up'),
-				createUpdateLine(GGAL, 'ordinary-refresh'),
-				createUpdateLine(MSFT, 'ordinary-refresh'),
+				createUpdateLine(NVDA, 'refresh'),
+				createUpdateLine(GGAL, 'refresh'),
+				createUpdateLine(MSFT, 'refresh'),
 			],
 		});
 
@@ -185,7 +207,7 @@ describe('createBarHistoryUpdater', () => {
 
 		const result = await updater.update({
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
-			lines: [createUpdateLine(AAPL, 'catch-up'), createUpdateLine(MSFT, 'ordinary-refresh')],
+			lines: [createUpdateLine(AAPL, 'refresh'), createUpdateLine(MSFT, 'refresh')],
 		});
 
 		expect(result).toMatchObject({
@@ -207,38 +229,32 @@ describe('createBarHistoryUpdater', () => {
 		expect(storage.writeCalls).toEqual([]);
 	});
 
-	test('advances progress for a no-trade session without inventing a bar', async () => {
+	test('does not advance progress when dated history may not be published yet', async () => {
 		const existingHistory = createHistory(AAPL, '2026-09-06');
 		const storage = createFakeStorage({ [AAPL.tradingLineId]: existingHistory });
-		const provider = createFakeProvider({
-			panels: {
-				cedears: [
-					createPanelRow('AAPL', {
-						openingPrice: 0,
-						tradingHighPrice: 0,
-						tradingLowPrice: 0,
-						closingPrice: 102,
-						volume: 0,
-					}),
-				],
-			},
-		});
+		const provider = createFakeProvider({ histories: { 'AAPL 24HS': [] } });
 		const logger = createFakeLogger();
 		const updater = createUpdater(storage, provider, logger);
 
 		const result = await updater.update({
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
-			lines: [createUpdateLine(AAPL, 'ordinary-refresh')],
+			lines: [createUpdateLine(AAPL, 'refresh')],
 		});
 
-		expect(result).toMatchObject({ ok: true, results: [{ status: 'updated' }] });
-		expect(storage.writeCalls[0]).toMatchObject({
-			checkedThroughSession: REQUESTED_THROUGH_SESSION,
-			bars: existingHistory.bars,
+		expect(result).toEqual({
+			ok: true,
+			results: [
+				{
+					status: 'unchanged',
+					tradingLineId: AAPL.tradingLineId,
+					corrections: [],
+				},
+			],
 		});
+		expect(storage.writeCalls).toEqual([]);
 	});
 
-	test('stores every catch-up bar and skips already-covered repeated work', async () => {
+	test('stores every refresh bar and skips already-covered repeated work', async () => {
 		const storage = createFakeStorage({
 			[AAPL.tradingLineId]: createHistory(AAPL, '2026-09-05'),
 			[MSFT.tradingLineId]: createHistory(MSFT, REQUESTED_THROUGH_SESSION),
@@ -253,7 +269,7 @@ describe('createBarHistoryUpdater', () => {
 
 		const result = await updater.update({
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
-			lines: [createUpdateLine(AAPL, 'catch-up'), createUpdateLine(MSFT, 'ordinary-refresh')],
+			lines: [createUpdateLine(AAPL, 'refresh'), createUpdateLine(MSFT, 'refresh')],
 		});
 
 		expect(result).toMatchObject({
@@ -408,10 +424,7 @@ function createFakeStorage(
 	};
 }
 
-function createFakeProvider(config: {
-	histories?: Readonly<Record<string, readonly DailyBar[]>>;
-	panels?: Partial<Readonly<Record<OpenBymadataPanel, readonly unknown[]>>>;
-}) {
+function createFakeProvider(config: { histories?: Readonly<Record<string, readonly DailyBar[]>> }) {
 	const calls: string[] = [];
 
 	return {
@@ -428,9 +441,7 @@ function createFakeProvider(config: {
 					: createJsonResponse({}, 500);
 			}
 
-			const panel = url.split('/').at(-1) as OpenBymadataPanel;
-			const rows = config.panels?.[panel];
-			return rows ? createJsonResponse(rows) : createJsonResponse({}, 500);
+			return createJsonResponse({}, 500);
 		},
 	};
 }
@@ -444,8 +455,8 @@ function createFakeLogger(): { logger: BarHistoryUpdateLogger; calls: unknown[][
 	return { logger: { info }, calls };
 }
 
-function createTradingLine(tradingLineId: string, symbol: string, panel: OpenBymadataPanel) {
-	return { tradingLineId, symbol, panel } as const;
+function createTradingLine(tradingLineId: string, symbol: string) {
+	return { tradingLineId, symbol } as const;
 }
 
 function createUpdateLine(
@@ -479,18 +490,6 @@ function createBar(sessionDate: string, overrides: Partial<DailyBar> = {}): Dail
 		high: 103,
 		low: 99,
 		close: 102,
-		volume: 1_000,
-		...overrides,
-	};
-}
-
-function createPanelRow(symbol: string, overrides: Readonly<Record<string, number>> = {}) {
-	return {
-		symbol,
-		openingPrice: 100,
-		tradingHighPrice: 103,
-		tradingLowPrice: 99,
-		closingPrice: 102,
 		volume: 1_000,
 		...overrides,
 	};

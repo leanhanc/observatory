@@ -11,10 +11,10 @@
 
 ## 3. Open BYMADATA Adapter
 
-- [x] 3.1 Implement catalog-resolved mapping for historical requests and batched CEDEAR, leading-equity, and general-equity panels; verify fixtures cover ARS, MEP, CCL, equity, missing, and malformed provider responses.
+- [x] 3.1 Implement catalog-resolved mapping for dated historical requests; verify fixtures cover ARS, MEP, CCL, equity, empty, and malformed provider responses.
 - [x] 3.2 Normalize provider timestamps into Buenos Aires session dates and exclude active sessions; verify timezone-boundary and incomplete-session tests.
-- [x] 3.3 Detect and omit provider carried-close rows (No-Trade Placeholders) before domain validation; verify tests distinguish them from structurally valid zero-volume bars.
-- [x] 3.4 Implement caller-selected initial-backfill, ordinary-refresh, catch-up, and reconciliation acquisition modes; verify shared panel requests, historical fallback for missed intervals, sequential two-second historical pacing, and no storage writes.
+- [x] 3.3 Preserve dated provider rows for domain validation; verify suspicious zero-price rows are rejected while structurally valid zero-volume bars remain accepted.
+- [x] 3.4 Implement caller-selected initial-backfill, refresh, and reconciliation acquisition modes; verify dated missing-interval requests, sequential two-second historical pacing, and no storage writes.
 
 ## 4. Bun and Railway Storage
 
@@ -25,13 +25,13 @@
 ## 5. Batch Application Operations
 
 - [x] 5.1 Implement range-aware batch reads that preserve every requested Trading Line result; verify inclusive ranges, empty successful ranges, oldest-to-newest bars, differing freshness, duplicate requests, invalid requests, and per-line failures.
-- [x] 5.2 Implement batch updates that share provider fetches while reconciling and persisting each Trading Line independently; verify mixed `created`, `updated`, `unchanged`, and `failed` results in one request.
-- [x] 5.3 Advance `checkedThroughSession` only after a successfully accepted interval, including sessions with no real bar; verify missed-session catch-up, holiday/no-trade progress, and non-regressing repeated updates.
+- [x] 5.2 Implement batch updates that pace provider fetches while reconciling and persisting each Trading Line independently; verify mixed `created`, `updated`, `unchanged`, and `failed` results in one request.
+- [x] 5.3 Advance `checkedThroughSession` only after a successfully accepted dated interval; verify multi-session refresh, empty-response retry, and non-regressing repeated updates.
 - [x] 5.4 Log structured corrections through the shared `src/modules/logger` as `market-history-correction` events without adding side effects to pure reconciliation; verify orchestration tests capture the Trading Line ID, session date, and old/new bars.
 
 ## 6. Integration and Rollout Verification
 
-- [ ] 6.1 Run a canary backfill against a private Railway Bucket for representative ARS, MEP, CCL, sparse, equity, and inactive lines; verify stored keys, provenance, check progress, ordering, and carried-close omission.
-- [ ] 6.2 Verify ordinary panel refresh followed by analysis-facing reads uses completed-session data and explicit freshness, with the scheduled orchestration prevented from overlapping itself.
+- [ ] 6.1 Run a canary backfill against a private Railway Bucket for representative ARS, MEP, CCL, sparse, equity, and inactive lines; verify stored keys, provenance, check progress, ordering, and invalid-row rejection.
+- [ ] 6.2 Verify dated historical refresh followed by analysis-facing reads uses completed-session data and explicit freshness, with the scheduled orchestration prevented from overlapping itself.
 - [ ] 6.3 Verify staggered full-window reconciliation catches a known correction, preserves older retained history, and stays within observed provider request limits.
 - [ ] 6.4 Run the project test, type-check, formatting, and strict OpenSpec validation commands; verify all checks pass before enabling the configured-universe backfill.

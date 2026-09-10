@@ -114,7 +114,7 @@ describe('reconcileBarHistory', () => {
 		});
 	});
 
-	test('advances check progress when the provider returns no new bar', () => {
+	test('keeps check progress when an incremental response contains no dated bar', () => {
 		const existingHistory = createHistory();
 		const result = reconcileBarHistory(
 			createInput({
@@ -127,9 +127,8 @@ describe('reconcileBarHistory', () => {
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 
-		expect(result.status).toBe('updated');
-		expect(result.history.checkedThroughSession).toBe('2026-09-04');
-		expect(result.history.bars).toEqual(existingHistory.bars);
+		expect(result.status).toBe('unchanged');
+		expect(result.history).toBe(existingHistory);
 	});
 
 	test('preserves older bars during full authoritative reconciliation', () => {

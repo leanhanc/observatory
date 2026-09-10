@@ -8,11 +8,6 @@ import type {
 	OpenBymadataHistoryRequest,
 	OpenBymadataHistoryResult,
 	OpenBymadataHistorySeries,
-	OpenBymadataPanel,
-	OpenBymadataPanelLineResult,
-	OpenBymadataPanelRequest,
-	OpenBymadataPanelResult,
-	OpenBymadataPanelRow,
 	OpenBymadataTradingLineDescriptor,
 } from './open-bymadata.types.ts';
 
@@ -32,26 +27,6 @@ const historyResponseSchema = v.object({
 	v: finiteNumberArraySchema,
 });
 
-const panelRowSchema = v.object({
-	symbol: v.pipe(v.string(), v.nonEmpty()),
-	openingPrice: finiteNumberSchema,
-	tradingHighPrice: finiteNumberSchema,
-	tradingLowPrice: finiteNumberSchema,
-	closingPrice: finiteNumberSchema,
-	volume: finiteNumberSchema,
-});
-
-const directPanelResponseSchema = v.array(panelRowSchema);
-const wrappedPanelResponseSchema = v.object({
-	content: v.object({
-		page_number: v.pipe(v.number(), v.integer(), v.minValue(1)),
-		page_count: v.pipe(v.number(), v.integer(), v.minValue(0)),
-		page_size: v.pipe(v.number(), v.integer(), v.minValue(0)),
-		total_elements_count: v.pipe(v.number(), v.integer(), v.minValue(0)),
-	}),
-	data: v.array(panelRowSchema),
-});
-
 /**
  * Creates the Open BYMADATA adapter used internally by Bar History.
  *
@@ -63,7 +38,6 @@ export function createOpenBymadataAdapter(
 ): OpenBymadataAdapter {
 	return {
 		fetchHistory: (request) => fetchHistory(fetchFromProvider, request),
-		fetchPanel: (request) => fetchPanel(fetchFromProvider, request),
 	};
 }
 
@@ -115,85 +89,6 @@ async function fetchHistory(
 	return { ok: true, source, bars };
 }
 
-async function fetchPanel(
-	fetchFromProvider: OpenBymadataFetch,
-	request: OpenBymadataPanelRequest,
-): Promise<OpenBymadataPanelResult> {
-	if (request.tradingLines.length === 0) {
-		return { ok: true, lines: [] };
-	}
-
-	const requestValidationFailure = validatePanelRequest(request.tradingLines);
-
-	if (requestValidationFailure) {
-		return requestValidationFailure;
-	}
-
-	const panel = request.tradingLines[0]?.panel;
-
-	if (!panel) {
-		return createFailure('invalid-request', 'Open BYMADATA panel was not specified.');
-	}
-
-	const url = `${BASE_URL}/${panel}`;
-	const response = await fetchJson(fetchFromProvider, url, createPanelRequest());
-
-	if (!response.ok) {
-		return response;
-	}
-
-	const parsedRows = parsePanelRows(panel, response.value);
-
-	if (!parsedRows.ok) {
-		return parsedRows;
-	}
-
-	if (!checkIfPanelRowsHaveUniqueSymbols(parsedRows.rows)) {
-		return createFailure(
-			'invalid-response',
-			'Open BYMADATA returned duplicate symbols in one panel.',
-		);
-	}
-
-	const lines = matchPanelRows(
-		request.tradingLines,
-		parsedRows.rows,
-		request.requestedThroughSession,
-	);
-	return { ok: true, lines };
-}
-
-function validatePanelRequest(
-	tradingLines: readonly OpenBymadataTradingLineDescriptor[],
-): OpenBymadataFailure | null {
-	const panels = new Set(tradingLines.map((tradingLine) => tradingLine.panel));
-	const symbols = new Set(tradingLines.map((tradingLine) => tradingLine.symbol));
-	const tradingLineIds = new Set(tradingLines.map((tradingLine) => tradingLine.tradingLineId));
-
-	if (panels.size !== 1) {
-		return createFailure(
-			'invalid-request',
-			'Open BYMADATA panel requests must contain Trading Lines from one panel.',
-		);
-	}
-
-	if (symbols.size !== tradingLines.length) {
-		return createFailure(
-			'invalid-request',
-			'Open BYMADATA panel requests must not contain duplicate provider symbols.',
-		);
-	}
-
-	if (tradingLineIds.size !== tradingLines.length) {
-		return createFailure(
-			'invalid-request',
-			'Open BYMADATA panel requests must not contain duplicate Trading Line IDs.',
-		);
-	}
-
-	return null;
-}
-
 function createHistoryUrl(symbol: string, request: OpenBymadataHistoryRequest): URL {
 	const url = new URL(`${BASE_URL}/chart/historical-series/history`);
 	url.searchParams.set('symbol', symbol);
@@ -201,19 +96,6 @@ function createHistoryUrl(symbol: string, request: OpenBymadataHistoryRequest): 
 	url.searchParams.set('from', String(request.fromEpochSeconds));
 	url.searchParams.set('to', String(request.toEpochSeconds));
 	return url;
-}
-
-function createPanelRequest(): RequestInit {
-	return {
-		method: 'POST',
-		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({
-			excludeZeroPxAndQty: false,
-			T1: true,
-			T0: false,
-			page_size: 5_000,
-		}),
-	};
 }
 
 async function fetchJson(
@@ -236,93 +118,6 @@ async function fetchJson(
 	} catch {
 		return createFailure('request-failed', 'Open BYMADATA could not be reached or read.');
 	}
-}
-
-function parsePanelRows(
-	panel: OpenBymadataPanel,
-	value: unknown,
-): Readonly<{ ok: true; rows: readonly OpenBymadataPanelRow[] }> | OpenBymadataFailure {
-	if (panel === 'cedears') {
-		const parsedResponse = v.safeParse(directPanelResponseSchema, value);
-		return parsedResponse.success
-			? { ok: true, rows: parsedResponse.output }
-			: createFailure('invalid-response', 'Open BYMADATA returned a malformed CEDEAR panel.');
-	}
-
-	const parsedResponse = v.safeParse(wrappedPanelResponseSchema, value);
-
-	if (!parsedResponse.success) {
-		return createFailure(
-			'invalid-response',
-			'Open BYMADATA returned a malformed equity panel.',
-		);
-	}
-
-	const { content, data } = parsedResponse.output;
-	const hasCompletePage =
-		content.page_count <= 1 &&
-		content.page_number === 1 &&
-		data.length === content.total_elements_count;
-
-	if (!hasCompletePage) {
-		return createFailure(
-			'incomplete-response',
-			'Open BYMADATA returned only part of the requested equity panel.',
-		);
-	}
-
-	return { ok: true, rows: parsedResponse.output.data };
-}
-
-function checkIfPanelRowsHaveUniqueSymbols(rows: readonly OpenBymadataPanelRow[]): boolean {
-	return new Set(rows.map((row) => row.symbol)).size === rows.length;
-}
-
-function matchPanelRows(
-	tradingLines: readonly OpenBymadataTradingLineDescriptor[],
-	rows: readonly OpenBymadataPanelRow[],
-	sessionDate: string,
-): OpenBymadataPanelLineResult[] {
-	const rowsBySymbol = new Map(rows.map((row) => [row.symbol, row]));
-
-	return tradingLines.map((tradingLine) => {
-		const source = buildOpenBymadataSource(tradingLine);
-		const row = rowsBySymbol.get(tradingLine.symbol);
-
-		if (!row) {
-			return {
-				status: 'missing',
-				tradingLineId: tradingLine.tradingLineId,
-				source,
-			};
-		}
-
-		const bar: DailyBar = {
-			sessionDate,
-			open: row.openingPrice,
-			high: row.tradingHighPrice,
-			low: row.tradingLowPrice,
-			close: row.closingPrice,
-			volume: row.volume,
-		};
-		const isNoTradePlaceholder = checkIfNoTradePlaceholder(bar);
-
-		if (isNoTradePlaceholder) {
-			return {
-				status: 'excluded',
-				reason: 'no-trade-placeholder',
-				tradingLineId: tradingLine.tradingLineId,
-				source,
-			};
-		}
-
-		return {
-			status: 'found',
-			tradingLineId: tradingLine.tradingLineId,
-			source,
-			bar,
-		};
-	});
 }
 
 export function buildOpenBymadataSource(
@@ -370,9 +165,7 @@ function normalizeHistorySeries(
 				return [];
 			}
 
-			const bar = createDailyBar(series, index, sessionDate);
-			const isNoTradePlaceholder = checkIfNoTradePlaceholder(bar);
-			return isNoTradePlaceholder ? [] : [bar];
+			return [createDailyBar(series, index, sessionDate)];
 		});
 	} catch {
 		return null;
@@ -382,11 +175,6 @@ function normalizeHistorySeries(
 function convertTimestampToSessionDate(timestamp: number): string {
 	const instant = Temporal.Instant.fromEpochMilliseconds(timestamp * 1_000);
 	return instant.toZonedDateTimeISO('America/Argentina/Buenos_Aires').toPlainDate().toString();
-}
-
-/** Identifies BYMA's repeated-close row; zero volume alone is not sufficient. */
-function checkIfNoTradePlaceholder(bar: DailyBar): boolean {
-	return bar.open === 0 && bar.high === 0 && bar.low === 0 && bar.volume === 0 && bar.close > 0;
 }
 
 function createDailyBar(

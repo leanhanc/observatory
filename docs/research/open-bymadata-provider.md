@@ -39,7 +39,7 @@ The three panels needed by Observatory are:
 - [`POST /general-equity`](https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/general-equity)
 
 The requests were verified with a JSON body selecting the 24-hour settlement, retaining zero-value
-rows so Observatory can apply its own carried-close rule, and requesting a panel size of 5,000:
+rows so Observatory can identify Continuity Data during research, and requesting a panel size of 5,000:
 
 ```json
 {
@@ -72,11 +72,22 @@ timezone. It did not return a session date. The independent
 [OpenBYMAData Go wrapper](https://github.com/carvalab/openbymadata) exposes the same fields and
 documents that panels fetched while the market is closed show the last available trading data.
 
-Consequently, the panel adapter cannot discover which session an undated row belongs to. An
-ordinary panel refresh represents only the caller's single `throughSession`; the scheduler must
-establish that this is the newly completed session. Missed-session catch-up must use the historical
-endpoint, whose rows carry timestamps. Keeping a separate caller-supplied `sessionDate` would allow
-the same panel row to be mislabeled with an arbitrary older date, so the adapter does not accept one.
+Consequently, a panel adapter cannot discover which session an undated row belongs to. Observatory
+does not convert panel rows into Daily Bars or use them to advance Bar History check progress. The
+dated historical endpoint remains authoritative for initial backfill, refresh, and reconciliation.
+Panel rows may later support a separate Provisional Bar used for same-evening analysis, but the
+mapping of its closing value remains under observation.
+
+### Observed publication timing
+
+During the September 8–9, 2026 observation, the dated historical endpoint did not expose the
+active session. September 8 bars first appeared around local midnight on September 9 and remained
+stable in later samples. During the September 9 session, dated history still ended on September 8
+while panel values changed and later stabilized after market close.
+
+This is evidence for a next-day authoritative refresh, not a provider guarantee. A further sample
+must compare the stabilized September 9 panel fields with the later dated September 9 history before
+the Provisional Bar close-field mapping is selected.
 
 ### Trading Line mapping
 
@@ -94,18 +105,18 @@ Trading Line identifier.
 The historical endpoint uses the same symbol with ` 24HS` appended. The stored source information
 therefore records values such as `AAPL 24HS`.
 
-### Carried-close rows
+### Continuity Data
 
 The CEDEAR and general-equity panels contained rows with zero open, high, low, and volume while
-`closingPrice` retained a prior value. This confirms that carried-close detection is required before
+`closingPrice` retained a prior value. This confirms that Continuity Data must be excluded before
 domain validation. Historical AAPL, AAPLD, and AAPLC probes did not contain those synthetic rows;
 sessions without trades were absent from the returned arrays.
 
 ## Provider behavior not yet established
 
 - Anonymous request limits and throttling response headers remain undocumented.
-- The panel payload does not contain a session date. The scheduled application must establish the
-  newly completed `throughSession`; `tradeHour` alone cannot establish it.
+- The panel payload does not contain a session date. `tradeHour`, market-time, and the caller's date
+  do not make an undated row authoritative Bar History.
 - HTTP and payload behavior during provider outages has not been observed.
 - The meaning and long-term stability of request fields such as `T1` are not documented publicly;
   captured fixtures and strict validation protect Observatory from silently accepting a changed

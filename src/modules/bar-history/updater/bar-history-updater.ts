@@ -10,11 +10,7 @@ import {
 	BAR_HISTORY_ACQUISITION_MODES,
 	createOpenBymadataBarHistoryAcquirer,
 } from '../acquisition/index.ts';
-import {
-	buildOpenBymadataSource,
-	createOpenBymadataAdapter,
-	OPEN_BYMADATA_PANELS,
-} from '../adapters/index.ts';
+import { buildOpenBymadataSource, createOpenBymadataAdapter } from '../adapters/index.ts';
 import { reconcileBarHistory } from '../bar-history.ts';
 
 import type {
@@ -54,7 +50,6 @@ const tradingLineSchema = v.strictObject(
 	{
 		tradingLineId: nonBlankStringSchema,
 		symbol: nonBlankStringSchema,
-		panel: v.picklist(OPEN_BYMADATA_PANELS, INVALID_VALUE_MESSAGE),
 	},
 	INVALID_TYPE_MESSAGE,
 );

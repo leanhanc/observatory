@@ -1,11 +1,11 @@
-/* eslint-disable no-await-in-loop -- BYMADATA historical requests are intentionally paced, and panel requests stay sequential to avoid undocumented anonymous-rate bursts. */
+/* eslint-disable no-await-in-loop -- BYMADATA historical requests are intentionally paced to avoid undocumented anonymous-rate bursts. */
 import {
 	checkIfIsoDateIsValid,
 	checkIfValueIsRecord,
 	createValidationError,
 } from '#lib/utils/validation.ts';
 
-import { buildOpenBymadataSource, OPEN_BYMADATA_PANELS } from '../adapters/index.ts';
+import { buildOpenBymadataSource } from '../adapters/index.ts';
 import { validateBarHistory } from '../utils/index.ts';
 import { BAR_HISTORY_ACQUISITION_MODES } from './bar-history-acquirer.constants.ts';
 
@@ -13,8 +13,6 @@ import type { ValidationError } from '#lib/utils/validation.ts';
 import type {
 	OpenBymadataAdapter,
 	OpenBymadataFailure,
-	OpenBymadataPanel,
-	OpenBymadataPanelLineResult,
 	OpenBymadataTradingLineDescriptor,
 } from '../adapters/index.ts';
 import type {
@@ -37,13 +35,12 @@ const HISTORY_START_SESSION = '2000-01-01';
 const HISTORICAL_REQUEST_PAUSE_MS = 2_000;
 const TIMEZONE = 'America/Argentina/Buenos_Aires';
 const supportedAcquisitionModes = new Set<BarHistoryAcquisitionMode>(BAR_HISTORY_ACQUISITION_MODES);
-const supportedPanels = new Set<OpenBymadataPanel>(OPEN_BYMADATA_PANELS);
 
 /**
  * Acquires normalized Daily Bar candidates using caller-authorized update modes.
  *
- * It does not reconcile candidates, write storage, or decide whether an undated provider panel
- * represents a completed session. The scheduled caller makes that last decision.
+ * It does not reconcile candidates or write storage. Every candidate comes from dated historical
+ * data; undated current-market panels are outside Bar History.
  */
 export function createOpenBymadataBarHistoryAcquirer(
 	adapter: OpenBymadataAdapter,
@@ -68,7 +65,6 @@ async function acquireBarHistories(
 	const { lines, requestedThroughSession } = requestValidation.request;
 	const resultsByTradingLineId = new Map<string, BarHistoryAcquisitionLineResult>();
 	const historicalLines = selectHistoricalLines(lines, requestedThroughSession);
-	const panelLines = selectOrdinaryRefreshLines(lines, requestedThroughSession);
 
 	await acquireHistoricalLines(
 		adapter,
@@ -77,7 +73,6 @@ async function acquireBarHistories(
 		requestedThroughSession,
 		resultsByTradingLineId,
 	);
-	await acquirePanelLines(adapter, panelLines, requestedThroughSession, resultsByTradingLineId);
 
 	const results = lines.map((line) => {
 		const result = resultsByTradingLineId.get(line.tradingLine.tradingLineId);
@@ -235,7 +230,6 @@ function validateTradingLine(value: unknown, path: string): TradingLineValidatio
 	const issues = [
 		...validateNonBlankString(value.tradingLineId, `${path}.tradingLineId`),
 		...validateNonBlankString(value.symbol, `${path}.symbol`),
-		...validatePanel(value.panel, `${path}.panel`),
 	];
 
 	if (issues.length > 0) {
@@ -406,14 +400,6 @@ function validateNonBlankString(value: unknown, path: string): ValidationIssue[]
 	return [createValidationIssue('invalid-value', path, 'Value must be a non-blank string.')];
 }
 
-function validatePanel(value: unknown, path: string): ValidationIssue[] {
-	if (typeof value === 'string' && supportedPanels.has(value as OpenBymadataPanel)) {
-		return [];
-	}
-
-	return [createValidationIssue('invalid-value', path, 'Provider panel is not supported.')];
-}
-
 function selectHistoricalLines(
 	lines: readonly BarHistoryAcquisitionLine[],
 	requestedThroughSession: string,
@@ -423,24 +409,12 @@ function selectHistoricalLines(
 			return true;
 		}
 
-		if (line.mode !== 'catch-up' || !line.existingHistory) {
+		if (line.mode !== 'refresh' || !line.existingHistory) {
 			return false;
 		}
 
 		return line.existingHistory.checkedThroughSession < requestedThroughSession;
 	});
-}
-
-function selectOrdinaryRefreshLines(
-	lines: readonly BarHistoryAcquisitionLine[],
-	requestedThroughSession: string,
-): readonly BarHistoryAcquisitionLine[] {
-	return lines.filter(
-		(line) =>
-			line.mode === 'ordinary-refresh' &&
-			line.existingHistory !== null &&
-			line.existingHistory.checkedThroughSession < requestedThroughSession,
-	);
 }
 
 async function acquireHistoricalLines(
@@ -475,6 +449,10 @@ async function acquireHistoricalLine(
 
 	if (!result.ok) {
 		return createProviderFailure(line.tradingLine.tradingLineId, result);
+	}
+
+	if (line.mode === 'refresh' && result.bars.length === 0) {
+		return createNotRequiredResult(line.tradingLine.tradingLineId);
 	}
 
 	const reconciliationWindow = buildReconciliationWindow(line.mode, result.bars, range);
@@ -520,7 +498,7 @@ function createHistoricalRange(
 	line: BarHistoryAcquisitionLine,
 	requestedThroughSession: string,
 ): SessionDateRange {
-	if (line.mode === 'catch-up' && line.existingHistory) {
+	if (line.mode === 'refresh' && line.existingHistory) {
 		return {
 			start: getNextSessionDate(line.existingHistory.checkedThroughSession),
 			end: requestedThroughSession,
@@ -536,100 +514,6 @@ function getNextSessionDate(sessionDate: string): string {
 
 function convertSessionDateToEpochSeconds(sessionDate: string): number {
 	return Temporal.PlainDate.from(sessionDate).toZonedDateTime(TIMEZONE).epochMilliseconds / 1_000;
-}
-
-async function acquirePanelLines(
-	adapter: OpenBymadataAdapter,
-	lines: readonly BarHistoryAcquisitionLine[],
-	requestedThroughSession: string,
-	resultsByTradingLineId: Map<string, BarHistoryAcquisitionLineResult>,
-): Promise<void> {
-	const linesByPanel = groupLinesByPanel(lines);
-
-	for (const panelLines of linesByPanel.values()) {
-		const result = await adapter.fetchPanel({
-			tradingLines: panelLines.map((line) => line.tradingLine),
-			requestedThroughSession,
-		});
-
-		if (!result.ok) {
-			for (const line of panelLines) {
-				resultsByTradingLineId.set(
-					line.tradingLine.tradingLineId,
-					createProviderFailure(line.tradingLine.tradingLineId, result),
-				);
-			}
-
-			continue;
-		}
-
-		for (const line of panelLines) {
-			const panelLine = result.lines.find(
-				(candidate) => candidate.tradingLineId === line.tradingLine.tradingLineId,
-			);
-			const acquisitionResult = createPanelAcquisitionResult(
-				line.tradingLine.tradingLineId,
-				panelLine,
-			);
-			resultsByTradingLineId.set(line.tradingLine.tradingLineId, acquisitionResult);
-		}
-	}
-}
-
-function groupLinesByPanel(
-	lines: readonly BarHistoryAcquisitionLine[],
-): ReadonlyMap<OpenBymadataPanel, readonly BarHistoryAcquisitionLine[]> {
-	const linesByPanel = new Map<OpenBymadataPanel, BarHistoryAcquisitionLine[]>();
-
-	for (const line of lines) {
-		const panel = line.tradingLine.panel;
-		const panelLines = linesByPanel.get(panel) ?? [];
-		panelLines.push(line);
-		linesByPanel.set(panel, panelLines);
-	}
-
-	return linesByPanel;
-}
-
-function createPanelAcquisitionResult(
-	tradingLineId: string,
-	panelLine: OpenBymadataPanelLineResult | undefined,
-): BarHistoryAcquisitionLineResult {
-	if (!panelLine) {
-		return {
-			status: 'failed',
-			tradingLineId,
-			reason: 'invalid-response',
-			message: 'Open BYMADATA omitted a requested Trading Line from its panel response.',
-		};
-	}
-
-	if (panelLine.status === 'missing') {
-		return {
-			status: 'failed',
-			tradingLineId,
-			reason: 'missing-provider-line',
-			message: 'Open BYMADATA did not return the requested Trading Line.',
-		};
-	}
-
-	if (panelLine.status === 'excluded') {
-		return {
-			status: 'available',
-			tradingLineId,
-			source: panelLine.source,
-			bars: [],
-			reconciliationWindow: null,
-		};
-	}
-
-	return {
-		status: 'available',
-		tradingLineId,
-		source: panelLine.source,
-		bars: [panelLine.bar],
-		reconciliationWindow: null,
-	};
 }
 
 function createProviderFailure(

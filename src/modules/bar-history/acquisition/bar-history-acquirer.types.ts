@@ -21,9 +21,7 @@ export type BarHistoryAcquisitionRequest = Readonly<{
 	requestedThroughSession: string;
 }>;
 
-export type BarHistoryAcquisitionFailureReason =
-	| OpenBymadataFailure['reason']
-	| 'missing-provider-line';
+export type BarHistoryAcquisitionFailureReason = OpenBymadataFailure['reason'];
 
 export type BarHistoryAcquisitionLineResult =
 	| Readonly<{

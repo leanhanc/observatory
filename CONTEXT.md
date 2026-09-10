@@ -32,6 +32,14 @@ _Avoid_: Day
 The normalized Open, High, Low, Close, and Volume market facts for one completed Trading Session of a Trading Line.
 _Avoid_: Candle, Candlestick
 
+**Provisional Bar**:
+An explicitly temporary reading of an active or recently closed Trading Session whose final dated market facts are not yet available. It may inform same-evening analysis, but it is not part of Bar History and cannot advance the Checked-Through Session.
+_Avoid_: Daily Bar, confirmed bar
+
+**Continuity Data**:
+A source value repeated to keep a displayed series continuous when no real trade occurred. It does not represent a Trading Session and must not become a Daily Bar.
+_Avoid_: Carried Close, no-trade bar
+
 **Candlestick**:
 A visual representation of a Daily Bar in a price chart.
 _Avoid_: Daily Bar when referring to the market-data record
@@ -49,20 +57,16 @@ The latest completed Trading Session an update is authorized to accept. It becom
 _Avoid_: Requested interval, requested sessions, Checked-Through Session before acceptance
 
 **Acquisition Mode**:
-The declared kind of work needed to bring one Bar History through a requested completed Trading Session: Initial Backfill, Ordinary Refresh, Catch-up, or Reconciliation.
+The declared kind of work needed to bring one Bar History through a requested completed Trading Session: Initial Backfill, Refresh, or Reconciliation.
 _Avoid_: Inferring the required work from the newest Daily Bar
 
 **Initial Backfill**:
 The first population of a Trading Line's Bar History with all completed Daily Bars currently available from its source.
 _Avoid_: Refresh, Reconciliation
 
-**Ordinary Refresh**:
-The addition of one newly completed Trading Session when Bar History was already checked through the preceding accepted interval.
-_Avoid_: Using a current market row to recreate missed sessions
-
-**Catch-up**:
-The recovery of the completed interval after the Checked-Through Session when Bar History may have missed more than the newest session.
-_Avoid_: Ordinary Refresh
+**Refresh**:
+The recovery of every dated completed session after the Checked-Through Session, whether one session or several is missing.
+_Avoid_: Ordinary Refresh, Catch-up, using an undated market row
 
 **Reconciliation**:
 The deliberate recheck of previously accepted sessions against the source to detect corrections while preserving valid history outside the source's available window.

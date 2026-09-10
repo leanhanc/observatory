@@ -4,9 +4,17 @@ import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 const BASE_URL = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free';
+const PANEL_PATHS = ['cedears', 'leading-equity'];
+const PANEL_REQUEST_BODY = JSON.stringify({
+	excludeZeroPxAndQty: false,
+	T1: true,
+	T0: false,
+	page_size: 5_000,
+});
 const SYMBOLS = ['GGAL', 'YPFD', 'AAPL'];
 const REQUEST_PAUSE_MS = 2_000;
 const REQUEST_TIMEOUT_MS = 20_000;
+const REQUESTS_PER_SAMPLE = 1 + PANEL_PATHS.length + SYMBOLS.length;
 const TIMEZONE = 'America/Argentina/Buenos_Aires';
 
 async function observe() {
@@ -35,7 +43,7 @@ async function observe() {
 	}
 	const outputDirectory = resolve(values.output);
 	await mkdir(outputDirectory, { recursive: true });
-	console.log(`Up to ${samples * 4} requests; output: ${outputDirectory}`);
+	console.log(`Up to ${samples * REQUESTS_PER_SAMPLE} requests; output: ${outputDirectory}`);
 	for (let sample = 0; sample < samples; sample++) {
 		const observedAt = Temporal.Now.instant();
 		const sessionDate = observedAt.toZonedDateTimeISO(TIMEZONE).toPlainDate();
@@ -50,6 +58,23 @@ async function observe() {
 		});
 		observations.push(market);
 		if (!market.stop) {
+			for (const panelPath of PANEL_PATHS) {
+				await Bun.sleep(REQUEST_PAUSE_MS);
+				const panel = await request(
+					`${panelPath}-panel`,
+					new URL(`${BASE_URL}/${panelPath}`),
+					{
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: PANEL_REQUEST_BODY,
+					},
+				);
+				observations.push(panel);
+				if (panel.stop) break;
+			}
+		}
+		const hasPanelFailure = observations.some((observation) => observation.stop);
+		if (!hasPanelFailure) {
 			for (const symbol of SYMBOLS) {
 				await Bun.sleep(REQUEST_PAUSE_MS);
 				const url = new URL(`${BASE_URL}/chart/historical-series/history`);

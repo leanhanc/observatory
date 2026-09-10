@@ -47,7 +47,7 @@ The system SHALL reject a Daily Bar when any OHLCV field is missing or non-finit
 
 #### Scenario: Zero-volume real bar remains valid
 
-- **WHEN** a supplied bar has structurally valid OHLC prices and zero volume but is not identified as a provider carried-close row
+- **WHEN** a supplied bar has structurally valid OHLC prices and zero volume
 - **THEN** the system accepts the bar
 
 #### Scenario: Zero price rejects the update
@@ -63,15 +63,6 @@ The system SHALL store provider OHLCV values without dividend or split adjustmen
 
 - **WHEN** the provider reports a dividend or another corporate action
 - **THEN** Bar History leaves its raw stored OHLCV values unchanged
-
-### Requirement: Provider carried-close rows are excluded
-
-The provider adapter SHALL omit a row identified by the provider shape `open = high = low = volume = 0` with a carried closing price, because that row does not represent a traded session. Omission SHALL not create a synthetic zero-value Daily Bar.
-
-#### Scenario: CCL line has no trade
-
-- **WHEN** Open BYMADATA returns a carried-close row for a CCL Trading Line
-- **THEN** the row is absent from normalized Bar History and the line may legitimately have no bar for that session
 
 ### Requirement: Initial backfill retains available history
 
@@ -96,10 +87,10 @@ For an existing history, the system SHALL request the interval after `checkedThr
 - **WHEN** a line was last checked through Friday and the next successful request is through Tuesday
 - **THEN** the system requests and processes the missing interval before advancing that line through Tuesday
 
-#### Scenario: Holiday produces no bar
+#### Scenario: Empty refresh remains pending
 
-- **WHEN** the provider successfully answers through a market holiday without returning a real bar
-- **THEN** `checkedThroughSession` advances while the latest stored bar remains unchanged
+- **WHEN** a refresh returns no dated bars after the stored check progress
+- **THEN** the stored history and `checkedThroughSession` remain unchanged so the interval can be requested again
 
 #### Scenario: Repeated update does not duplicate a bar
 
@@ -113,22 +104,22 @@ For an existing history, the system SHALL request the interval after `checkedThr
 
 ### Requirement: Acquisition mode selects an appropriate provider response
 
-The system SHALL select provider data according to the work required for each Trading Line. An initial backfill, catch-up interval, or reconciliation SHALL use dated historical data. An ordinary refresh MAY use a shared provider panel only when the scheduled caller has established that the panel represents the single completed session being accepted. A panel row has no session date of its own, so the system SHALL assign only the supplied `requestedThroughSession`; it SHALL not accept a second date for that row.
+The system SHALL select provider data according to the work required for each Trading Line. Initial backfill, refresh, and reconciliation SHALL use provider data that identifies every returned Trading Session by date. An undated current-market panel row SHALL NOT become a Daily Bar or advance `checkedThroughSession`.
 
 #### Scenario: Initial backfill uses historical data
 
 - **WHEN** a requested Trading Line has no stored Bar History
 - **THEN** the system obtains its available Daily Bars from dated historical data rather than a current panel
 
-#### Scenario: Missed sessions use historical data
+#### Scenario: Refresh uses dated historical data
 
-- **WHEN** a stored Trading Line is behind the completed session being requested
-- **THEN** the system obtains the missing interval from dated historical data rather than using a current panel to recreate past sessions
+- **WHEN** a stored Trading Line is behind the completed session being requested by one or more sessions
+- **THEN** the system obtains the complete missing interval from dated historical data
 
-#### Scenario: Ordinary refresh shares a panel
+#### Scenario: Undated panel data remains provisional
 
-- **WHEN** several Trading Lines need only the single completed session represented by the same provider panel
-- **THEN** the system obtains that panel once and assigns its rows the supplied `requestedThroughSession`
+- **WHEN** a current-market panel returns OHLCV values without identifying their Trading Session date
+- **THEN** Bar History does not store those values or advance its check progress
 
 #### Scenario: Reconciliation uses historical data
 

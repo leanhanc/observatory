@@ -88,6 +88,19 @@ export function reconcileBarHistory(input: ReconcileBarHistoryInput): BarHistory
 	| VALIDATIONS END
 	|--------------------------------------------------------------------------
 	*/
+	const isEmptyIncrementalRefresh =
+		input.existingHistory !== null &&
+		input.reconciliationWindow === null &&
+		input.incomingBars.length === 0;
+
+	if (isEmptyIncrementalRefresh) {
+		return {
+			ok: true,
+			status: 'unchanged',
+			history: input.existingHistory,
+			corrections: [],
+		};
+	}
 
 	const mergedBars = mergeDailyBars(input.existingHistory?.bars ?? [], input.incomingBars);
 	const candidateHistory = buildCandidateHistory(input, mergedBars.bars);
@@ -164,7 +177,7 @@ function validateExistingIdentity(input: ReconcileBarHistoryInput): BarHistoryFa
 
 /**
  * Protects the meaning of `checkedThroughSession`: the latest completed session whose provider
- * response has been accepted, even when that session produced no real bar.
+ * response has been accepted. An empty incremental response alone cannot advance it.
  *
  * Progress cannot move behind the stored value, and incoming bars cannot extend beyond the session
  * the caller claims to have checked.
@@ -235,7 +248,7 @@ function validateIncrementalBars(input: ReconcileBarHistoryInput): BarHistoryFai
 	return createFailure(
 		input,
 		'invalid-incoming-bars',
-		'Ordinary refresh cannot add or change already-checked sessions.',
+		'Refresh cannot add or change already-checked sessions.',
 		issues,
 	);
 }

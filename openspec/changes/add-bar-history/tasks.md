@@ -32,6 +32,6 @@
 ## 6. Integration and Rollout Verification
 
 - [x] 6.1 Run a canary backfill against a private Railway Bucket for representative ARS, MEP, CCL, sparse, and equity lines plus the synthetic no-data path; verify stored keys, provenance, check progress, ordering, temporary-object cleanup, and invalid-row rejection.
-- [ ] 6.2 Verify dated historical refresh followed by analysis-facing reads uses completed-session data and explicit freshness, with the scheduled orchestration prevented from overlapping itself.
+- [ ] 6.2 Verify dated historical refresh for the BYMA Trading Lines required by v1 consumers, followed by consumer-facing reads using completed-session data and explicit freshness, with the scheduled orchestration prevented from overlapping itself; refreshing the complete local CEDEAR universe is not required.
 - [ ] 6.3 Verify staggered full-window reconciliation catches a known correction, preserves older retained history, and stays within observed provider request limits.
-- [ ] 6.4 Run the project test, type-check, formatting, and strict OpenSpec validation commands; verify all checks pass before enabling the configured-universe backfill.
+- [ ] 6.4 Run the project test, type-check, formatting, and strict OpenSpec validation commands; verify all checks pass before enabling the v1-required BYMA history set.

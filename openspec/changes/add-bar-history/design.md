@@ -8,7 +8,8 @@ Open BYMADATA exposes separate BYMA trading lines and approximately two years of
 
 **Goals:**
 
-- Present one small provider-independent Bar History interface to analysis and orchestration code.
+- Present one small Bar History interface for BYMA market facts to consumers and orchestration code.
+- Store facts for requested Trading Lines without deciding which history a consuming capability uses for analysis.
 - Keep normalization, validation, and reconciliation deterministic and testable without Railway or network access.
 - Keep authoritative history separate from undated current-market observations.
 - Persist complete histories in a simple format that is inspectable and replaceable.
@@ -17,6 +18,9 @@ Open BYMADATA exposes separate BYMA trading lines and approximately two years of
 **Non-Goals:**
 
 - Instrument-catalog management or automatic discovery of BYMA species.
+- Selecting the analysis Instrument, mapping a CEDEAR to its Underlying Instrument, or translating an underlying level into an approximate local price.
+- Choosing or adapting the market-data provider for foreign Underlying Instrument history.
+- Obtaining the current local CEDEAR price or selecting its latest usable close.
 - Corporate-action ingestion, split/dividend adjustment, or total-return series.
 - Scheduling, market-calendar policy, provisional-session analysis, snapshot generation, SSR, or browser data access.
 - Intraday bars, quotes, charts, or redistribution endpoints for raw market data.
@@ -42,6 +46,12 @@ replace provider fetch, pacing, and the current-instant source for deterministic
 exposing acquisition as an application-facing operation.
 
 Bar History does not try to interpret identifiers such as `cedear-aapl-mep`. The instrument catalog tells it which Trading Lines to update and how Open BYMADATA identifies each one. We can decide how the catalog passes that information during implementation.
+
+Bar History also does not decide which stored history feeds technical analysis. In v1, Argentine
+stocks without a foreign underlying are analyzed from their own BYMA Trading Line history, while a
+CEDEAR is analyzed from its foreign Underlying Instrument history. A local CEDEAR history may still
+serve a consumer that needs a local close or market reference, but its existence does not imply
+independent technical analysis of CEDEAR volume, gaps, liquidity, premium, or price structure.
 
 Alternative considered: expose fetch, merge, and storage as separate application steps. Rejected because callers could skip validation, store provider-shaped rows, or duplicate orchestration policy.
 
@@ -79,7 +89,7 @@ The scheduled caller provides an explicit `requestedThroughSession` that it has 
 - **Refresh:** request every dated historical row after `checkedThroughSession` through `requestedThroughSession`, whether one session or several may be missing.
 - **Reconciliation:** request the provider's complete currently available historical window, intended to run staggered approximately monthly.
 
-All three modes use the dated historical endpoint and therefore require one request per Trading Line. Requests must respect provider limits in their orchestration.
+For the Open BYMADATA adapter, all three modes use the dated historical endpoint and therefore require one request per Trading Line. Requests must respect provider limits in their orchestration. This change delivers BYMA history through Open BYMADATA. Foreign Underlying Instrument history requires a separate OpenSpec change that selects a provider and defines the Trading Session date according to that market.
 
 The scheduled workflow must not treat market close as proof that the dated endpoint has published
 that session. Authoritative refresh runs after the provider's dated publication checkpoint;
@@ -162,7 +172,7 @@ effects itself.
 - **[An empty refresh cannot distinguish no trade from delayed publication]** → Keep check progress unchanged and retry the interval until a dated bar is returned.
 - **[Anonymous endpoint limits are undocumented]** → Pace historical requests, stagger work across Trading Lines, and report provider throttling explicitly.
 - **[Whole-value JSON eventually becomes large]** → Measure actual object sizes and memory before introducing streaming or another storage model.
-- **[Sparse CCL histories may be unsuitable for some indicators]** → Preserve real observations and expose freshness; analysis decides whether sample density is sufficient.
+- **[Local CEDEAR histories may be sparse or unsuitable for technical analysis]** → Preserve valid requested observations and expose freshness; v1 CEDEAR technical analysis uses the Underlying Instrument instead.
 
 ## Migration Plan
 
@@ -171,6 +181,6 @@ effects itself.
 3. Add the Bun/Railway storage adapter and integration-test `<trading-line-id>/v1/history.json` replacement.
 4. Wire batch reads and updates to Trading Line entries supplied by the instrument catalog.
 5. Backfill a small canary set covering ARS, MEP, CCL, equity, sparse, and synthetic no-data behavior; inspect stored source information and history density.
-6. Backfill the configured universe in rate-limited batches, then enable dated refresh and staggered reconciliation orchestration.
+6. Backfill and refresh the BYMA Trading Lines required by v1 consumers in rate-limited batches, then enable staggered reconciliation orchestration. A complete local CEDEAR-history universe is not a prerequisite for v1 technical analysis.
 
 The canary backfill created the first validated Bar Histories under schema v1. No representation migration is required; before enabling consumers, failed rollout data can still be discarded and backfilled again from the provider.

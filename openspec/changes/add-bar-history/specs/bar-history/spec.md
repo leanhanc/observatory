@@ -1,6 +1,6 @@
 ## Purpose
 
-Provide validated, provider-independent Daily Bar histories for configured Trading Lines so Observatory analysis can consume completed-session market facts with explicit provenance and freshness.
+Provide validated Daily Bar histories for configured BYMA Trading Lines so Observatory consumers can obtain completed-session market facts with explicit provenance and freshness. Bar History stores and returns requested facts; it does not decide which history feeds technical analysis.
 
 ## ADDED Requirements
 
@@ -12,6 +12,17 @@ The system SHALL maintain each Bar History under exactly one catalog-owned Tradi
 
 - **WHEN** the catalog requests `cedear-aapl-ars`, `cedear-aapl-mep`, and `cedear-aapl-ccl`
 - **THEN** the system treats them as three independent Bar Histories with no inferred price or volume shared among them
+
+### Requirement: Analysis-history selection remains outside Bar History
+
+Bar History SHALL read and update the Trading Lines requested by its caller without selecting which
+history represents an Instrument for technical analysis or substituting a related Trading Line or
+Underlying Instrument.
+
+#### Scenario: Caller selects the histories it needs
+
+- **WHEN** a caller requests histories for a set of Trading Line identifiers
+- **THEN** Bar History processes those identifiers without adding or substituting histories based on Instrument relationships
 
 ### Requirement: Daily Bars represent completed sessions
 

@@ -8,6 +8,10 @@ Observatory describes market conditions for supported instruments and identifies
 A legally and economically distinct market-listed asset that Observatory follows and describes. One Instrument may trade through multiple Trading Lines.
 _Avoid_: Ticker, symbol, security
 
+**Instrument Catalog**:
+The authoritative collection of Instruments Observatory currently recognizes, including each Instrument's Trading Lines and any CEDEAR-to-Underlying-Instrument relationship.
+_Avoid_: Bar History, provider configuration, analysis configuration
+
 **Underlying Instrument**:
 An Instrument whose economic value another Instrument references, such as the foreign share represented by a CEDEAR. The CEDEAR and its Underlying Instrument remain distinct Instruments.
 _Avoid_: Treating a CEDEAR and its foreign share as the same Instrument

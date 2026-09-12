@@ -1,0 +1,42 @@
+{
+	"schemaVersion": 1,
+	"instruments": [
+		{
+			"id": "galicia-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "galicia-stock-byma-ars",
+					"symbol": "GGAL",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "apple-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "apple-stock-nasdaq-usd",
+					"symbol": "AAPL",
+					"exchange": "NASDAQ",
+					"currency": "USD"
+				}
+			]
+		},
+		{
+			"id": "apple-cedear",
+			"type": "cedear",
+			"underlyingInstrumentId": "apple-stock",
+			"tradingLines": [
+				{
+					"id": "apple-cedear-byma-ars",
+					"symbol": "AAPL",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		}
+	]
+}

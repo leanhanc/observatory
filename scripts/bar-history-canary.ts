@@ -8,7 +8,10 @@ import {
 	createBarHistoryUpdater,
 } from '#modules/bar-history/index.ts';
 import { buildBarHistoryStorageKey } from '#modules/bar-history/storage/index.ts';
+import { instrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import { createLogger } from '#modules/logger/index.ts';
+
+import { resolveBarHistoryStorageConfiguration } from './bar-history-storage-configuration.ts';
 
 import type { OpenBymadataTradingLineDescriptor } from '#modules/bar-history/adapters/index.ts';
 import type {
@@ -16,28 +19,26 @@ import type {
 	BarHistoryStorage,
 	BarHistoryStorageConfiguration,
 	BarHistoryStorageReadResult,
+	BarHistoryUpdate,
 	BarHistoryUpdateMode,
 	UpdateBarHistoryLine,
 } from '#modules/bar-history/index.ts';
+import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 
-const CANARY_TRADING_LINES = [
-	{ tradingLineId: 'cedear-aapl-ars', symbol: 'AAPL' },
+const V1_BYMA_TRADING_LINE_IDS = ['ypf-stock-byma-ars', 'apple-cedear-byma-ars'] as const;
+const DIAGNOSTIC_TRADING_LINES = [
 	{ tradingLineId: 'cedear-aapl-mep', symbol: 'AAPLD' },
 	{ tradingLineId: 'cedear-aapl-ccl', symbol: 'AAPLC' },
 	{ tradingLineId: 'equity-ypfd-ars', symbol: 'YPFD' },
 ] as const satisfies readonly OpenBymadataTradingLineDescriptor[];
-const LIQUID_CONTROL_IDS = new Set(['cedear-aapl-ars', 'equity-ypfd-ars']);
+const V1_BYMA_TRADING_LINES = resolveV1BymaTradingLines();
+const CANARY_TRADING_LINES = [...V1_BYMA_TRADING_LINES, ...DIAGNOSTIC_TRADING_LINES];
+const LIQUID_CONTROL_IDS = new Set(['ypf-stock-byma-ars', 'apple-cedear-byma-ars']);
+const RETAINED_SENTINEL_SESSION = '1999-12-31';
+const CORRECTION_ID_PREFIX = '__canary-correction__';
 const INVALID_ROW_ID_PREFIX = '__canary-invalid-row__';
 const NO_DATA_ID_PREFIX = '__canary-no-data__';
 const PROVIDER_REQUEST_TIMEOUT_MS = 20_000;
-const REQUIRED_ENVIRONMENT_VARIABLES = [
-	'OBSERVATORY_STORAGE_ACCESS_KEY_ID',
-	'OBSERVATORY_STORAGE_SECRET_ACCESS_KEY',
-	'OBSERVATORY_STORAGE_BUCKET',
-	'OBSERVATORY_STORAGE_ENDPOINT',
-	'OBSERVATORY_STORAGE_REGION',
-	'OBSERVATORY_STORAGE_VIRTUAL_HOSTED_STYLE',
-] as const;
 
 type CanaryLineStatus = 'created' | 'updated' | 'unchanged' | 'verified';
 type CanaryUpdateMode = Extract<BarHistoryUpdateMode, 'initial-backfill' | 'refresh'>;
@@ -71,7 +72,7 @@ export function resolveCanaryInvocation(
 	}
 
 	return {
-		configuration: resolveStorageConfiguration(environment),
+		configuration: resolveBarHistoryStorageConfiguration(environment),
 		requestedThroughSession,
 	};
 }
@@ -97,6 +98,21 @@ export function selectCanaryMode(
 	return 'verified';
 }
 
+export function resolveV1BymaTradingLines(
+	catalog: InstrumentCatalog = instrumentCatalog,
+): readonly OpenBymadataTradingLineDescriptor[] {
+	const result = catalog.getTradingLinesByIds(V1_BYMA_TRADING_LINE_IDS);
+
+	if (!result.ok) {
+		throw new Error('The Instrument Catalog cannot resolve the v1 BYMA Trading Lines.');
+	}
+
+	return result.tradingLines.map((tradingLine) => ({
+		tradingLineId: tradingLine.id,
+		symbol: tradingLine.symbol,
+	}));
+}
+
 async function startBarHistoryCanary(): Promise<void> {
 	const invocation = resolveCanaryInvocation(Bun.argv.slice(2), Bun.env);
 	const storage = createBarHistoryStorage(invocation.configuration);
@@ -106,8 +122,13 @@ async function startBarHistoryCanary(): Promise<void> {
 	});
 	const reader = createBarHistoryReader(storage);
 	const syntheticNoDataLine = createSyntheticNoDataLine();
+	const correctionLine = createCorrectionLine();
 	const invalidRowId = `${INVALID_ROW_ID_PREFIX}-${crypto.randomUUID()}`;
-	const temporaryIds = [syntheticNoDataLine.tradingLineId, invalidRowId];
+	const temporaryIds = [
+		syntheticNoDataLine.tradingLineId,
+		correctionLine.tradingLineId,
+		invalidRowId,
+	];
 	let report: readonly CanaryLineSummary[] | null = null;
 	let operationError: unknown = null;
 
@@ -117,6 +138,12 @@ async function startBarHistoryCanary(): Promise<void> {
 			storage,
 			s3Client,
 			invalidRowId,
+			invocation.requestedThroughSession,
+		);
+		await verifyKnownProviderCorrection(
+			storage,
+			updater,
+			correctionLine,
 			invocation.requestedThroughSession,
 		);
 		report = await backfillAndVerify(
@@ -181,11 +208,13 @@ async function backfillAndVerify(
 			result.status === 'failed' ? [] : [[result.tradingLineId, result.status]],
 		),
 	);
+	await reconcileV1BymaTradingLines(updater, requestedThroughSession);
 	const allLines = [...CANARY_TRADING_LINES, syntheticNoDataLine];
 	const histories = await readStoredHistories(storage, allLines, requestedThroughSession);
 
 	await verifyCanonicalKeys(s3Client, allLines);
 	await verifyAnalysisFacingRead(reader, histories);
+	verifyV1ReconciliationMetadata(histories);
 	verifyRealHistoriesContainBars(histories);
 	verifySyntheticNoDataHistory(histories, syntheticNoDataLine.tradingLineId);
 	verifyLiquidControls(histories, requestedThroughSession);
@@ -198,6 +227,37 @@ async function backfillAndVerify(
 
 		return createLineSummary(history, status);
 	});
+}
+
+function verifyV1ReconciliationMetadata(histories: ReadonlyMap<string, BarHistory>): void {
+	for (const tradingLine of V1_BYMA_TRADING_LINES) {
+		const history = getRequiredMapValue(histories, tradingLine.tradingLineId);
+
+		if (!history.lastReconciledAt) {
+			throw new Error(`${tradingLine.tradingLineId} has no reconciliation timestamp.`);
+		}
+	}
+}
+
+async function reconcileV1BymaTradingLines(
+	updater: ReturnType<typeof createBarHistoryUpdater>,
+	requestedThroughSession: string,
+): Promise<void> {
+	const lines = V1_BYMA_TRADING_LINES.map((tradingLine) => ({
+		tradingLine,
+		mode: 'reconciliation' as const,
+	}));
+	const result = await updater.update({ lines, requestedThroughSession });
+
+	if (!result.ok) {
+		throw new Error('The v1 BYMA reconciliation request was rejected.');
+	}
+
+	const failedLine = result.results.find((line) => line.status === 'failed');
+
+	if (failedLine?.status === 'failed') {
+		throw new Error(`${failedLine.tradingLineId}: ${failedLine.message}`);
+	}
 }
 
 async function buildUpdatePlan(
@@ -350,6 +410,117 @@ function createSyntheticNoDataLine(): OpenBymadataTradingLineDescriptor {
 	};
 }
 
+function createCorrectionLine(): OpenBymadataTradingLineDescriptor {
+	return {
+		tradingLineId: `${CORRECTION_ID_PREFIX}-${crypto.randomUUID()}`,
+		symbol: 'YPFD',
+	};
+}
+
+async function verifyKnownProviderCorrection(
+	storage: BarHistoryStorage,
+	updater: ReturnType<typeof createBarHistoryUpdater>,
+	tradingLine: OpenBymadataTradingLineDescriptor,
+	requestedThroughSession: string,
+): Promise<void> {
+	await updateRequiredLine(updater, tradingLine, 'initial-backfill', requestedThroughSession);
+	const storedResult = await storage.read(tradingLine.tradingLineId);
+
+	if (!storedResult.ok) {
+		throw new Error(`${tradingLine.tradingLineId}: ${storedResult.message}`);
+	}
+
+	const providerBar = storedResult.history.bars.at(-1);
+
+	if (!providerBar) {
+		throw new Error('The correction canary requires at least one real provider bar.');
+	}
+
+	const alteredBar = { ...providerBar, volume: providerBar.volume + 1 };
+	const retainedSentinelBar = {
+		sessionDate: RETAINED_SENTINEL_SESSION,
+		open: 1,
+		high: 1,
+		low: 1,
+		close: 1,
+		volume: 1,
+	};
+	const alteredHistory = {
+		...storedResult.history,
+		bars: [
+			retainedSentinelBar,
+			...storedResult.history.bars.map((bar) =>
+				bar.sessionDate === alteredBar.sessionDate ? alteredBar : bar,
+			),
+		],
+	};
+	const alteredWrite = await storage.write(alteredHistory);
+
+	if (!alteredWrite.ok) {
+		throw new Error(`Could not prepare the correction canary: ${alteredWrite.message}`);
+	}
+
+	const reconciliation = await updateRequiredLine(
+		updater,
+		tradingLine,
+		'reconciliation',
+		requestedThroughSession,
+	);
+	const correction = reconciliation.corrections.find(
+		(candidate) => candidate.sessionDate === providerBar.sessionDate,
+	);
+
+	if (
+		!correction ||
+		correction.previousBar.volume !== alteredBar.volume ||
+		correction.correctedBar.volume !== providerBar.volume
+	) {
+		throw new Error('Reconciliation did not report the prepared provider correction.');
+	}
+
+	const reconciledResult = await storage.read(tradingLine.tradingLineId);
+
+	if (!reconciledResult.ok) {
+		throw new Error(`${tradingLine.tradingLineId}: ${reconciledResult.message}`);
+	}
+
+	const retainedSentinel = reconciledResult.history.bars.find(
+		(bar) => bar.sessionDate === RETAINED_SENTINEL_SESSION,
+	);
+	const correctedBar = reconciledResult.history.bars.find(
+		(bar) => bar.sessionDate === providerBar.sessionDate,
+	);
+
+	if (!retainedSentinel || !correctedBar || correctedBar.volume !== providerBar.volume) {
+		throw new Error('Reconciliation did not preserve old history and restore provider facts.');
+	}
+}
+
+async function updateRequiredLine(
+	updater: ReturnType<typeof createBarHistoryUpdater>,
+	tradingLine: OpenBymadataTradingLineDescriptor,
+	mode: BarHistoryUpdateMode,
+	requestedThroughSession: string,
+): Promise<Exclude<BarHistoryUpdate, { status: 'failed' }>> {
+	const result = await updater.update({
+		lines: [{ tradingLine, mode }],
+		requestedThroughSession,
+	});
+
+	if (!result.ok) {
+		throw new Error('The correction canary update request was rejected.');
+	}
+
+	const lineResult = result.results[0];
+
+	if (!lineResult || lineResult.status === 'failed') {
+		const message = lineResult?.message ?? 'The correction canary returned no result.';
+		throw new Error(`${tradingLine.tradingLineId}: ${message}`);
+	}
+
+	return lineResult;
+}
+
 function verifyLiquidControls(
 	histories: ReadonlyMap<string, BarHistory>,
 	requestedThroughSession: string,
@@ -438,38 +609,6 @@ async function deleteHistories(
 	}
 }
 
-function resolveStorageConfiguration(
-	environment: Readonly<Record<string, string | undefined>>,
-): BarHistoryStorageConfiguration {
-	const missingVariables = REQUIRED_ENVIRONMENT_VARIABLES.filter(
-		(name) => !environment[name]?.trim(),
-	);
-
-	if (missingVariables.length > 0) {
-		throw new Error(`Missing storage configuration: ${missingVariables.join(', ')}.`);
-	}
-
-	const virtualHostedStyle = environment.OBSERVATORY_STORAGE_VIRTUAL_HOSTED_STYLE;
-	const endpoint = environment.OBSERVATORY_STORAGE_ENDPOINT!;
-
-	if (virtualHostedStyle !== 'true' && virtualHostedStyle !== 'false') {
-		throw new Error('OBSERVATORY_STORAGE_VIRTUAL_HOSTED_STYLE must be true or false.');
-	}
-
-	if (!URL.canParse(endpoint)) {
-		throw new Error('OBSERVATORY_STORAGE_ENDPOINT must be a valid URL.');
-	}
-
-	return {
-		accessKeyId: environment.OBSERVATORY_STORAGE_ACCESS_KEY_ID!,
-		secretAccessKey: environment.OBSERVATORY_STORAGE_SECRET_ACCESS_KEY!,
-		bucket: environment.OBSERVATORY_STORAGE_BUCKET!,
-		endpoint,
-		region: environment.OBSERVATORY_STORAGE_REGION!,
-		virtualHostedStyle: virtualHostedStyle === 'true',
-	};
-}
-
 async function fetchOpenBymadataWithTimeout(
 	input: string | URL | Request,
 	init?: RequestInit,
@@ -515,8 +654,16 @@ if (import.meta.main) {
 	try {
 		await startBarHistoryCanary();
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		console.error(`Bar History canary failed: ${message}`);
+		console.error(`Bar History canary failed: ${formatCanaryError(error)}`);
 		process.exitCode = 1;
 	}
+}
+
+function formatCanaryError(error: unknown): string {
+	if (error instanceof AggregateError) {
+		const causes = [...error.errors].map(formatCanaryError).join(' | ');
+		return `${error.message} (${causes})`;
+	}
+
+	return error instanceof Error ? error.message : String(error);
 }

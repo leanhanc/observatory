@@ -5,7 +5,7 @@
 
 ## 2. Repository Catalog
 
-- [x] 2.1 Add the version-1 JSON catalog with Galicia stock, Apple stock, and the Apple CEDEAR using the accepted opaque IDs; verify the complete stored value passes the catalog validator.
+- [x] 2.1 Add the version-1 JSON catalog with Galicia and YPF stocks, Apple stock, and the Apple CEDEAR using the accepted opaque IDs; verify the complete stored value passes the catalog validator.
 - [x] 2.2 Load and validate the repository JSON once, deeply freeze the accepted data or return defensive immutable copies, and build private Instrument and Trading Line indexes; verify invalid input prevents catalog creation and tests cannot change later reads by mutating nested Instrument fields, nested Trading Line fields, or returned arrays.
 
 ## 3. Read-Only Module Interface

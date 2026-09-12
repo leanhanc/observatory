@@ -140,6 +140,34 @@ A deliberately invalid zero-price history was rejected before upload, and the li
 row independently confirmed that one bad provider row rejects the complete Trading Line update.
 The Railway replacement integration test also passed and removed its temporary object afterward.
 
+### Catalog-backed rollout
+
+On 2026-09-12, the rollout resolved `ypf-stock-byma-ars` and
+`apple-cedear-byma-ars` through the public Instrument Catalog. It first stored both histories
+through 2026-09-10, then refreshed them through the completed 2026-09-11 session. Each canonical
+history contained 486 real Daily Bars from 2024-09-12 through 2026-09-11 and was read back with its
+source and Checked-Through Session intact.
+
+The rollout used YPF rather than Galicia because Open BYMADATA still returned GGAL's invalid
+2025-01-17 row. Observatory rejected that history without repairing the provider value; Galicia
+remains recognized in the Instrument Catalog but is not enabled in the initial Bar History rollout.
+
+Both canonical histories then completed full-window reconciliation in one sequentially paced
+batch. A separate temporary YPFD canary history deliberately changed the newest bar's volume and
+added a valid 1999-12-31 bar before the provider's 2000-01-01 query lower bound. Reconciliation
+reported and restored the changed provider value, preserved the older bar outside the returned
+window, and removed the temporary object. A direct bucket listing confirmed only the four earlier
+pilot histories and the two new canonical histories remained.
+
+Scheduled deployment remains part of the future application capability. Railway Cron Jobs provide
+the required one-run-at-a-time behavior by skipping a new execution while its preceding execution
+is still active: <https://docs.railway.com/cron-jobs>.
+
+Railway's bucket credentials report a virtual-host URL style, but Bun's `S3Client` reached this
+Railway S3-compatible endpoint with `virtualHostedStyle: false`; using `true` returned a nonexistent
+bucket response. Future deployment configuration must preserve the empirically verified Bun
+setting.
+
 ## Provider behavior not yet established
 
 - Anonymous request limits and throttling response headers remain undocumented.

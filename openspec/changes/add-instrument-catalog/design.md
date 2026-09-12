@@ -75,6 +75,8 @@ Instrument and Trading Line IDs use lowercase kebab-case. Initial identifiers ar
 ```text
 galicia-stock
 galicia-stock-byma-ars
+ypf-stock
+ypf-stock-byma-ars
 apple-stock
 apple-stock-nasdaq-usd
 apple-cedear

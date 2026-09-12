@@ -8,7 +8,7 @@ Observatory needs one authoritative answer for which Instruments and Trading Lin
 - Let a CEDEAR reference the distinct stock Instrument whose economic value it represents.
 - Validate the complete catalog before exposing any entry, including record shape, identifiers, Trading Line uniqueness, and CEDEAR-underlying relationships.
 - Expose read-only catalog operations for listing Instruments and resolving Instrument or Trading Line identifiers without allowing consumers to import the stored JSON directly.
-- Add a minimal initial catalog containing Galicia stock, Apple stock, and the Apple CEDEAR.
+- Add a minimal initial catalog containing Galicia and YPF stocks, Apple stock, and the Apple CEDEAR.
 - Keep provider selection, provider mappings, analysis Trading Line selection, CEDEAR ratios, level translation, country, display names, and settlement variants outside this change.
 
 ## Capabilities

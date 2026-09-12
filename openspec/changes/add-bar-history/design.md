@@ -45,7 +45,7 @@ per-line statuses and corrections rather than returning complete histories. Runt
 replace provider fetch, pacing, and the current-instant source for deterministic tests without
 exposing acquisition as an application-facing operation.
 
-Bar History does not try to interpret identifiers such as `cedear-aapl-mep`. The instrument catalog tells it which Trading Lines to update and how Open BYMADATA identifies each one. We can decide how the catalog passes that information during implementation.
+Bar History does not interpret identifiers such as `apple-cedear-byma-ars`. Scheduled orchestration resolves an explicit list through the Instrument Catalog and passes each line's opaque ID and symbol to the Open BYMADATA updater. Provider selection remains outside the catalog.
 
 Bar History also does not decide which stored history feeds technical analysis. In v1, Argentine
 stocks without a foreign underlying are analyzed from their own BYMA Trading Line history, while a
@@ -77,7 +77,7 @@ type StoredBarHistoryV1 = {
 
 Operational instants are UTC ISO-8601 strings. Session dates are Buenos Aires civil dates and are not represented as instants. The newest bar date is derived from `bars`; it is intentionally not duplicated as metadata.
 
-The initial ID convention is catalog-owned, readable lowercase kebab-case, for example `cedear-aapl-ars`, `cedear-aapl-mep`, and `cedear-aapl-ccl`. Bar History treats the ID as opaque.
+The ID convention is catalog-owned, readable lowercase kebab-case, for example `ypf-stock-byma-ars` and `apple-cedear-byma-ars`. Bar History treats the ID as opaque.
 
 Alternative considered: one file per bar or separate metadata and bars files. Rejected because it creates more reads and consistency edges without helping histories of this size.
 
@@ -181,6 +181,13 @@ effects itself.
 3. Add the Bun/Railway storage adapter and integration-test `<trading-line-id>/v1/history.json` replacement.
 4. Wire batch reads and updates to Trading Line entries supplied by the instrument catalog.
 5. Backfill a small canary set covering ARS, MEP, CCL, equity, sparse, and synthetic no-data behavior; inspect stored source information and history density.
-6. Backfill and refresh the BYMA Trading Lines required by v1 consumers in rate-limited batches, then enable staggered reconciliation orchestration. A complete local CEDEAR-history universe is not a prerequisite for v1 technical analysis.
+6. Resolve the v1 BYMA rollout set (`ypf-stock-byma-ars` and
+   `apple-cedear-byma-ars`) through the public Instrument Catalog, transform those catalog facts into
+   Open BYMADATA descriptors at the application edge, and backfill or refresh them in rate-limited
+   batches. Verify full-window reconciliation with a known correction in transient storage before
+   enabling Railway Cron orchestration, which skips a new execution while the previous one remains
+   active. A complete local CEDEAR-history universe is not
+   a prerequisite for v1 technical analysis, and the unresolved foreign history provider keeps
+   `apple-stock-nasdaq-usd` outside this rollout.
 
 The canary backfill created the first validated Bar Histories under schema v1. No representation migration is required; before enabling consumers, failed rollout data can still be discarded and backfilled again from the provider.

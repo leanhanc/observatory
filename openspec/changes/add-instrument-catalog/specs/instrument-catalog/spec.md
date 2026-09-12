@@ -108,12 +108,12 @@ The system SHALL return a machine-readable failure when an Instrument identifier
 
 ### Requirement: The initial catalog represents the first supported relationships
 
-The version-1 repository catalog SHALL initially contain the Galicia stock Instrument, the Apple stock Instrument, and the Apple CEDEAR Instrument. Galicia stock SHALL own its BYMA ARS Trading Line. Apple stock SHALL own its NASDAQ USD Trading Line. The Apple CEDEAR SHALL own its BYMA ARS Trading Line and reference Apple stock as its Underlying Instrument.
+The version-1 repository catalog SHALL initially contain the Galicia and YPF stock Instruments, the Apple stock Instrument, and the Apple CEDEAR Instrument. Galicia and YPF stocks SHALL each own their BYMA ARS Trading Line. Apple stock SHALL own its NASDAQ USD Trading Line. The Apple CEDEAR SHALL own its BYMA ARS Trading Line and reference Apple stock as its Underlying Instrument.
 
 #### Scenario: Initial catalog loads
 
 - **WHEN** the repository's version-1 catalog is loaded
-- **THEN** all three Instruments and their Trading Lines are available through the catalog interface with the Apple CEDEAR related to Apple stock
+- **THEN** all four Instruments and their Trading Lines are available through the catalog interface with the Apple CEDEAR related to Apple stock
 
 ### Requirement: The catalog does not select acquisition or analysis policy
 

@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 
-import { resolveCanaryInvocation, selectCanaryMode } from './bar-history-canary.ts';
+import {
+	resolveCanaryInvocation,
+	resolveV1BymaTradingLines,
+	selectCanaryMode,
+} from './bar-history-canary.ts';
 
 import type { BarHistory } from '#modules/bar-history/index.ts';
 
@@ -57,6 +61,13 @@ describe('Bar History canary', () => {
 		expect(() =>
 			selectCanaryMode(createHistory('2026-09-09'), REQUESTED_THROUGH_SESSION),
 		).toThrow('already checked beyond');
+	});
+
+	test('resolves the v1 BYMA rollout descriptors through the Instrument Catalog', () => {
+		expect(resolveV1BymaTradingLines()).toEqual([
+			{ tradingLineId: 'ypf-stock-byma-ars', symbol: 'YPFD' },
+			{ tradingLineId: 'apple-cedear-byma-ars', symbol: 'AAPL' },
+		]);
 	});
 });
 

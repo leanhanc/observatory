@@ -230,13 +230,14 @@ describe('Instrument Catalog validation', () => {
 });
 
 describe('Instrument Catalog interface', () => {
-	test('loads the initial Galicia, Apple stock, and Apple CEDEAR entries', () => {
+	test('loads the initial Argentine stock and Apple relationship entries', () => {
 		const instruments = instrumentCatalog.getInstruments();
 
 		expect(instruments.map((instrument) => instrument.id).toSorted()).toEqual([
 			'apple-cedear',
 			'apple-stock',
 			'galicia-stock',
+			'ypf-stock',
 		]);
 		expect(instrumentCatalog.getInstrumentById('apple-cedear')).toMatchObject({
 			ok: true,

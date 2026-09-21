@@ -75,3 +75,73 @@ _Avoid_: Ordinary Refresh, Catch-up, using an undated market row
 **Reconciliation**:
 The deliberate recheck of previously accepted sessions against the source to detect corrections while preserving valid history outside the source's available window.
 _Avoid_: Initial Backfill, ordinary daily update
+
+## Analysis Language
+
+**Feature**:
+A measured property of an Instrument for a Trading Session, derived from its Bar History. A Feature may be continuous, such as price relative to an average, or comparative, such as a percentile over a stated window.
+_Example_: If the close is 105, EMA(20) is 100, and ATR(14) is 2.5, the Feature “price relative to EMA(20) in ATR units” is 2: `(105 - 100) / 2.5`. It is a measurement, not the report sentence used to present it.
+_Avoid_: State, score, recommendation
+
+**Instrument State**:
+A structured description of what is true about an Instrument for a Trading Session, including classifications, measurements, and whether each part could be evaluated.
+_Example_: For one Trading Session, an Instrument State may record a mixed Regime, range-bound Structure, RSI(14) at 61.6, price 2 ATRs above EMA(20), and volume comparison as unavailable because there is not enough history. Together these facts describe the Instrument without predicting what happens next.
+_Avoid_: Signal, verdict, snapshot when referring to a single fact
+
+**Regime**:
+A slower-moving description of the broader price context, conventionally described as bullish, bearish, mixed, or undefined. These labels describe the observed context and do not predict the next move or recommend an action.
+_Avoid_: Using rising or falling as the canonical regime labels, buy signal, sell signal
+
+**Structure**:
+The sequence and relationships of confirmed swing highs and lows in price, conventionally described as an uptrend, downtrend, range, or undefined. Structure can remain intact, come under pressure, or break without immediately becoming the opposite trend.
+_Avoid_: Pattern, signal, prediction
+
+**Situation**:
+A named combination of Features and Instrument State that Observatory recognizes as worth describing.
+_Avoid_: Signal, prediction, opportunity
+
+**Event**:
+A precise change that occurred in an Instrument's state or measurable market behavior, such as a structure break or new period high.
+_Avoid_: Alert, recommendation
+
+**Observation**:
+An optional result that identifies a Situation or Event as deserving attention and carries the structured Evidence needed to understand it.
+_Avoid_: State, notification
+
+**Evidence**:
+The structured facts, values, references, windows, and evaluation status supporting an Instrument State, Situation, or Observation.
+_Avoid_: Explanation when referring to human-readable wording
+
+**Evidence Status**:
+The conclusion available for a tested claim: supported, contradicted, no evidence, or untestable. These statuses must remain distinct. “No evidence” means the test did not find clear support for the claim; it does not mean the test showed the claim was false.
+_Avoid_: Confidence score, pass/fail when referring to research evidence
+
+**Analysis Configuration**:
+The versioned, project-wide set of measurement conventions and interpretation thresholds used to produce comparable analysis, such as indicator periods, warm-up rules, and event thresholds.
+_Avoid_: User preference, Attention Preference
+
+**Attention Preference**:
+A user's instruction about which already-computed Observations to order, filter, or deliver. It never combines evidence into a score or changes the meaning of an Analysis Configuration.
+_Avoid_: Weight, score, personalized analysis
+
+**User-Context Projection**:
+The interpretation of canonical analysis together with user context, such as Holdings, Watched Instruments, notification preferences, or the CEDEAR Trading Line to which an underlying level may be translated.
+_Avoid_: Reanalysis, customized analysis
+
+## User Scope
+
+**Holding**:
+An Instrument the user has told Observatory they own or currently hold.
+_Avoid_: Position when referring to the user's relationship with an Instrument
+
+**Watched Instrument**:
+An Instrument the user has explicitly chosen to follow, whether or not they hold it.
+_Avoid_: Holding, watchlist item when referring to the Instrument itself
+
+**Notification**:
+A user-configured delivery of an Observation. Notifications are separate from analysis: Observatory may analyze every eligible Instrument while delivering only the Observations the user's preferences permit. Watched Instruments have notifications enabled by default; users may change that preference.
+_Avoid_: Event, alert when referring to the user preference and delivery
+
+**Quiet**:
+A presentation label for an Instrument with a valid current Instrument State but no recent Observation. Quiet must not describe missing, insufficient, or failed analysis.
+_Avoid_: No data, inactive, nothing happened

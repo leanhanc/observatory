@@ -1,0 +1,4 @@
+- [x] Define and review the aligned public contract.
+- [x] Implement EMA, True Range/Wilder ATR, and Wilder RSI.
+- [x] Add parity and adversarial tests through the public interface.
+- [x] Run tests, typecheck, lint, format, and OpenSpec validation.

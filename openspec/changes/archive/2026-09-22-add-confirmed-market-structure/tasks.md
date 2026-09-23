@@ -1,0 +1,6 @@
+- [x] Review and settle the behavioral contract.
+- [x] Implement pure session-aligned confirmed market structure.
+- [x] Test controlled shapes, timing, no lookahead, equality, expiry, edge histories, non-mutation, and a real fixture.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation, and whitespace checks.
+- [x] Request an independent adversarial review and resolve findings.
+- [x] Archive the OpenSpec change and commit only this capability on `technical-analysis-market-structure`.

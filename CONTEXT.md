@@ -96,6 +96,10 @@ _Avoid_: Using rising or falling as the canonical regime labels, buy signal, sel
 The sequence and relationships of confirmed swing highs and lows in price, conventionally described as an uptrend, downtrend, range, or undefined. Structure can remain intact, come under pressure, or break without immediately becoming the opposite trend.
 _Avoid_: Pattern, signal, prediction
 
+**Confirmed Swing**:
+A local high or low of a completed Trading Session that becomes knowable only after the required number of later completed Trading Sessions. Its occurrence session and confirmation session are distinct.
+_Avoid_: Current price, unconfirmed turning point
+
 **Situation**:
 A named combination of Features and Instrument State that Observatory recognizes as worth describing.
 _Avoid_: Signal, prediction, opportunity

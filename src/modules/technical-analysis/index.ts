@@ -1,6 +1,7 @@
 export { calculateAtr } from './atr/index.ts';
 export { calculateEma } from './ema/index.ts';
 export { calculateMarketStructure } from './market-structure/index.ts';
+export { calculateRegime } from './regime/index.ts';
 export { calculateRsi } from './rsi/index.ts';
 export { calculateTrueRange } from './true-range/index.ts';
 export type {
@@ -8,3 +9,4 @@ export type {
 	MarketStructureSession,
 	StructureClassification,
 } from './market-structure/index.ts';
+export type { Regime, RegimeSession } from './regime/index.ts';

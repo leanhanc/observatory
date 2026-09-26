@@ -1,0 +1,7 @@
+- [x] Review and settle the behavioral contract.
+- [x] Implement the pure session-aligned Structure Break Event module.
+- [x] Test directional breaks, non-events, strict close semantics, crossing once, gaps, confirmation timing, prefix replay, and non-mutation.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation, and whitespace checks.
+- [x] Perform a fresh adversarial review and resolve or explicitly reject findings.
+- [x] Archive the OpenSpec change.
+- [x] Commit only this capability and the related `CONTEXT.md` update after review.

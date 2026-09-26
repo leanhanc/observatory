@@ -93,8 +93,8 @@ A slower-moving description of the broader price context, conventionally describ
 _Avoid_: Using rising or falling as the canonical regime labels, buy signal, sell signal
 
 **Structure**:
-The sequence and relationships of confirmed swing highs and lows in price, conventionally described as an uptrend, downtrend, range, or undefined. Structure can remain intact, come under pressure, or break without immediately becoming the opposite trend.
-_Avoid_: Pattern, signal, prediction
+The sequence and relationships of confirmed swing highs and lows in price, conventionally described as an uptrend, downtrend, range, or undefined. A directional Structure depends on a confirmed swing level. That level and the current price's distance from it are Evidence about Structure; they are not a separate state beside Structure and Regime. A completed close beyond that level may produce a structure-break Event and makes Structure undefined rather than automatically reversing it.
+_Avoid_: Pattern, signal, prediction, Structural Hold as a separate state
 
 **Confirmed Swing**:
 A local high or low of a completed Trading Session that becomes knowable only after the required number of later completed Trading Sessions. Its occurrence session and confirmation session are distinct.

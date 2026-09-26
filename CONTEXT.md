@@ -92,6 +92,10 @@ _Avoid_: Signal, verdict, snapshot when referring to a single fact
 A slower-moving description of the broader price context, conventionally described as bullish, bearish, mixed, or undefined. These labels describe the observed context and do not predict the next move or recommend an action.
 _Avoid_: Using rising or falling as the canonical regime labels, buy signal, sell signal
 
+**Regime Transition**:
+An Event in which an already established readable Regime changes to a different readable Regime after the required confirming Trading Sessions. The first readable Regime after unavailable history is initial availability, not a Regime Transition.
+_Avoid_: Treating warm-up completion, an unconfirmed proposal, or an unchanged Regime as an Event
+
 **Structure**:
 The sequence and relationships of confirmed swing highs and lows in price, conventionally described as an uptrend, downtrend, range, or undefined. A directional Structure depends on a confirmed swing level. That level and the current price's distance from it are Evidence about Structure; they are not a separate state beside Structure and Regime. A completed close beyond that level may produce a structure-break Event and makes Structure undefined rather than automatically reversing it.
 _Avoid_: Pattern, signal, prediction, Structural Hold as a separate state

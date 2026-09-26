@@ -6,12 +6,10 @@ type ReadableRegime = Exclude<Regime, 'undefined'>;
 
 const ROUNDING_ULPS = 8;
 
-export type RegimeState = Readonly<{
-	settled: ReadableRegime | null;
-	pending: ReadableRegime | null;
-	pendingCount: number;
-}>;
-
+/**
+ * Proposes a readable Regime from the completed session's price, EMA, and ATR evidence.
+ * Returns null when any required measurement is unavailable or non-finite.
+ */
 export function proposeRegime(
 	close: number | null,
 	ema50: number | null,
@@ -48,6 +46,10 @@ export function proposeRegime(
 	return 'mixed';
 }
 
+/**
+ * Compares two measurements while treating scale-relative floating-point drift as equality.
+ * This guards indicator arithmetic and does not introduce a market-analysis threshold.
+ */
 function compareBeyondRoundingNoise(value: number, threshold: number): -1 | 0 | 1 {
 	// EMA arithmetic can drift by a few ulps even on a mathematically flat series.
 	const scale = Math.max(Math.abs(value), Math.abs(threshold));
@@ -62,25 +64,4 @@ function compareBeyondRoundingNoise(value: number, threshold: number): -1 | 0 | 
 	}
 
 	return 0;
-}
-
-export function advanceRegimeState(
-	state: RegimeState,
-	proposal: ReadableRegime | null,
-): RegimeState {
-	if (proposal === null) {
-		return state;
-	}
-
-	if (state.settled === null || proposal === state.settled) {
-		return { settled: proposal, pending: null, pendingCount: 0 };
-	}
-
-	const pendingCount = proposal === state.pending ? state.pendingCount + 1 : 1;
-
-	if (pendingCount >= REGIME_CONFIGURATION_V1.transitionConfirmations) {
-		return { settled: proposal, pending: null, pendingCount: 0 };
-	}
-
-	return { settled: state.settled, pending: proposal, pendingCount };
 }

@@ -12,10 +12,12 @@ import type { Regime } from './regime.types.ts';
 
 type ReadableRegime = Exclude<Regime, 'undefined'>;
 type SessionDate = DailyBar['sessionDate'];
+type PendingProposalSessionDates = readonly [SessionDate] | readonly [SessionDate, SessionDate];
+type ProposalSessionDates = PendingProposalSessionDates | ConfirmingSessionDates;
 
 type PendingRegime = Readonly<{
 	regime: ReadableRegime;
-	confirmingSessionDates: readonly SessionDate[];
+	proposalSessionDates: PendingProposalSessionDates;
 }>;
 
 export type RegimeState = Readonly<{
@@ -100,26 +102,20 @@ export function advanceRegimeState(
 		};
 	}
 
-	const confirmingSessionDates = collectConfirmingSessionDates(
-		state.pending,
-		proposal,
-		sessionDate,
-	);
-	const isConfirmed =
-		confirmingSessionDates.length >= REGIME_CONFIGURATION_V1.transitionConfirmations;
+	const proposalSessionDates = collectProposalSessionDates(state.pending, proposal, sessionDate);
+	const transitionConfirmations = REGIME_CONFIGURATION_V1.transitionConfirmations;
 
-	if (!isConfirmed) {
+	if (proposalSessionDates.length !== transitionConfirmations) {
 		return {
 			state: {
 				settled: state.settled,
-				pending: { regime: proposal, confirmingSessionDates },
+				pending: { regime: proposal, proposalSessionDates },
 			},
 			transition: null,
 		};
 	}
 
-	const confirmedSessionDates = requireThreeConfirmingSessionDates(confirmingSessionDates);
-	const transition = createRegimeTransition(state.settled, proposal, confirmedSessionDates);
+	const transition = createRegimeTransition(state.settled, proposal, proposalSessionDates);
 
 	return {
 		state: { settled: proposal, pending: null },
@@ -127,16 +123,20 @@ export function advanceRegimeState(
 	};
 }
 
-function collectConfirmingSessionDates(
+function collectProposalSessionDates(
 	pending: PendingRegime | null,
 	proposal: ReadableRegime,
 	sessionDate: SessionDate,
-): readonly SessionDate[] {
+): ProposalSessionDates {
 	if (pending?.regime !== proposal) {
 		return [sessionDate];
 	}
 
-	return [...pending.confirmingSessionDates, sessionDate];
+	if (pending.proposalSessionDates.length === 1) {
+		return [pending.proposalSessionDates[0], sessionDate];
+	}
+
+	return [pending.proposalSessionDates[0], pending.proposalSessionDates[1], sessionDate];
 }
 
 function createRegimeTransition(
@@ -174,14 +174,4 @@ function createRegimeTransition(
 	}
 
 	throw new Error('Regime transition endpoints must be different readable labels.');
-}
-
-function requireThreeConfirmingSessionDates(
-	sessionDates: readonly SessionDate[],
-): ConfirmingSessionDates {
-	if (sessionDates.length !== 3) {
-		throw new Error('Regime transition requires exactly three confirming sessions.');
-	}
-
-	return [sessionDates[0]!, sessionDates[1]!, sessionDates[2]!];
 }

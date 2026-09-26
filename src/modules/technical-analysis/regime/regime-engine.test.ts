@@ -88,7 +88,7 @@ describe('Regime transition engine', () => {
 
 		state = advanceRegimeState(cleared.state, 'mixed', '2026-01-05').state;
 		state = advanceRegimeState(state, 'mixed', '2026-01-06').state;
-		expect(state.pending?.confirmingSessionDates).toEqual(['2026-01-05', '2026-01-06']);
+		expect(state.pending?.proposalSessionDates).toEqual(['2026-01-05', '2026-01-06']);
 	});
 
 	test('replaces an interrupted candidate and restarts confirmation', () => {
@@ -99,7 +99,7 @@ describe('Regime transition engine', () => {
 
 		expect(replaced.state.pending).toEqual({
 			regime: 'bearish',
-			confirmingSessionDates: ['2026-01-04'],
+			proposalSessionDates: ['2026-01-04'],
 		});
 	});
 

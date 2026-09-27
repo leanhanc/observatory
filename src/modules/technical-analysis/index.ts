@@ -6,6 +6,7 @@ export { detectRegimeTransitionEvents } from './regime-transition/index.ts';
 export { calculateRsi } from './rsi/index.ts';
 export { detectStructureBreakEvents } from './structure-break/index.ts';
 export { calculateTrueRange } from './true-range/index.ts';
+export { detectVolatilityExpansionEvents } from './volatility-expansion/index.ts';
 export type {
 	ConfirmedSwing,
 	MarketStructureSession,
@@ -14,3 +15,7 @@ export type {
 export type { Regime, RegimeSession } from './regime/index.ts';
 export type { RegimeTransitionEvent, RegimeTransitionSession } from './regime-transition/index.ts';
 export type { StructureBreakEvent, StructureBreakSession } from './structure-break/index.ts';
+export type {
+	VolatilityExpansionEvent,
+	VolatilityExpansionSession,
+} from './volatility-expansion/index.ts';

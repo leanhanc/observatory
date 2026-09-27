@@ -104,6 +104,10 @@ _Avoid_: Pattern, signal, prediction, Structural Hold as a separate state
 A local high or low of a completed Trading Session that becomes knowable only after the required number of later completed Trading Sessions. Its occurrence session and confirmation session are distinct.
 _Avoid_: Current price, unconfirmed turning point
 
+**Volatility Expansion**:
+A direction-neutral Event in which a completed Trading Session's movement magnitude, including overnight gaps, is unusually large relative to recent volatility known before that session. Each qualifying session is a separate historical fact.
+_Avoid_: Bullish or bearish signal, continuation, reversal, opportunity, price target
+
 **Situation**:
 A named combination of Features and Instrument State that Observatory recognizes as worth describing.
 _Avoid_: Signal, prediction, opportunity

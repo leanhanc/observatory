@@ -1,0 +1,11 @@
+- [x] Inspect repository instructions, canonical contracts, existing modules, and historical Swift detector.
+- [x] Create the capability branch from clean local main and draft proposal, design, delta spec, and tasks.
+- [x] Obtain Lean's explicit OpenSpec approval before implementation.
+- [x] Implement the smallest pure Volatility Expansion module and intended public exports, reusing True Range and ATR.
+- [x] Add adversarial tests for strict threshold boundaries, earliest prior ATR, missing/zero/non-finite baseline, numerical guards, intraday range, gaps, neutrality, consecutive Events, baseline date, input alignment, non-mutation, and every-prefix replay.
+- [x] Distinguish prior ATR14 from current ATR14 and the historical 20-ATR mean in tests.
+- [x] Add the narrowly scoped Volatility Expansion glossary entry.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation, and whitespace checks.
+- [x] Request a fresh orchestrator review and resolve findings.
+- [x] Archive the completed OpenSpec change and verify canonical specs.
+- [x] Create one focused commit; do not push, merge, or modify main.

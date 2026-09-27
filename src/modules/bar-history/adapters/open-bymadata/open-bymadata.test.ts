@@ -132,6 +132,82 @@ describe('Open BYMADATA adapter', () => {
 		});
 	});
 
+	test.each(['o', 'h', 'l', 'c', 'v'] as const)(
+		'rejects extra values in the %s series',
+		async (field) => {
+			const payload = {
+				s: 'ok',
+				t: [1_788_404_400],
+				o: [100],
+				h: [103],
+				l: [99],
+				c: [102],
+				v: [1_000],
+			};
+			payload[field].push(100);
+			const adapter = createOpenBymadataAdapter(createFixtureFetch(payload));
+			const result = await adapter.fetchHistory({
+				tradingLine: AAPL,
+				fromEpochSeconds: 1,
+				toEpochSeconds: 2_000_000_000,
+				requestedThroughSession: '2026-09-03',
+			});
+
+			expect(result).toMatchObject({ ok: false, reason: 'invalid-response' });
+		},
+	);
+
+	test.each([
+		[
+			'rejected fetch',
+			async () => {
+				throw new Error('connection unavailable');
+			},
+		],
+		['unreadable JSON', async () => new Response('{')],
+		['HTTP failure', async () => new Response('', { status: 503 })],
+	] satisfies readonly (readonly [string, OpenBymadataFetch])[])(
+		'reports %s as a request failure',
+		async (_label, fetchFromProvider) => {
+			const adapter = createOpenBymadataAdapter(fetchFromProvider);
+			const result = await adapter.fetchHistory({
+				tradingLine: AAPL,
+				fromEpochSeconds: 1,
+				toEpochSeconds: 2,
+				requestedThroughSession: '2026-09-03',
+			});
+			expect(result).toMatchObject({ ok: false, reason: 'request-failed' });
+		},
+	);
+
+	test.each([
+		['provider rejection', 'error', 1_788_404_400, 'provider-error'],
+		['unsupported timestamp', 'ok', 1e20, 'invalid-response'],
+	] as const)(
+		'reports %s without returning partial bars',
+		async (_label, status, timestamp, reason) => {
+			const adapter = createOpenBymadataAdapter(
+				createFixtureFetch({
+					s: status,
+					t: [timestamp],
+					o: [100],
+					h: [103],
+					l: [99],
+					c: [102],
+					v: [1_000],
+				}),
+			);
+			const result = await adapter.fetchHistory({
+				tradingLine: AAPL,
+				fromEpochSeconds: 1,
+				toEpochSeconds: 2,
+				requestedThroughSession: '2026-09-03',
+			});
+			expect(result).toMatchObject({ ok: false, reason });
+			expect(result).not.toHaveProperty('bars');
+		},
+	);
+
 	test('rejects malformed history responses', async () => {
 		const fixture = await readFixture('history-malformed.json');
 		const adapter = createOpenBymadataAdapter(createFixtureFetch(fixture));

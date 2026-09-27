@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { detectRegimeTransitionEvents } from '../regime-transition/index.ts';
 import { loadNflxFixture } from '../tests/support/index.ts';
 import { calculateRegime } from './index.ts';
 
@@ -43,6 +44,41 @@ describe('calculateRegime', () => {
 		const sessions = calculateRegime(bars);
 
 		expect(sessions.every((session) => session.regime === 'undefined')).toBe(true);
+	});
+
+	test('retains the settled label until the third proposal and changes with its Event', () => {
+		const bars = createBars([
+			...Array.from({ length: 205 }, (_, index) => 100 + index),
+			...Array.from({ length: 80 }, (_, index) => 300 - index * 5),
+		]);
+		const sessions = calculateRegime(bars);
+		const transitions = detectRegimeTransitionEvents(bars);
+		const confirmationDates = ['2025-08-09', '2025-08-10', '2025-08-11'] as const;
+		const confirmationDateSet = new Set<string>(confirmationDates);
+		const confirmingSessions = sessions.filter((session) =>
+			confirmationDateSet.has(session.sessionDate),
+		);
+
+		expect(confirmingSessions).toEqual([
+			{ sessionDate: '2025-08-09', regime: 'bullish' },
+			{ sessionDate: '2025-08-10', regime: 'bullish' },
+			{ sessionDate: '2025-08-11', regime: 'mixed' },
+		]);
+		expect(
+			transitions.filter((session) => confirmationDateSet.has(session.sessionDate)),
+		).toEqual([
+			{ sessionDate: '2025-08-09', event: null },
+			{ sessionDate: '2025-08-10', event: null },
+			{
+				sessionDate: '2025-08-11',
+				event: {
+					type: 'regime-transition',
+					from: 'bullish',
+					to: 'mixed',
+					confirmingSessionDates: confirmationDates,
+				},
+			},
+		]);
 	});
 
 	test('matches every replayed prefix', () => {

@@ -22,7 +22,9 @@ describe('detectStructureBreakEvents', () => {
 	});
 
 	test('detects a downward break of an established uptrend', () => {
-		const bars = createBars([...risingCloses, 9]);
+		const bars = createBars([...risingCloses, 9]).map((bar, index) =>
+			index === 20 ? { ...bar, open: 11, high: 11 } : bar,
+		);
 		const sessions = detectStructureBreakEvents(bars);
 
 		expect(sessions[20]).toEqual({
@@ -79,20 +81,14 @@ describe('detectStructureBreakEvents', () => {
 				.flatMap((session) => session.newlyConfirmedSwings)
 				.some((swing) => swing.kind === 'low'),
 		).toBe(true);
-		expect(detectStructureBreakEvents(undefinedBars)[19]?.event).toBeNull();
-	});
-
-	test('differs from the historical requested-direction latest-swing detector', () => {
-		const bars = createBars([...risingCloses.slice(0, 19), 7]);
-		const confirmedLows = calculateMarketStructure(bars)
+		const latestConfirmedLow = undefinedStructure
 			.slice(0, 19)
 			.flatMap((session) => session.newlyConfirmedSwings)
-			.filter((swing) => swing.kind === 'low');
-		const latestConfirmedLow = confirmedLows.at(-1)!;
+			.findLast((swing) => swing.kind === 'low')!;
+		expect(undefinedBars[18]!.close).toBeGreaterThan(latestConfirmedLow.price);
+		expect(undefinedBars[19]!.close).toBeLessThan(latestConfirmedLow.price);
 
-		expect(bars[18]!.close).toBeGreaterThan(latestConfirmedLow.price);
-		expect(bars[19]!.close).toBeLessThan(latestConfirmedLow.price);
-		expect(detectStructureBreakEvents(bars)[19]?.event).toBeNull();
+		expect(detectStructureBreakEvents(undefinedBars)[19]?.event).toBeNull();
 	});
 
 	test('requires a strict completed close rather than equality or an intraday wick', () => {
@@ -166,14 +162,6 @@ describe('detectStructureBreakEvents', () => {
 			confirmedAtSession: bars[19]!.sessionDate,
 		});
 		expect(sessions[19]?.event).toBeNull();
-	});
-
-	test('never uses a defining swing on its confirmation session', () => {
-		const bars = createBars([...risingCloses, 9]);
-		const session = detectStructureBreakEvents(bars)[20]!;
-
-		expect(session.event?.definingSwing.confirmedAtSession).toBe(bars[19]!.sessionDate);
-		expect(session.event?.definingSwing.confirmedAtSession).not.toBe(session.sessionDate);
 	});
 
 	test('matches every replayed prefix', () => {

@@ -205,6 +205,34 @@ describe('createOpenBymadataBarHistoryAcquirer', () => {
 		});
 	});
 
+	test('waits for the pacing interval before starting the next provider request', async () => {
+		const pauseStarted = Promise.withResolvers<void>();
+		const pauseFinished = Promise.withResolvers<void>();
+		const adapter = createFakeAdapter({
+			pause: () => {
+				pauseStarted.resolve();
+				return pauseFinished.promise;
+			},
+		});
+		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
+		const acquisition = acquirer.acquire({
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
+			lines: [
+				createLine(AAPL, null, 'initial-backfill'),
+				createLine(MSFT, null, 'initial-backfill'),
+			],
+		});
+
+		await pauseStarted.promise;
+		try {
+			expect(adapter.historyRequests.map((request) => request.tradingLine)).toEqual([AAPL]);
+		} finally {
+			pauseFinished.resolve();
+			await acquisition;
+		}
+		expect(adapter.historyRequests.map((request) => request.tradingLine)).toEqual([AAPL, MSFT]);
+	});
+
 	test('returns not-required without fetching an already covered line', async () => {
 		const adapter = createFakeAdapter();
 		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);

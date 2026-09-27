@@ -327,6 +327,33 @@ describe('Instrument Catalog interface', () => {
 		expect(catalog.getInstruments()).toHaveLength(2);
 	});
 
+	test('protects later reads from mutation through individual Instrument lookup', () => {
+		const catalog = getCreatedCatalog(validCatalog);
+		const result = catalog.getInstrumentById('apple-stock');
+		if (!result.ok) throw new Error('Expected Apple stock.');
+		Reflect.set(result.instrument.tradingLines[0]!, 'symbol', 'MUTATED');
+		Reflect.set(result.instrument, 'id', 'mutated-stock');
+
+		expect(catalog.getInstrumentById('apple-stock')).toMatchObject({
+			ok: true,
+			instrument: { id: 'apple-stock', tradingLines: [{ symbol: 'AAPL' }] },
+		});
+	});
+
+	test('protects later reads from mutation through Trading Line lookup', () => {
+		const catalog = getCreatedCatalog(validCatalog);
+		const ids = ['apple-stock-nasdaq-usd'];
+		const result = catalog.getTradingLinesByIds(ids);
+		if (!result.ok) throw new Error('Expected Apple Trading Line.');
+		Reflect.set(result.tradingLines[0]!, 'symbol', 'MUTATED');
+		Reflect.set(result.tradingLines, 'length', 0);
+
+		expect(catalog.getTradingLinesByIds(ids)).toMatchObject({
+			ok: true,
+			tradingLines: [{ id: ids[0], symbol: 'AAPL' }],
+		});
+	});
+
 	test('provides the existing Bar History descriptor without provider policy', () => {
 		const result = instrumentCatalog.getTradingLinesByIds(['apple-cedear-byma-ars']);
 

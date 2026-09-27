@@ -27,20 +27,18 @@ describe('validateDailyBars', () => {
 		]);
 	});
 
-	test('rejects missing, non-finite, and negative numeric values', () => {
-		const result = validateDailyBars(
-			[
-				{ ...createBar('2026-09-01'), open: undefined },
-				createBar('2026-09-02', { close: Number.NaN }),
-				createBar('2026-09-03', { volume: -1 }),
-			],
-			true,
-			'bars',
-		);
-
+	test.each([
+		['open', undefined, 'invalid-number'],
+		['close', Number.NaN, 'invalid-number'],
+		['high', Number.POSITIVE_INFINITY, 'invalid-number'],
+		['volume', -1, 'negative-number'],
+	] as const)('rejects %s = %s at the offending field', (field, value, code) => {
+		const bar = { ...createBar('2026-09-01'), [field]: value };
+		const result = validateDailyBars([bar], true, 'bars');
 		expect(result.isValid).toBe(false);
-		expect(result.issues.map((issue) => issue.code)).toContain('invalid-number');
-		expect(result.issues.map((issue) => issue.code)).toContain('negative-number');
+		expect(result.issues).toContainEqual(
+			expect.objectContaining({ code, path: `bars[0].${field}` }),
+		);
 	});
 
 	test('rejects invalid price relationships', () => {

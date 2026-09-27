@@ -27,7 +27,14 @@ describe('mergeDailyBars', () => {
 	test('reports changed values as a correction without mutating inputs', () => {
 		const existingBar = createBar('2026-09-02');
 		const correctedBar = createBar('2026-09-02', { close: 103 });
-		const result = mergeDailyBars([existingBar], [correctedBar]);
+		const existingBars = Object.freeze([Object.freeze(existingBar)]);
+		const incomingBars = Object.freeze([Object.freeze(correctedBar)]);
+		const originalExisting = structuredClone(existingBars);
+		const originalIncoming = structuredClone(incomingBars);
+		const result = mergeDailyBars(existingBars, incomingBars);
+
+		expect(existingBars).toEqual(originalExisting);
+		expect(incomingBars).toEqual(originalIncoming);
 
 		expect(result.corrections).toEqual([
 			{
@@ -63,7 +70,16 @@ describe('authoritative reconciliation helpers', () => {
 });
 
 describe('checkIfBarHistoriesAreEqual', () => {
-	test('compares metadata and every bar value', () => {
+	test.each([
+		['checkedThroughSession', '2026-09-02'],
+		['lastReconciledAt', '2026-09-02T21:10:00Z'],
+		['backfilledAt', '2026-08-31T21:10:00Z'],
+	] as const)('detects a metadata-only change to %s', (field, value) => {
+		const history = createHistory();
+		expect(checkIfBarHistoriesAreEqual(history, { ...history, [field]: value })).toBe(false);
+	});
+
+	test('compares equal histories and detects a changed volume', () => {
 		const history = createHistory();
 
 		expect(checkIfBarHistoriesAreEqual(history, { ...history })).toBe(true);

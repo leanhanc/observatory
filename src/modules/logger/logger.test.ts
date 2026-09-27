@@ -31,24 +31,32 @@ describe('createLogger', () => {
 		expect(logger.level).toBe('info');
 	});
 
-	test('redacts top-level and nested secret fields', () => {
-		const loggerModulePath = `${import.meta.dir}/logger.ts`;
-		const script = `
+	test.each([false, true])(
+		'preserves default redaction with custom paths enabled: %s',
+		(hasCustomPaths) => {
+			const loggerModulePath = `${import.meta.dir}/logger.ts`;
+			const options = hasCustomPaths ? { redact: ['customer.email'] } : {};
+			const script = `
 			import { createLogger } from ${JSON.stringify(loggerModulePath)};
-			const logger = createLogger();
+			const logger = createLogger(${JSON.stringify(options)}, { NODE_ENV: 'production' });
 			logger.info(
-				{ token: 'top-level-secret', nested: { token: 'nested-secret' } },
+				{ token: 'top-level-secret', nested: { token: 'nested-secret' }, customer: { email: 'private@example.test' } },
 				'test message',
 			);
 		`;
-		const loggerProcess = Bun.spawnSync([process.execPath, '--eval', script], {
-			env: { ...process.env, NODE_ENV: 'production' },
-		});
-		const output = new TextDecoder().decode(loggerProcess.stdout);
+			const loggerProcess = Bun.spawnSync([process.execPath, '--eval', script], {
+				env: { ...process.env, NODE_ENV: 'production' },
+			});
+			const output = new TextDecoder().decode(loggerProcess.stdout);
 
-		expect(loggerProcess.exitCode).toBe(0);
-		expect(output).toContain('"token":"[REDACTED]"');
-		expect(output).not.toContain('top-level-secret');
-		expect(output).not.toContain('nested-secret');
-	});
+			expect(loggerProcess.exitCode).toBe(0);
+			expect(output).toContain('"token":"[REDACTED]"');
+			expect(output).not.toContain('top-level-secret');
+			expect(output).not.toContain('nested-secret');
+			if (hasCustomPaths) {
+				expect(output).not.toContain('private@example.test');
+				expect(output).toContain('"email":"[REDACTED]"');
+			}
+		},
+	);
 });

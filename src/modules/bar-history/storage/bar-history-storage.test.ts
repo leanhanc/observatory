@@ -135,6 +135,30 @@ describe('createBarHistoryStorage', () => {
 		expect(readResult).toEqual({ ok: true, history: replacementHistory });
 	});
 
+	test('keeps histories independent under their canonical Trading Line keys', async () => {
+		const aapl = createHistory();
+		const msft = createHistory({
+			tradingLineId: 'cedear-msft-ars',
+			source: { provider: 'open-bymadata', symbol: 'MSFT 24HS' },
+			bars: [],
+		});
+		const client = createFakeS3Client();
+		const storage = createStorage(client);
+
+		expect(await storage.write(aapl)).toEqual({ ok: true, history: aapl });
+		expect(await storage.write(msft)).toEqual({ ok: true, history: msft });
+		expect(client.writeCalls.map((call) => call.path)).toEqual([
+			'cedear-aapl-ars/v1/history.json',
+			'cedear-msft-ars/v1/history.json',
+		]);
+		expect(await storage.read(aapl.tradingLineId)).toEqual({ ok: true, history: aapl });
+		expect(await storage.read(msft.tradingLineId)).toEqual({ ok: true, history: msft });
+		expect(await storage.read('missing-line')).toMatchObject({
+			ok: false,
+			reason: 'not-found',
+		});
+	});
+
 	test('reports failed replacement without claiming that it was stored', async () => {
 		const client = createFakeS3Client({
 			write: () => Promise.reject(new Error('bucket is unavailable')),
@@ -205,10 +229,6 @@ function createFakeS3Client(options: FakeS3ClientOptions = {}): FakeS3Client {
 		storedObjects.set('cedear-aapl-ars/v1/history.json', options.initialText);
 	}
 
-	const exists = options.exists ?? true;
-	const readText =
-		options.text ??
-		(() => Promise.resolve(storedObjects.get('cedear-aapl-ars/v1/history.json') ?? ''));
 	const write =
 		options.write ??
 		((path: string, data: string) => {
@@ -217,9 +237,12 @@ function createFakeS3Client(options: FakeS3ClientOptions = {}): FakeS3Client {
 		});
 
 	return {
-		file: () => ({
-			exists: () => Promise.resolve(exists),
-			text: readText,
+		file: (path) => ({
+			exists: () =>
+				Promise.resolve(
+					options.exists ?? (options.text !== undefined || storedObjects.has(path)),
+				),
+			text: options.text ?? (() => Promise.resolve(storedObjects.get(path) ?? '')),
 		}),
 		write: async (path, data, writeOptions) => {
 			writeCalls.push({ path, data, options: writeOptions });

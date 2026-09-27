@@ -286,6 +286,86 @@ describe('createBarHistoryUpdater', () => {
 		expect(provider.calls).toHaveLength(1);
 	});
 
+	test('does not repeat provider or storage work after a successful update', async () => {
+		const storage = createFakeStorage({
+			[AAPL.tradingLineId]: createHistory(AAPL, '2026-09-06'),
+		});
+		const provider = createFakeProvider({
+			histories: { 'AAPL 24HS': [createBar(REQUESTED_THROUGH_SESSION)] },
+		});
+		const logger = createFakeLogger();
+		const updater = createUpdater(storage, provider, logger);
+		const request = {
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
+			lines: [createUpdateLine(AAPL, 'refresh')],
+		};
+
+		expect(await updater.update(request)).toMatchObject({
+			ok: true,
+			results: [{ status: 'updated' }],
+		});
+		const storedAfterFirstUpdate = structuredClone(await storage.read(AAPL.tradingLineId));
+		expect(await updater.update(request)).toMatchObject({
+			ok: true,
+			results: [{ status: 'unchanged' }],
+		});
+		expect(provider.calls).toHaveLength(1);
+		expect(storage.writeCalls).toHaveLength(1);
+		expect(await storage.read(AAPL.tradingLineId)).toEqual(storedAfterFirstUpdate);
+	});
+
+	test('rejects all rows of an invalid line while preserving another successful update', async () => {
+		const original = createHistory(AAPL, '2026-09-05');
+		const originalSnapshot = structuredClone(original);
+		const storage = createFakeStorage({
+			[AAPL.tradingLineId]: original,
+			[MSFT.tradingLineId]: createHistory(MSFT, '2026-09-06'),
+		});
+		const provider = createFakeProvider({
+			histories: {
+				'AAPL 24HS': [
+					createBar('2026-09-06'),
+					createBar(REQUESTED_THROUGH_SESSION, { close: 110 }),
+				],
+				'MSFT 24HS': [createBar(REQUESTED_THROUGH_SESSION)],
+			},
+		});
+		const logger = createFakeLogger();
+		const updater = createUpdater(storage, provider, logger);
+
+		const result = await updater.update({
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
+			lines: [createUpdateLine(AAPL, 'refresh'), createUpdateLine(MSFT, 'refresh')],
+		});
+
+		expect(result).toMatchObject({
+			ok: true,
+			results: [
+				{
+					tradingLineId: AAPL.tradingLineId,
+					status: 'failed',
+					reason: 'invalid-incoming-bars',
+				},
+				{ tradingLineId: MSFT.tradingLineId, status: 'updated' },
+			],
+		});
+		expect(storage.writeCalls.map((history) => history.tradingLineId)).toEqual([
+			MSFT.tradingLineId,
+		]);
+		expect(await storage.read(AAPL.tradingLineId)).toEqual({
+			ok: true,
+			history: originalSnapshot,
+		});
+		expect(await storage.read(MSFT.tradingLineId)).toMatchObject({
+			ok: true,
+			history: {
+				checkedThroughSession: REQUESTED_THROUGH_SESSION,
+				bars: [createBar('2026-09-06'), createBar(REQUESTED_THROUGH_SESSION)],
+			},
+		});
+		expect(logger.calls).toEqual([]);
+	});
+
 	test('logs only corrections whose replacement was stored successfully', async () => {
 		const aaplHistory = createHistory(AAPL, REQUESTED_THROUGH_SESSION, [
 			createBar('2026-09-05'),

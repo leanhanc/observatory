@@ -20,7 +20,7 @@ type PendingRegime = Readonly<{
 	proposalSessionDates: PendingProposalSessionDates;
 }>;
 
-export type RegimeState = Readonly<{
+export type RegimeTransitionState = Readonly<{
 	settled: ReadableRegime | null;
 	pending: PendingRegime | null;
 }>;
@@ -31,12 +31,12 @@ export type RegimeAnalysisSession = Readonly<{
 	transition: RegimeTransitionEvent | null;
 }>;
 
-type RegimeAdvance = Readonly<{
-	state: RegimeState;
+type RegimeTransitionStep = Readonly<{
+	state: RegimeTransitionState;
 	transition: RegimeTransitionEvent | null;
 }>;
 
-export const INITIAL_REGIME_STATE: RegimeState = Object.freeze({
+export const INITIAL_REGIME_TRANSITION_STATE: RegimeTransitionState = Object.freeze({
 	settled: null,
 	pending: null,
 });
@@ -48,7 +48,7 @@ export function analyzeRegime(bars: readonly DailyBar[]): readonly RegimeAnalysi
 	const atr = calculateAtr(bars, REGIME_CONFIGURATION_V1.atrPeriod);
 
 	const sessions: RegimeAnalysisSession[] = [];
-	let state = INITIAL_REGIME_STATE;
+	let state = INITIAL_REGIME_TRANSITION_STATE;
 
 	for (const [index, bar] of bars.entries()) {
 		const proposal = proposeRegime(
@@ -58,32 +58,33 @@ export function analyzeRegime(bars: readonly DailyBar[]): readonly RegimeAnalysi
 			atr[index] ?? null,
 		);
 
+		const step = advanceRegimeTransitionState(state, proposal, bar.sessionDate);
+		state = step.state;
+
 		if (proposal === null) {
 			sessions.push({
 				sessionDate: bar.sessionDate,
 				regime: 'undefined',
-				transition: null,
+				transition: step.transition,
 			});
 			continue;
 		}
 
-		const advance = advanceRegimeState(state, proposal, bar.sessionDate);
-		state = advance.state;
 		sessions.push({
 			sessionDate: bar.sessionDate,
 			regime: state.settled ?? proposal,
-			transition: advance.transition,
+			transition: step.transition,
 		});
 	}
 
 	return sessions;
 }
 
-export function advanceRegimeState(
-	state: RegimeState,
+export function advanceRegimeTransitionState(
+	state: RegimeTransitionState,
 	proposal: ReadableRegime | null,
 	sessionDate: SessionDate,
-): RegimeAdvance {
+): RegimeTransitionStep {
 	if (proposal === null) {
 		return { state, transition: null };
 	}

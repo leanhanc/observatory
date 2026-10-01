@@ -1,8 +1,10 @@
 ---
-status: accepted
+status: superseded by ADR-0004
 ---
 
 # Analyze underlying instruments and translate relevant levels
+
+Superseded by [ADR 0004](./0004-analyze-local-stocks-and-cedears.md). The original rationale below is retained as decision history.
 
 For CEDEAR coverage in the initial product, Observatory will perform technical analysis on the foreign Underlying Instrument rather than independently analyzing the CEDEAR's local price history. This preserves the longer and cleaner history used by the research while avoiding a second body of analysis whose local volume, gaps, liquidity, and price structure would require separate interpretation and evidence.
 

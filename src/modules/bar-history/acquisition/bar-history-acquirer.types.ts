@@ -1,4 +1,8 @@
-import type { OpenBymadataFailure, OpenBymadataTradingLineDescriptor } from '../adapters/index.ts';
+import type {
+	DailyBarRangeRepair,
+	OpenBymadataFailure,
+	OpenBymadataTradingLineDescriptor,
+} from '../adapters/index.ts';
 import type {
 	BarHistory,
 	BarHistorySource,
@@ -29,6 +33,7 @@ export type BarHistoryAcquisitionLineResult =
 			tradingLineId: string;
 			source: BarHistorySource;
 			bars: readonly DailyBar[];
+			repairs: readonly DailyBarRangeRepair[];
 			reconciliationWindow: SessionDateRange | null;
 	  }>
 	| Readonly<{

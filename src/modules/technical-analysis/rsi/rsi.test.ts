@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { loadNflxFixture } from '../tests/support/index.ts';
+import { loadGgalFixture } from '../tests/support/index.ts';
 import { calculateRsi } from './index.ts';
 
 describe('calculateRsi', () => {
@@ -35,11 +35,11 @@ describe('calculateRsi', () => {
 		expect(full.slice(0, prefix.length)).toEqual([...prefix]);
 	});
 
-	test('matches the NFLX reference value', async () => {
-		const bars = await loadNflxFixture();
+	test('matches the GGAL reference value', async () => {
+		const bars = await loadGgalFixture();
 		const closes = bars.map((bar) => bar.close);
 
-		expect(calculateRsi(closes).at(-1)).toBeCloseTo(61.61, 2);
+		expect(calculateRsi(closes).at(-1)).toBeCloseTo(26.27, 2);
 	});
 
 	test('rejects invalid periods', () => {

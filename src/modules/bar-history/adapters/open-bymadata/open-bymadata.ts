@@ -2,6 +2,7 @@ import * as v from 'valibot';
 
 import type { BarHistorySource, DailyBar } from '../../bar-history.types.ts';
 import type {
+	DailyBarRangeRepair,
 	OpenBymadataAdapter,
 	OpenBymadataFailure,
 	OpenBymadataFetch,
@@ -13,6 +14,9 @@ import type {
 
 const BASE_URL = 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free';
 const SETTLEMENT = '24HS';
+// Largest relative distance an open or close may sit outside the high-low range and still be
+// treated as a provider adjustment artifact. The observed GGAL case was 0.26%.
+const RANGE_REPAIR_TOLERANCE = 0.01;
 
 const finiteNumberSchema = v.pipe(v.number(), v.finite());
 const finiteNumberArraySchema = v.array(finiteNumberSchema);
@@ -60,7 +64,7 @@ async function fetchHistory(
 	}
 
 	if (parsedResponse.output.s === 'no_data') {
-		return { ok: true, source, bars: [] };
+		return { ok: true, source, bars: [], repairs: [] };
 	}
 
 	if (parsedResponse.output.s !== 'ok') {
@@ -87,7 +91,63 @@ async function fetchHistory(
 	}
 
 	const realBars = bars.filter((bar) => !checkIfDailyBarIsContinuityData(bar));
-	return { ok: true, source, bars: realBars };
+	const repairs: DailyBarRangeRepair[] = [];
+	const acceptedBars = realBars.map((bar) => {
+		const repair = repairDailyBarRange(bar);
+
+		if (!repair) {
+			return bar;
+		}
+
+		repairs.push(repair);
+		return repair.repairedBar;
+	});
+
+	return { ok: true, source, bars: acceptedBars, repairs };
+}
+
+/**
+ * Widens a bar's range when the provider reports an open or close slightly outside it.
+ *
+ * Open BYMADATA appears to back-adjust history for cash distributions, and adjusted bars can
+ * place the close just outside the adjusted high-low range. Open and close stay untouched because the
+ * close is the official session price. Gaps larger than the tolerance, or a low above the high,
+ * are left for validation to reject.
+ */
+function repairDailyBarRange(bar: DailyBar): DailyBarRangeRepair | null {
+	const isRangeInverted = bar.low > bar.high;
+
+	if (isRangeInverted) {
+		return null;
+	}
+
+	const lowestPrice = Math.min(bar.open, bar.close);
+	const highestPrice = Math.max(bar.open, bar.close);
+	const isBelowRange = lowestPrice < bar.low;
+	const isAboveRange = highestPrice > bar.high;
+
+	if (!isBelowRange && !isAboveRange) {
+		return null;
+	}
+
+	const lowGapRatio = (bar.low - lowestPrice) / bar.low;
+	const highGapRatio = (highestPrice - bar.high) / bar.high;
+	const exceedsTolerance =
+		lowGapRatio > RANGE_REPAIR_TOLERANCE || highGapRatio > RANGE_REPAIR_TOLERANCE;
+
+	if (exceedsTolerance) {
+		return null;
+	}
+
+	return {
+		sessionDate: bar.sessionDate,
+		providerBar: bar,
+		repairedBar: {
+			...bar,
+			low: Math.min(bar.low, lowestPrice),
+			high: Math.max(bar.high, highestPrice),
+		},
+	};
 }
 
 function checkIfDailyBarIsContinuityData(bar: DailyBar): boolean {

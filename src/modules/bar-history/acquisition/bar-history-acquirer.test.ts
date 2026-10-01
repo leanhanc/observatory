@@ -75,6 +75,7 @@ describe('createOpenBymadataBarHistoryAcquirer', () => {
 					createDailyBar(firstAvailableSession),
 					createDailyBar(REQUESTED_THROUGH_SESSION),
 				],
+				repairs: [],
 			}),
 		});
 		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
@@ -108,6 +109,7 @@ describe('createOpenBymadataBarHistoryAcquirer', () => {
 				ok: true,
 				source: createSource(request.tradingLine),
 				bars: [],
+				repairs: [],
 			}),
 		});
 		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
@@ -255,6 +257,7 @@ describe('createOpenBymadataBarHistoryAcquirer', () => {
 				ok: true,
 				source: createSource(request.tradingLine),
 				bars: [],
+				repairs: [],
 			}),
 		});
 		const acquirer = createOpenBymadataBarHistoryAcquirer(adapter.adapter, adapter.pause);
@@ -380,6 +383,7 @@ function createHistoryResult(
 		ok: true,
 		source: createSource(tradingLine),
 		bars: [createDailyBar(REQUESTED_THROUGH_SESSION)],
+		repairs: [],
 	};
 }
 

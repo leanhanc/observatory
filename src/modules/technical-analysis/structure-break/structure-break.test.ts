@@ -164,6 +164,17 @@ describe('detectStructureBreakEvents', () => {
 		expect(sessions[19]?.event).toBeNull();
 	});
 
+	test('does not break the same swing again after a double top replaces it', () => {
+		const bars = createBars([
+			30, 31, 32, 40, 32, 31, 30, 20, 25, 30, 35, 30, 25, 15, 20, 25, 30, 38, 38, 30, 25, 20,
+			10, 20, 30, 33, 36,
+		]);
+		const breaks = detectStructureBreakEvents(bars).filter((session) => session.event);
+
+		expect(breaks.map((session) => session.sessionDate)).toEqual([bars[17]!.sessionDate]);
+		expect(calculateMarketStructure(bars)[25]?.structure).toBe('range');
+	});
+
 	test('matches every replayed prefix', () => {
 		const bars = createBars([...risingCloses, 9, 8, 14, 18]);
 		const full = detectStructureBreakEvents(bars);

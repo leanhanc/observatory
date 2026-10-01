@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { buildBars, loadNflxFixture } from '../tests/support/index.ts';
+import { buildBars, loadGgalFixture } from '../tests/support/index.ts';
 import { calculateAtr } from './index.ts';
 
 describe('calculateAtr', () => {
@@ -19,10 +19,10 @@ describe('calculateAtr', () => {
 		expect(full.slice(0, prefix.length)).toEqual([...prefix]);
 	});
 
-	test('matches the NFLX reference value', async () => {
-		const bars = await loadNflxFixture();
+	test('matches the GGAL reference value', async () => {
+		const bars = await loadGgalFixture();
 
-		expect(calculateAtr(bars).at(-1)).toBeCloseTo(2.35, 2);
+		expect(calculateAtr(bars).at(-1)).toBeCloseTo(236.15, 2);
 	});
 
 	test('rejects invalid periods', () => {

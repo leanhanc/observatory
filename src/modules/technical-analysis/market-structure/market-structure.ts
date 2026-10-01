@@ -76,8 +76,8 @@ function detectNewlyConfirmedSwings(
 	}
 
 	const candidate = bars[candidateIndex]!;
-	let isUniqueHigh = true;
-	let isUniqueLow = true;
+	let isSwingHigh = true;
+	let isSwingLow = true;
 
 	for (
 		let neighbourIndex = candidateIndex - CONFIRMATION_BARS;
@@ -88,16 +88,25 @@ function detectNewlyConfirmedSwings(
 			continue;
 		}
 
+		// Equal extremes form one swing at the last bar of the tie: earlier bars may tie the
+		// candidate, later bars must not. A double top stays a level without duplicate swings.
 		const neighbour = bars[neighbourIndex]!;
-		isUniqueHigh = isUniqueHigh && candidate.high > neighbour.high;
-		isUniqueLow = isUniqueLow && candidate.low < neighbour.low;
+		const isEarlierNeighbour = neighbourIndex < candidateIndex;
+		const isHighBeyondNeighbour = isEarlierNeighbour
+			? candidate.high >= neighbour.high
+			: candidate.high > neighbour.high;
+		const isLowBeyondNeighbour = isEarlierNeighbour
+			? candidate.low <= neighbour.low
+			: candidate.low < neighbour.low;
+		isSwingHigh = isSwingHigh && isHighBeyondNeighbour;
+		isSwingLow = isSwingLow && isLowBeyondNeighbour;
 	}
 
 	const newlyConfirmedSwings: ConfirmedSwing[] = [];
 	const occurredAtSession = candidate.sessionDate;
 	const confirmedAtSession = bars[confirmationIndex]!.sessionDate;
 
-	if (isUniqueHigh) {
+	if (isSwingHigh) {
 		newlyConfirmedSwings.push({
 			kind: 'high',
 			price: candidate.high,
@@ -106,7 +115,7 @@ function detectNewlyConfirmedSwings(
 		});
 	}
 
-	if (isUniqueLow) {
+	if (isSwingLow) {
 		newlyConfirmedSwings.push({
 			kind: 'low',
 			price: candidate.low,

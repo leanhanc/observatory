@@ -1,7 +1,7 @@
 import type { DailyBar } from '#modules/bar-history/index.ts';
 
-export async function loadNflxFixture(): Promise<readonly DailyBar[]> {
-	const fixture = Bun.file(new URL('../fixtures/nflx-501.csv', import.meta.url));
+export async function loadGgalFixture(): Promise<readonly DailyBar[]> {
+	const fixture = Bun.file(new URL('../fixtures/ggal-413.csv', import.meta.url));
 	const csv = await fixture.text();
 	const [, ...rows] = csv.trim().split('\n');
 

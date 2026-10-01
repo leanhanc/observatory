@@ -1,0 +1,4 @@
+- [x] Repair open or close outside the range by at most 1% in the Open BYMADATA adapter, keeping original and repaired bars.
+- [x] Carry repairs through acquisition and log newly stored repairs after persistence.
+- [x] Test the GGAL case, a high-side repair, the tolerance limit, and logging once.
+- [x] Run tests and OpenSpec validation.

@@ -1,1 +1,1 @@
-export { buildBars, loadNflxFixture } from './technical-analysis-fixture.ts';
+export { buildBars, loadGgalFixture } from './technical-analysis-fixture.ts';

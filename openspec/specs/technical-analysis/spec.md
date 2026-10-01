@@ -25,22 +25,6 @@ only on input positions through `i`.
 - **WHEN** a requested period is zero, negative, non-integral, or non-finite
 - **THEN** calculation throws `TypeError`
 
-### Requirement: historical numeric parity
-
-The implementation SHALL preserve the committed NFLX fixture conventions: EMA uses
-`2/(period+1)` seeded from the first close; True Range uses the greatest of the bar range
-and the two previous-close gaps, with the first bar using `high-low`; ATR uses Wilder
-smoothing seeded by the first period True Ranges; RSI uses Wilder-smoothed gains and losses.
-
-#### Scenario: NFLX reference session
-
-- **WHEN** the 501-session NFLX fixture is calculated through 2026-08-21
-- **THEN** EMA(20) is 76.17 within 0.01
-- **AND** EMA(50) is 76.73 within 0.01
-- **AND** EMA(200) is 87.44 within 0.01
-- **AND** ATR(14) is 2.35 within 0.01
-- **AND** RSI(14) is 61.61 within 0.01
-
 ### Requirement: edge behavior
 
 RSI SHALL report 100 when the Wilder average loss is zero and average gain is positive.
@@ -87,21 +71,6 @@ The technical-analysis module SHALL return one Structure result per completed `D
 - **WHEN** structure is calculated for a history and each prefix of that history
 - **THEN** the last result of every prefix equals the corresponding full-history result
 - **AND** no result uses later bars or a swing before its confirmation session
-
-### Requirement: strict confirmed swing extrema
-
-In Analysis Configuration v1, a swing candidate SHALL have three earlier and three later completed bars. A swing high SHALL have a high strictly greater than every other high in that seven-bar window. A swing low SHALL have a low strictly less than every other low in that window. The two comparisons SHALL be independent.
-
-#### Scenario: plateau and flat history
-
-- **WHEN** an eligible candidate ties another high or low in its window
-- **THEN** it is not a swing of that kind
-- **AND** a flat history produces no swings and remains `undefined`
-
-#### Scenario: outside bar
-
-- **WHEN** a completed bar has both the uniquely highest high and uniquely lowest low in its window
-- **THEN** both kinds of swing are confirmed together three input positions later
 
 ### Requirement: classify only confirmed same-kind swing pairs
 
@@ -567,3 +536,50 @@ Every row SHALL depend only on bars available through its completed session. Ful
 - **WHEN** detection runs over a history and each prefix
 - **THEN** every prefix result equals the corresponding full-history slice
 - **AND** appending later bars does not change any earlier Event or evidence
+
+### Requirement: historical numeric parity on BYMA data
+
+The implementation SHALL preserve the historical numeric conventions, checked against the committed GGAL fixture: EMA uses
+`2/(period+1)` seeded from the first close; True Range uses the greatest of the bar range
+and the two previous-close gaps, with the first bar using `high-low`; ATR uses Wilder
+smoothing seeded by the first period True Ranges; RSI uses Wilder-smoothed gains and losses.
+
+#### Scenario: GGAL reference session
+
+- **WHEN** the 413-session GGAL fixture is calculated through 2026-09-30
+- **THEN** EMA(20) is 6564.16 within 0.01
+- **AND** EMA(50) is 6909.94 within 0.01
+- **AND** EMA(200) is 7010.97 within 0.01
+- **AND** ATR(14) is 236.15 within 0.01
+- **AND** RSI(14) is 26.27 within 0.01
+
+### Requirement: confirmed swing extrema with one swing per tie
+
+In Analysis Configuration v1, a swing candidate SHALL have three earlier and three later completed bars. A swing high SHALL have a high greater than or equal to each of the three earlier highs and strictly greater than each of the three later highs. A swing low SHALL have a low less than or equal to each of the three earlier lows and strictly less than each of the three later lows. The two comparisons SHALL be independent. Equal extremes SHALL therefore form one swing at the last bar of the tie.
+
+#### Scenario: plateau
+
+- **WHEN** two adjacent bars share the highest high in their window and the three later highs are lower
+- **THEN** exactly one swing high is confirmed, occurring at the later of the two bars
+- **AND** it is confirmed three input positions after that bar
+
+#### Scenario: equal extremes separated by another bar
+
+- **WHEN** two equal lows within three bars of each other are the lowest lows in their window
+- **THEN** exactly one swing low is confirmed, occurring at the later low
+
+#### Scenario: flat history
+
+- **WHEN** every bar has the same high and low
+- **THEN** no swings are confirmed and Structure remains `undefined`
+
+#### Scenario: outside bar
+
+- **WHEN** a completed bar has both the highest high and lowest low in its window, with no ties
+- **THEN** both kinds of swing are confirmed together three input positions later
+
+#### Scenario: a double top replaces a broken swing
+
+- **WHEN** a downtrend is broken by a close above its defining swing high and price then forms a double top above that high
+- **THEN** the double top becomes the latest swing high
+- **AND** the broken swing high cannot define a re-established downtrend and be broken again

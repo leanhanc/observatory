@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { loadNflxFixture } from '../tests/support/index.ts';
+import { loadGgalFixture } from '../tests/support/index.ts';
 import { calculateMarketStructure } from './index.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
@@ -84,13 +84,41 @@ describe('calculateMarketStructure', () => {
 		expect(calculateMarketStructure(createBars(equalLowCloses))[19]?.structure).toBe('range');
 	});
 
-	test('does not create swings from ties, plateaus, or a flat history', () => {
-		const plateau = calculateMarketStructure(createBars([10, 11, 12, 20, 20, 12, 11, 10]));
+	test('confirms one swing at the last bar of a plateau and none in a flat history', () => {
+		const plateauBars = createBars([10, 11, 12, 20, 20, 12, 11, 10]);
+		const plateau = calculateMarketStructure(plateauBars);
 		const flat = calculateMarketStructure(createBars(Array(16).fill(10)));
 
-		expect(plateau.every((session) => session.newlyConfirmedSwings.length === 0)).toBe(true);
+		expect(
+			plateau.slice(0, 7).every((session) => session.newlyConfirmedSwings.length === 0),
+		).toBe(true);
+		expect(plateau[7]?.newlyConfirmedSwings).toEqual([
+			{
+				kind: 'high',
+				price: 20,
+				occurredAtSession: plateauBars[4]!.sessionDate,
+				confirmedAtSession: plateauBars[7]!.sessionDate,
+			},
+		]);
 		expect(flat.every((session) => session.newlyConfirmedSwings.length === 0)).toBe(true);
 		expect(flat.every((session) => session.structure === 'undefined')).toBe(true);
+	});
+
+	test('confirms one swing for equal lows separated by a higher bar', () => {
+		const closes = [20, 19, 18, 10, 12, 10, 18, 19, 20];
+		const bars = createBars(closes);
+		const lows = calculateMarketStructure(bars)
+			.flatMap((session) => session.newlyConfirmedSwings)
+			.filter((swing) => swing.kind === 'low');
+
+		expect(lows).toEqual([
+			{
+				kind: 'low',
+				price: 10,
+				occurredAtSession: bars[5]!.sessionDate,
+				confirmedAtSession: bars[8]!.sessionDate,
+			},
+		]);
 	});
 
 	test('checks the third bar on either side of a candidate', () => {
@@ -187,17 +215,17 @@ describe('calculateMarketStructure', () => {
 		expect(bars).toEqual(original);
 	});
 
-	test('tracks a known confirmed low in the NFLX fixture', async () => {
-		const bars = await loadNflxFixture();
+	test('tracks a known confirmed low in the GGAL fixture', async () => {
+		const bars = await loadGgalFixture();
 		const sessions = calculateMarketStructure(bars);
-		const confirmation = sessions.find((session) => session.sessionDate === '2024-09-16');
+		const confirmation = sessions.find((session) => session.sessionDate === '2025-02-20');
 
 		expect(sessions).toHaveLength(bars.length);
 		expect(confirmation?.newlyConfirmedSwings).toContainEqual({
 			kind: 'low',
-			price: 66.08,
-			occurredAtSession: '2024-09-11',
-			confirmedAtSession: '2024-09-16',
+			price: 6111.182,
+			occurredAtSession: '2025-02-17',
+			confirmedAtSession: '2025-02-20',
 		});
 	});
 });

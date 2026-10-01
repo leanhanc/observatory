@@ -462,6 +462,7 @@ async function acquireHistoricalLine(
 		tradingLineId: line.tradingLine.tradingLineId,
 		source: result.source,
 		bars: result.bars,
+		repairs: result.repairs,
 		reconciliationWindow,
 	};
 }

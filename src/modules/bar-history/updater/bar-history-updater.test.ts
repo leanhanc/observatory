@@ -426,6 +426,47 @@ describe('createBarHistoryUpdater', () => {
 		]);
 	});
 
+	test('logs a provider range repair once, when the repaired bar is first stored', async () => {
+		const storage = createFakeStorage({});
+		const providerBar = createBar('2026-09-05', { close: 98.5 });
+		const provider = createFakeProvider({
+			histories: {
+				'AAPL 24HS': [
+					providerBar,
+					createBar(REQUESTED_THROUGH_SESSION),
+					createBar('2026-09-08'),
+				],
+			},
+		});
+		const logger = createFakeLogger();
+		const updater = createUpdater(storage, provider, logger);
+
+		const backfill = await updater.update({
+			requestedThroughSession: REQUESTED_THROUGH_SESSION,
+			lines: [createUpdateLine(AAPL, 'initial-backfill')],
+		});
+		const reconciliation = await updater.update({
+			requestedThroughSession: '2026-09-08',
+			lines: [createUpdateLine(AAPL, 'reconciliation')],
+		});
+
+		expect(backfill).toMatchObject({ ok: true, results: [{ status: 'created' }] });
+		expect(reconciliation).toMatchObject({ ok: true, results: [{ status: 'updated' }] });
+		expect(storage.writeCalls.at(-1)?.bars[0]).toEqual({ ...providerBar, low: 98.5 });
+		expect(logger.calls).toEqual([
+			[
+				{
+					event: 'market-history-repair',
+					tradingLineId: AAPL.tradingLineId,
+					sessionDate: '2026-09-05',
+					providerBar,
+					repairedBar: { ...providerBar, low: 98.5 },
+				},
+				'Provider bar range repaired.',
+			],
+		]);
+	});
+
 	test('does not write or log a correction when reconciliation fails', async () => {
 		const existingHistory = createHistory(AAPL, REQUESTED_THROUGH_SESSION, [
 			createBar('2026-09-05'),

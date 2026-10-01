@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { detectRegimeTransitionEvents } from '../regime-transition/index.ts';
-import { loadNflxFixture } from '../tests/support/index.ts';
+import { loadGgalFixture } from '../tests/support/index.ts';
 import { calculateRegime } from './index.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
@@ -81,12 +81,16 @@ describe('calculateRegime', () => {
 		]);
 	});
 
-	test('matches every replayed prefix', () => {
+	test('matches every replayed prefix through a confirmed transition', () => {
 		const bars = createBars([
 			...Array.from({ length: 205 }, (_, index) => 100 + index),
-			...Array.from({ length: 10 }, (_, index) => 300 - index * 10),
+			...Array.from({ length: 80 }, (_, index) => 300 - index * 5),
 		]);
 		const full = calculateRegime(bars);
+		const labels = new Set(full.map((session) => session.regime));
+
+		expect(labels).toContain('bullish');
+		expect(labels).toContain('mixed');
 
 		for (let length = 1; length <= bars.length; length += 1) {
 			const prefix = calculateRegime(bars.slice(0, length));
@@ -106,12 +110,12 @@ describe('calculateRegime', () => {
 		expect(bars).toEqual(original);
 	});
 
-	test('matches the known NFLX reference sessions', async () => {
-		const bars = await loadNflxFixture();
+	test('matches the known GGAL reference sessions', async () => {
+		const bars = await loadGgalFixture();
 		const sessions = calculateRegime(bars);
 
-		expect(sessions[199]).toEqual({ sessionDate: '2025-06-10', regime: 'bullish' });
-		expect(sessions.at(-1)).toEqual({ sessionDate: '2026-08-21', regime: 'bearish' });
+		expect(sessions[199]).toEqual({ sessionDate: '2025-11-14', regime: 'bullish' });
+		expect(sessions.at(-1)).toEqual({ sessionDate: '2026-09-30', regime: 'bearish' });
 	});
 });
 

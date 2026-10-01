@@ -1,0 +1,4 @@
+- [x] Replace `nflx-501.csv` with `ggal-413.csv` from Open BYMADATA.
+- [x] Compute reference values with the historical Swift implementation on the new fixture.
+- [x] Update the EMA, ATR, RSI, Regime, and Market Structure fixture tests.
+- [x] Run tests and OpenSpec validation.

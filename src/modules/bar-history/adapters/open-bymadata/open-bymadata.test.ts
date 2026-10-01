@@ -54,6 +54,7 @@ describe('Open BYMADATA adapter', () => {
 					volume: 86_652,
 				},
 			],
+			repairs: [],
 		});
 	});
 
@@ -102,6 +103,7 @@ describe('Open BYMADATA adapter', () => {
 			ok: true,
 			source: { provider: 'open-bymadata', symbol: 'INACTIVE 24HS' },
 			bars: [],
+			repairs: [],
 		});
 	});
 
@@ -129,6 +131,93 @@ describe('Open BYMADATA adapter', () => {
 		expect(result).toMatchObject({
 			ok: true,
 			bars: [{ sessionDate: '2026-09-03' }],
+		});
+	});
+
+	test('widens a slightly inconsistent range and keeps open and close', async () => {
+		const adapter = createOpenBymadataAdapter(
+			createFixtureFetch({
+				s: 'ok',
+				t: [1, 2].map((day) => toEpochSeconds(`2026-09-0${day}T03:00:00Z`)),
+				o: [7877.048, 100],
+				h: [7961.445, 103],
+				l: [7370.666, 99],
+				c: [7351.911, 102],
+				v: [1_000, 1_000],
+			}),
+		);
+		const result = await adapter.fetchHistory({
+			tradingLine: AAPL,
+			fromEpochSeconds: 0,
+			toEpochSeconds: 2_000_000_000,
+			requestedThroughSession: '2026-09-02',
+		});
+		const providerBar = {
+			sessionDate: '2026-09-01',
+			open: 7877.048,
+			high: 7961.445,
+			low: 7370.666,
+			close: 7351.911,
+			volume: 1_000,
+		};
+		const repairedBar = { ...providerBar, low: 7351.911 };
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.bars[0]).toEqual(repairedBar);
+		expect(result.bars[1]).toMatchObject({ high: 103, low: 99 });
+		expect(result.repairs).toEqual([{ sessionDate: '2026-09-01', providerBar, repairedBar }]);
+	});
+
+	test('widens the high when the open is slightly above it', async () => {
+		const adapter = createOpenBymadataAdapter(
+			createFixtureFetch({
+				s: 'ok',
+				t: [toEpochSeconds('2026-09-01T03:00:00Z')],
+				o: [100.5],
+				h: [100],
+				l: [98],
+				c: [99],
+				v: [1_000],
+			}),
+		);
+		const result = await adapter.fetchHistory({
+			tradingLine: AAPL,
+			fromEpochSeconds: 0,
+			toEpochSeconds: 2_000_000_000,
+			requestedThroughSession: '2026-09-01',
+		});
+
+		expect(result).toMatchObject({
+			ok: true,
+			bars: [{ open: 100.5, high: 100.5, low: 98, close: 99 }],
+			repairs: [{ sessionDate: '2026-09-01' }],
+		});
+	});
+
+	test('leaves a range gap beyond the tolerance for validation to reject', async () => {
+		const adapter = createOpenBymadataAdapter(
+			createFixtureFetch({
+				s: 'ok',
+				t: [toEpochSeconds('2026-09-01T03:00:00Z')],
+				o: [100],
+				h: [103],
+				l: [99],
+				c: [97.9],
+				v: [1_000],
+			}),
+		);
+		const result = await adapter.fetchHistory({
+			tradingLine: AAPL,
+			fromEpochSeconds: 0,
+			toEpochSeconds: 2_000_000_000,
+			requestedThroughSession: '2026-09-01',
+		});
+
+		expect(result).toMatchObject({
+			ok: true,
+			bars: [{ low: 99, close: 97.9 }],
+			repairs: [],
 		});
 	});
 

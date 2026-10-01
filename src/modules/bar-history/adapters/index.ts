@@ -1,5 +1,6 @@
 export { buildOpenBymadataSource, createOpenBymadataAdapter } from './open-bymadata';
 export type {
+	DailyBarRangeRepair,
 	OpenBymadataAdapter,
 	OpenBymadataFailure,
 	OpenBymadataHistoryRequest,

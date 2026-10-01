@@ -1,0 +1,3 @@
+- [x] Allow ties with earlier bars and require strictly lower later bars for swing highs, mirrored for lows.
+- [x] Replace the plateau test and add tests for separated equal extremes and the double break.
+- [x] Run tests and OpenSpec validation.

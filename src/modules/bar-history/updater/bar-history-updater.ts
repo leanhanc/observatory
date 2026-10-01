@@ -17,6 +17,7 @@ import type {
 	BarHistoryAcquisitionLine,
 	BarHistoryAcquisitionLineResult,
 } from '../acquisition/index.ts';
+import type { DailyBarRangeRepair } from '../adapters/index.ts';
 import type { BarHistory, BarHistoryCorrection, ValidationIssue } from '../bar-history.types.ts';
 import type { BarHistoryStorage, BarHistoryStorageReadResult } from '../storage/index.ts';
 import type {
@@ -401,6 +402,12 @@ async function reconcileAndStoreLine(
 	}
 
 	logCorrections(logger, acquisitionLine.tradingLineId, reconciliationResult.corrections);
+	logNewlyStoredRepairs(
+		logger,
+		acquisitionLine.tradingLineId,
+		acquisitionLine.repairs,
+		preparedLine.existingHistory,
+	);
 	return createLineSuccess(
 		acquisitionLine.tradingLineId,
 		reconciliationResult.status,
@@ -423,6 +430,42 @@ function logCorrections(
 				correctedBar: correction.correctedBar,
 			},
 			'Market history correction accepted.',
+		);
+	}
+}
+
+// A repaired bar is re-repaired identically on every later fetch, so only repairs whose bar was
+// not already stored in that form are logged.
+function logNewlyStoredRepairs(
+	logger: BarHistoryUpdateLogger,
+	tradingLineId: string,
+	repairs: readonly DailyBarRangeRepair[],
+	existingHistory: BarHistory | null,
+): void {
+	const storedBarsBySession = new Map(
+		(existingHistory?.bars ?? []).map((bar) => [bar.sessionDate, bar]),
+	);
+
+	for (const repair of repairs) {
+		const storedBar = storedBarsBySession.get(repair.sessionDate);
+		const wasAlreadyStored =
+			storedBar !== undefined &&
+			storedBar.high === repair.repairedBar.high &&
+			storedBar.low === repair.repairedBar.low;
+
+		if (wasAlreadyStored) {
+			continue;
+		}
+
+		logger.info(
+			{
+				event: 'market-history-repair',
+				tradingLineId,
+				sessionDate: repair.sessionDate,
+				providerBar: repair.providerBar,
+				repairedBar: repair.repairedBar,
+			},
+			'Provider bar range repaired.',
 		);
 	}
 }

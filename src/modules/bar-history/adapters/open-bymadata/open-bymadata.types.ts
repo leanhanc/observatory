@@ -27,11 +27,18 @@ export type OpenBymadataFailure = Readonly<{
 	message: string;
 }>;
 
+export type DailyBarRangeRepair = Readonly<{
+	sessionDate: string;
+	providerBar: DailyBar;
+	repairedBar: DailyBar;
+}>;
+
 export type OpenBymadataHistoryResult =
 	| Readonly<{
 			ok: true;
 			source: BarHistorySource;
 			bars: readonly DailyBar[];
+			repairs: readonly DailyBarRangeRepair[];
 	  }>
 	| OpenBymadataFailure;
 

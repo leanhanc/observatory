@@ -137,7 +137,7 @@ A user's instruction about which already-computed Observations to order, filter,
 _Avoid_: Weight, score, personalized analysis
 
 **User-Context Projection**:
-The interpretation of canonical analysis together with user context, such as Holdings, Watched Instruments, notification preferences, or the CEDEAR Trading Line to which an underlying level may be translated.
+The interpretation of canonical analysis together with user context, such as Holdings, Watched Instruments, notification preferences, or the currency in which prices are displayed.
 _Avoid_: Reanalysis, customized analysis
 
 ## User Scope

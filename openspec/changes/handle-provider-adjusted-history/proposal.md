@@ -1,6 +1,6 @@
 # Handle provider-adjusted history
 
-Status: awaiting decisions. This change has no spec deltas yet, so it does not pass validation until the decisions below are made.
+Status: decisions made 2026-10-01. Detection is implemented; applying adjustments during reconciliation is pending (see tasks).
 
 ## Why
 
@@ -24,10 +24,10 @@ These are inferences from price patterns. The provider does not document its adj
 
 ## Decisions needed
 
-1. **Which series is canonical.** Either the provider's adjusted series, which keeps indicators free of distribution gaps but makes old levels differ from traded prices, or the raw prices as first observed, which match what traded but need our own split adjustment for technical analysis. Technical analysis requires split adjustment either way; dividend adjustment is a convention that charting tools differ on.
-2. **How an adjustment is detected.** For example, a consistent ratio between stored and fetched prices across all overlapping sessions, distinguished from ordinary corrections to individual bars.
-3. **How older bars are handled.** If the adjusted series is canonical, apply the detected factor to stored bars outside the provider's window and record the adjustment. If raw is canonical, keep first-observed values and stop treating adjustments as corrections.
-4. **Where split and ratio events come from.** The research lab defined a dated ratio table that is never inferred from prices, but never found a data source for it.
+1. **Which series is canonical. Decided 2026-10-01: the provider's adjusted series.** Stored history follows Open BYMADATA's adjustments rather than raw first-observed prices. Indicators stay free of gaps caused by distributions; the cost is that older levels, such as swing prices, differ from prices that actually traded. The spec requirement "Stored prices are raw market facts" and its adjustment policy of `none` must be replaced.
+2. **How an adjustment is detected. Decided: by its shape.** An adjustment changes every overlapping bar up to a session by the same price ratio and leaves later bars unchanged. Several adjustments since the last check form a staircase of such steps. Any other difference is a set of corrections. `detectAdjustmentOrCorrection` makes this classification.
+3. **How older bars are handled. Decided: apply the provider's factor.** Stored bars that the provider no longer serves are multiplied by the detected factor, so the history stays on one price scale. They are never refetched or replaced otherwise. The adjustment is recorded as its own event rather than as corrections. Still open: whether volume changes with the factor, which matters for splits but not for cash distributions.
+4. **Where split and ratio events come from. Decided for now: from the provider.** A split or CEDEAR ratio change scales earlier prices like a distribution, so the same detection covers it if the provider adjusts it. No ratio table is built until the provider is seen failing to adjust one. A separate safeguard should flag a large one-session move with no detected adjustment, so an unadjusted split cannot pass as a real move.
 
 ## Next step
 

@@ -1,0 +1,7 @@
+- [x] Classify a refetch as unchanged, adjustments, or corrections with `detectAdjustmentOrCorrection`.
+- [ ] Confirm from before-and-after provider snapshots that an adjustment is a single price ratio, and whether volume changes.
+- [ ] Apply a detected adjustment during reconciliation to stored bars outside the provider's window, and record it as an adjustment event.
+- [ ] Replace the stored `priceAdjustment: 'none'` provenance.
+- [ ] Flag a large one-session move with no detected adjustment.
+- [ ] Decide which adjustment ratios are applied automatically: a very small ratio may be a split or a provider decimal error, which the detector cannot tell apart.
+- [ ] Run tests and OpenSpec validation, then archive.

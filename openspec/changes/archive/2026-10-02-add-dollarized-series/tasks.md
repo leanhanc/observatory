@@ -1,0 +1,7 @@
+- [x] Inspect ADR 0005 and existing bar-history and technical-analysis modules.
+- [x] Draft proposal and delta spec.
+- [x] Implement `calculateMepRates` and `dollarizeBarHistory` in `src/modules/dollarized-series`.
+- [x] Add adversarial tests, including the devaluation and constant-versus-moving-rate domain tests.
+- [x] Add the CCL/MEP residual clause for foreign-listed local stocks to ADR 0005.
+- [x] Run tests, typecheck, lint, format and strict OpenSpec validation.
+- [x] Review, then archive.

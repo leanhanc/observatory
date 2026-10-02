@@ -76,6 +76,14 @@ _Avoid_: Ordinary Refresh, Catch-up, using an undated market row
 The deliberate recheck of previously accepted sessions against the source to detect corrections while preserving valid history outside the source's available window.
 _Avoid_: Initial Backfill, ordinary daily update
 
+**MEP Rate**:
+The pesos-per-dollar exchange rate implied, for one Trading Session, by the closes of a bond's peso line and its local-dollar (MEP, "D") line with the same settlement. A session has a MEP Rate only when both lines traded. It is distinct from the CCL rate, which uses the cable line.
+_Avoid_: Ratio, a third-party dólar MEP quote
+
+**Dollarized Series**:
+A peso-line Bar History expressed in **MEP dollars** by dividing each Daily Bar's prices by the same session's MEP Rate. Its bars are derived values, not market facts of any Trading Line. Sessions without a MEP Rate have no bar.
+_Avoid_: Dollar-line history, Bar History
+
 ## Analysis Language
 
 **Feature**:

@@ -20,3 +20,6 @@ build/
 
 # LLMs
 AGENTS.md
+
+# Provider history snapshots
+.snapshots/

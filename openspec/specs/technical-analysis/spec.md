@@ -50,7 +50,7 @@ smoothing.
 
 ### Requirement: session-aligned confirmed market structure
 
-The technical-analysis module SHALL return one Structure result per completed `DailyBar` session in input order. Each result SHALL contain that session date, a classification of `uptrend`, `downtrend`, `range`, or the string `undefined`, and only swings newly confirmed at that session. Each public swing SHALL carry its kind, price, occurrence session date, and confirmation session date. The calculation SHALL be pure and SHALL NOT mutate its input.
+The technical-analysis module SHALL return one Structure result per completed `DailyBar` session in input order. Each result SHALL contain that session date, a classification of `uptrend`, `downtrend`, `range`, or the string `undefined`, a `hasSwingPairs` availability flag, and only swings newly confirmed at that session. Each public swing SHALL carry its kind, price, occurrence session date, and confirmation session date. The calculation SHALL be pure and SHALL NOT mutate its input.
 
 #### Scenario: empty and short histories
 
@@ -120,7 +120,7 @@ The technical-analysis module SHALL expose a pure `calculateRegime(bars)` functi
 
 ### Requirement: fixed v1 Analysis Configuration
 
-Regime v1 SHALL use the module-owned, versioned settings EMA(50), EMA(200), ATR(14), an ATR band multiplier of `0.5`, and three readable-session transition confirmations. These settings SHALL NOT be caller parameters or user customization. The implementation SHALL reuse the existing EMA and ATR calculations.
+Regime v1 SHALL use the project-wide v1 Analysis Configuration settings EMA(50), EMA(200), ATR(14), an ATR band multiplier of `0.5`, and three readable-session transition confirmations. These settings SHALL NOT be caller parameters or user customization. The implementation SHALL reuse the existing EMA and ATR calculations.
 
 #### Scenario: fixed analytical conventions
 
@@ -451,7 +451,7 @@ Each Event SHALL contain only `type: 'volatility-expansion'`, `trueRange`, `base
 
 ### Requirement: fixed prior-session volatility baseline
 
-Volatility Expansion SHALL use module-owned Analysis Configuration v1 with Wilder ATR period 14 and expansion threshold 1.8, neither configurable by caller nor user. It SHALL reuse the existing True Range and ATR calculations. At position `i`, `expansionMultiple` SHALL equal current True Range divided by ATR14 at `i - 1`. The baseline SHALL exclude the current session and SHALL NOT average multiple ATR values.
+Volatility Expansion SHALL use the project-wide v1 Analysis Configuration settings Wilder ATR period 14 and expansion threshold 1.8, neither configurable by caller nor user. It SHALL reuse the existing True Range and ATR calculations. At position `i`, `expansionMultiple` SHALL equal current True Range divided by ATR14 at `i - 1`. The baseline SHALL exclude the current session and SHALL NOT average multiple ATR values.
 
 #### Scenario: current movement cannot raise its own baseline
 
@@ -583,3 +583,24 @@ In Analysis Configuration v1, a swing candidate SHALL have three earlier and thr
 - **WHEN** a downtrend is broken by a close above its defining swing high and price then forms a double top above that high
 - **THEN** the double top becomes the latest swing high
 - **AND** the broken swing high cannot define a re-established downtrend and be broken again
+
+### Requirement: Structure availability
+
+`hasSwingPairs` SHALL be true at a session exactly when at least two confirmed swing highs and at least two confirmed swing lows have been confirmed by that session. While it is false, Structure cannot be evaluated: the classification SHALL be `undefined` and that `undefined` SHALL mean not enough history. Once it is true, it SHALL remain true for every later session, and an `undefined` classification SHALL mean that a trend expired, which is a reading of Structure.
+
+#### Scenario: warm-up is unavailable
+
+- **WHEN** fewer than two confirmed swings of either kind exist by a session
+- **THEN** that session's `hasSwingPairs` is false and its classification is `undefined`
+- **AND** one confirmed swing of each kind is not enough
+
+#### Scenario: an expired trend is a reading
+
+- **WHEN** a trend expires because a completed close crosses its defining swing
+- **THEN** the classification is `undefined`
+- **AND** `hasSwingPairs` is true
+
+#### Scenario: warm-up does not return
+
+- **WHEN** `hasSwingPairs` has become true at a session
+- **THEN** it is true at every later session, including sessions whose classification is `undefined`

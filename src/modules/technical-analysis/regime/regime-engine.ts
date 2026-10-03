@@ -1,6 +1,7 @@
+import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
+
 import { calculateAtr } from '../atr/index.ts';
 import { calculateEma } from '../ema/index.ts';
-import { REGIME_CONFIGURATION_V1 } from './regime-configuration.ts';
 import { proposeRegime } from './regime-policy.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
@@ -43,9 +44,9 @@ export const INITIAL_REGIME_TRANSITION_STATE: RegimeTransitionState = Object.fre
 
 export function analyzeRegime(bars: readonly DailyBar[]): readonly RegimeAnalysisSession[] {
 	const closes = bars.map((bar) => bar.close);
-	const fastEma = calculateEma(closes, REGIME_CONFIGURATION_V1.fastEmaPeriod);
-	const slowEma = calculateEma(closes, REGIME_CONFIGURATION_V1.slowEmaPeriod);
-	const atr = calculateAtr(bars, REGIME_CONFIGURATION_V1.atrPeriod);
+	const fastEma = calculateEma(closes, ANALYSIS_CONFIGURATION.regime.fastEmaPeriod);
+	const slowEma = calculateEma(closes, ANALYSIS_CONFIGURATION.regime.slowEmaPeriod);
+	const atr = calculateAtr(bars, ANALYSIS_CONFIGURATION.regime.atrPeriod);
 
 	const sessions: RegimeAnalysisSession[] = [];
 	let state = INITIAL_REGIME_TRANSITION_STATE;
@@ -104,7 +105,7 @@ export function advanceRegimeTransitionState(
 	}
 
 	const proposalSessionDates = collectProposalSessionDates(state.pending, proposal, sessionDate);
-	const transitionConfirmations = REGIME_CONFIGURATION_V1.transitionConfirmations;
+	const transitionConfirmations = ANALYSIS_CONFIGURATION.regime.transitionConfirmations;
 
 	if (proposalSessionDates.length !== transitionConfirmations) {
 		return {

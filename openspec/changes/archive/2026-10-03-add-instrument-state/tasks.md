@@ -1,0 +1,8 @@
+- [x] Inspect CONTEXT.md and the technical-analysis and dollarized-series specs and modules.
+- [x] Draft proposal and delta spec; run strict OpenSpec validation.
+- [x] Implement `calculateInstrumentStates` in `src/modules/instrument-state`.
+- [x] Add `hasSwingPairs` to Market Structure so Structure warm-up is explicit.
+- [x] Move v1 analysis settings into the project-wide Analysis Configuration in `src/lib/config.ts`.
+- [x] Add tests for availability, warm-up, exact Feature values, causal replay and input immutability.
+- [x] Run tests, typecheck, lint, format and strict OpenSpec validation.
+- [x] Review, then archive.

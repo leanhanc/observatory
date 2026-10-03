@@ -93,7 +93,7 @@ _Avoid_: State, score, recommendation
 
 **Instrument State**:
 A structured description of what is true about an Instrument for a Trading Session, including classifications, measurements, and whether each part could be evaluated.
-_Example_: For one Trading Session, an Instrument State may record a mixed Regime, range-bound Structure, RSI(14) at 61.6, price 2 ATRs above EMA(20), and volume comparison as unavailable because there is not enough history. Together these facts describe the Instrument without predicting what happens next.
+_Example_: For one Trading Session, an Instrument State of a recently listed Instrument may record range-bound Structure, RSI(14) at 61.6, price 2 ATRs above EMA(20), and Regime as unavailable because there is not enough history. Together these facts describe the Instrument without predicting what happens next.
 _Avoid_: Signal, verdict, snapshot when referring to a single fact
 
 **Regime**:

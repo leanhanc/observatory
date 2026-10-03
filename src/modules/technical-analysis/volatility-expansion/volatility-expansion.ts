@@ -1,3 +1,5 @@
+import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
+
 import { calculateAtr } from '../atr/index.ts';
 import { calculateTrueRange } from '../true-range/index.ts';
 
@@ -7,8 +9,7 @@ import type {
 	VolatilityExpansionSession,
 } from './volatility-expansion.types.ts';
 
-const ATR_PERIOD = 14;
-const EXPANSION_THRESHOLD = 1.8;
+const { atrPeriod, expansionThreshold } = ANALYSIS_CONFIGURATION.volatilityExpansion;
 
 /**
  * Detects direction-neutral expansion against ATR known before each session.
@@ -19,7 +20,7 @@ export function detectVolatilityExpansionEvents(
 	bars: readonly DailyBar[],
 ): readonly VolatilityExpansionSession[] {
 	const trueRanges = calculateTrueRange(bars);
-	const atr = calculateAtr(bars, ATR_PERIOD);
+	const atr = calculateAtr(bars, atrPeriod);
 
 	return bars.map((bar, index) => ({
 		sessionDate: bar.sessionDate,
@@ -41,7 +42,7 @@ function detectExpansion(
 
 	const expansionMultiple = trueRange / baselineAtr;
 	const isReadable = Number.isFinite(trueRange) && Number.isFinite(expansionMultiple);
-	const isExpansion = expansionMultiple > EXPANSION_THRESHOLD;
+	const isExpansion = expansionMultiple > expansionThreshold;
 
 	if (!isReadable || !isExpansion) {
 		return null;

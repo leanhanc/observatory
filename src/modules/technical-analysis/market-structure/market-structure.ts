@@ -1,3 +1,5 @@
+import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
+
 import type { DailyBar } from '#modules/bar-history/index.ts';
 import type {
 	ConfirmedSwing,
@@ -5,12 +7,13 @@ import type {
 	StructureClassification,
 } from './market-structure.types.ts';
 
-const CONFIRMATION_BARS = 3;
+const { confirmationBars } = ANALYSIS_CONFIGURATION.marketStructure;
 
 /**
  * Describes confirmed swings and Structure at each completed session.
  * A swing appears only on its confirmation session, three input bars after it occurred.
- * The string `undefined` represents insufficient or invalidated structure.
+ * The string `undefined` represents insufficient or invalidated structure; `hasSwingPairs`
+ * tells them apart.
  * Expects completed Daily Bars ordered oldest to newest with unique session dates.
  */
 export function calculateMarketStructure(
@@ -59,7 +62,13 @@ export function calculateMarketStructure(
 		}
 
 		const structure = isTrendExpired ? 'undefined' : candidateStructure;
-		sessions.push({ sessionDate: bar.sessionDate, structure, newlyConfirmedSwings });
+		const hasSwingPairs = previousHigh !== null && previousLow !== null;
+		sessions.push({
+			sessionDate: bar.sessionDate,
+			structure,
+			hasSwingPairs,
+			newlyConfirmedSwings,
+		});
 	}
 
 	return sessions;
@@ -69,9 +78,9 @@ function detectNewlyConfirmedSwings(
 	bars: readonly DailyBar[],
 	confirmationIndex: number,
 ): readonly ConfirmedSwing[] {
-	const candidateIndex = confirmationIndex - CONFIRMATION_BARS;
+	const candidateIndex = confirmationIndex - confirmationBars;
 
-	if (candidateIndex < CONFIRMATION_BARS) {
+	if (candidateIndex < confirmationBars) {
 		return [];
 	}
 
@@ -80,7 +89,7 @@ function detectNewlyConfirmedSwings(
 	let isSwingLow = true;
 
 	for (
-		let neighbourIndex = candidateIndex - CONFIRMATION_BARS;
+		let neighbourIndex = candidateIndex - confirmationBars;
 		neighbourIndex <= confirmationIndex;
 		neighbourIndex += 1
 	) {

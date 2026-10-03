@@ -62,6 +62,8 @@ describe('calculateMarketStructure', () => {
 
 		expect(rising[18]?.structure).toBe('undefined');
 		expect(rising[19]?.structure).toBe('uptrend');
+		expect(rising.slice(0, 19).every((session) => !session.hasSwingPairs)).toBe(true);
+		expect(rising[19]?.hasSwingPairs).toBe(true);
 		expect(falling[18]?.structure).toBe('undefined');
 		expect(falling[19]?.structure).toBe('downtrend');
 	});
@@ -169,7 +171,9 @@ describe('calculateMarketStructure', () => {
 
 		expect(allSwings.map((swing) => swing.kind)).toEqual(['low', 'low', 'high', 'high']);
 		expect(sessions[30]?.structure).toBe('undefined');
+		expect(sessions[30]?.hasSwingPairs).toBe(false);
 		expect(sessions[31]?.structure).toBe('uptrend');
+		expect(sessions[31]?.hasSwingPairs).toBe(true);
 	});
 
 	test('keeps an invalidated downtrend undefined until new swing evidence arrives', () => {
@@ -196,6 +200,7 @@ describe('calculateMarketStructure', () => {
 		expect(sessions[20]?.structure).toBe('undefined');
 		expect(sessions[21]?.newlyConfirmedSwings).toEqual([]);
 		expect(sessions[21]?.structure).toBe('undefined');
+		expect(sessions.slice(19).every((session) => session.hasSwingPairs)).toBe(true);
 	});
 
 	test('does not expire either trend when close equals its defining swing', () => {

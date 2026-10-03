@@ -10,5 +10,11 @@ export type ConfirmedSwing = Readonly<{
 export type MarketStructureSession = Readonly<{
 	sessionDate: string;
 	structure: StructureClassification;
+	/**
+	 * Whether two confirmed swings of each kind exist by this session. While false, Structure
+	 * cannot be evaluated and its `undefined` means not enough history; once true it stays true,
+	 * and `undefined` means an expired trend.
+	 */
+	hasSwingPairs: boolean;
 	newlyConfirmedSwings: readonly ConfirmedSwing[];
 }>;

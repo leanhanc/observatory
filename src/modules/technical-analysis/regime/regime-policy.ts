@@ -1,4 +1,4 @@
-import { REGIME_CONFIGURATION_V1 } from './regime-configuration.ts';
+import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
 
 import type { Regime } from './regime.types.ts';
 
@@ -28,7 +28,7 @@ export function proposeRegime(
 		return null;
 	}
 
-	const margin = REGIME_CONFIGURATION_V1.atrBandMultiplier * atr14;
+	const margin = ANALYSIS_CONFIGURATION.regime.atrBandMultiplier * atr14;
 	const upperBand = ema200 + margin;
 	const lowerBand = ema200 - margin;
 	const upperPosition = compareBeyondRoundingNoise(close, upperBand);

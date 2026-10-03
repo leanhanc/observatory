@@ -1,0 +1,8 @@
+- [x] Inspect ADR 0005, the instrument-catalog and dollarized-series specs, and both modules.
+- [x] Draft proposal and delta specs.
+- [x] Add the `bond` Instrument type to the catalog schema and types.
+- [x] Add the AL30 bond and its two Trading Lines to the stored catalog.
+- [x] Add `MEP_RATE_SOURCE` to the dollarized-series module.
+- [x] Add schema-rejection tests and the real-catalog tests that pin each property of the configured pair.
+- [x] Run tests, typecheck, lint, format and strict OpenSpec validation.
+- [ ] Review, then archive.

@@ -10,3 +10,9 @@ export type DollarizedSeries = Readonly<{
 	bars: readonly DailyBar[];
 	sessionsWithoutMepRate: readonly string[];
 }>;
+
+/** The Trading Lines of the bond whose peso and dollar closes imply the MEP Rate. */
+export type MepRateSource = Readonly<{
+	pesoBondTradingLineId: string;
+	dollarBondTradingLineId: string;
+}>;

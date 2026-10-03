@@ -65,9 +65,21 @@ export const cedearInstrumentSchema = v.pipe(
 	v.readonly(),
 );
 
+export const bondInstrumentSchema = v.pipe(
+	v.strictObject(
+		{
+			id: lowercaseKebabCaseSchema,
+			type: v.literal('bond', messages.invalidValue),
+			tradingLines: tradingLinesSchema,
+		},
+		messages.additionalField,
+	),
+	v.readonly(),
+);
+
 export const instrumentSchema = v.variant(
 	'type',
-	[stockInstrumentSchema, cedearInstrumentSchema],
+	[stockInstrumentSchema, cedearInstrumentSchema, bondInstrumentSchema],
 	messages.invalidType,
 );
 

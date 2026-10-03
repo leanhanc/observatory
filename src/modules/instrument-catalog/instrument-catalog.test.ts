@@ -36,6 +36,15 @@ const validCatalog = {
 	],
 } as const;
 
+const validBond = {
+	id: 'test-bond',
+	type: 'bond',
+	tradingLines: [
+		{ id: 'test-bond-byma-ars', symbol: 'TB30', exchange: 'BYMA', currency: 'ARS' },
+		{ id: 'test-bond-byma-usd-mep', symbol: 'TB30D', exchange: 'BYMA', currency: 'USD' },
+	],
+} as const;
+
 describe('Instrument Catalog validation', () => {
 	test.each([
 		['unsupported schema version', { ...validCatalog, schemaVersion: 2 }],
@@ -218,6 +227,49 @@ describe('Instrument Catalog validation', () => {
 		]);
 	});
 
+	test('accepts a bond with peso and local-dollar Trading Lines', () => {
+		const value = buildCatalogWithBond(validBond);
+
+		expect(validateInstrumentCatalog(value)).toEqual({ isValid: true, catalog: value });
+	});
+
+	test('rejects a bond that declares an Underlying Instrument', () => {
+		const bondWithUnderlying = { ...validBond, underlyingInstrumentId: 'apple-stock' };
+		const result = validateInstrumentCatalog(buildCatalogWithBond(bondWithUnderlying));
+
+		expect(result).toMatchObject({
+			isValid: false,
+			issues: [{ code: 'invalid-value', path: 'instruments[2].underlyingInstrumentId' }],
+		});
+	});
+
+	test('rejects a bond without Trading Lines', () => {
+		const result = validateInstrumentCatalog(
+			buildCatalogWithBond({ ...validBond, tradingLines: [] }),
+		);
+
+		expect(result).toMatchObject({
+			isValid: false,
+			issues: [{ path: 'instruments[2].tradingLines' }],
+		});
+	});
+
+	test('rejects a CEDEAR whose underlying Instrument is a bond', () => {
+		const cedearOfBond = {
+			...validCatalog.instruments[1],
+			underlyingInstrumentId: 'test-bond',
+		};
+		const value = {
+			...validCatalog,
+			instruments: [validCatalog.instruments[0], cedearOfBond, validBond],
+		};
+		const result = validateInstrumentCatalog(value);
+
+		expect(selectIssuePaths(result, 'invalid-underlying')).toEqual([
+			'instruments[1].underlyingInstrumentId',
+		]);
+	});
+
 	test('does not create a partial catalog from invalid input', () => {
 		const value = structuredClone(validCatalog);
 		Reflect.set(value.instruments[1], 'underlyingInstrumentId', 'missing-stock');
@@ -230,10 +282,11 @@ describe('Instrument Catalog validation', () => {
 });
 
 describe('Instrument Catalog interface', () => {
-	test('loads the initial Argentine stock and Apple relationship entries', () => {
+	test('loads the initial Argentine stock, Apple relationship and AL30 bond entries', () => {
 		const instruments = instrumentCatalog.getInstruments();
 
 		expect(instruments.map((instrument) => instrument.id).toSorted()).toEqual([
+			'al30-bond',
 			'apple-cedear',
 			'apple-stock',
 			'galicia-stock',
@@ -246,6 +299,41 @@ describe('Instrument Catalog interface', () => {
 				underlyingInstrumentId: 'apple-stock',
 			},
 		});
+	});
+
+	test('loads the AL30 bond with its peso and local-dollar Trading Lines', () => {
+		expect(instrumentCatalog.getInstrumentById('al30-bond')).toEqual({
+			ok: true,
+			instrument: {
+				id: 'al30-bond',
+				type: 'bond',
+				tradingLines: [
+					{ id: 'al30-bond-byma-ars', symbol: 'AL30', exchange: 'BYMA', currency: 'ARS' },
+					{
+						id: 'al30-bond-byma-usd-mep',
+						symbol: 'AL30D',
+						exchange: 'BYMA',
+						currency: 'USD',
+					},
+				],
+			},
+		});
+	});
+
+	test('names the operative form of every BYMA USD Trading Line', () => {
+		const bymaUsdTradingLineIds = instrumentCatalog
+			.getInstruments()
+			.flatMap((instrument) => instrument.tradingLines)
+			.filter(
+				(tradingLine) => tradingLine.exchange === 'BYMA' && tradingLine.currency === 'USD',
+			)
+			.map((tradingLine) => tradingLine.id);
+
+		expect(bymaUsdTradingLineIds).not.toBeEmpty();
+
+		for (const tradingLineId of bymaUsdTradingLineIds) {
+			expect(tradingLineId).toMatch(/-usd-(mep|ccl)$/);
+		}
 	});
 
 	test('returns an explicit missing-Instrument result', () => {
@@ -380,6 +468,10 @@ describe('Instrument Catalog interface', () => {
 		expect(tradingLine).not.toHaveProperty('analysisTradingLineId');
 	});
 });
+
+function buildCatalogWithBond<Bond>(bond: Bond) {
+	return { ...validCatalog, instruments: [...validCatalog.instruments, bond] };
+}
 
 function selectIssuePaths(
 	result: ReturnType<typeof validateInstrumentCatalog>,

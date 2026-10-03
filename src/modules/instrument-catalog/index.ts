@@ -12,6 +12,7 @@ if (!catalogCreation.ok) {
 export const instrumentCatalog = catalogCreation.catalog;
 
 export type {
+	BondInstrument,
 	CedearInstrument,
 	Instrument,
 	InstrumentCatalog,

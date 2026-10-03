@@ -1,4 +1,5 @@
 import type {
+	bondInstrumentSchema,
 	cedearInstrumentSchema,
 	instrumentCatalogSchema,
 	instrumentSchema,
@@ -10,6 +11,7 @@ import type * as v from 'valibot';
 export type TradingLine = v.InferOutput<typeof tradingLineSchema>;
 export type StockInstrument = v.InferOutput<typeof stockInstrumentSchema>;
 export type CedearInstrument = v.InferOutput<typeof cedearInstrumentSchema>;
+export type BondInstrument = v.InferOutput<typeof bondInstrumentSchema>;
 export type Instrument = v.InferOutput<typeof instrumentSchema>;
 export type InstrumentCatalogValue = v.InferOutput<typeof instrumentCatalogSchema>;
 

@@ -1,10 +1,4 @@
-# instrument-catalog Specification
-
-## Purpose
-
-Provide one validated, read-only source for the Instruments and Trading Lines Observatory recognizes and for the economic relationship between each CEDEAR and its Underlying Instrument.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: The catalog has one supported version and strict record shapes
 
@@ -69,56 +63,6 @@ Every CEDEAR SHALL reference an existing stock through `underlyingInstrumentId`.
 
 - **WHEN** any complete-catalog relationship is invalid
 - **THEN** the system exposes no partial Instrument Catalog
-
-### Requirement: Consumers use a read-only catalog interface
-
-The system SHALL expose operations that list all Instruments, resolve one Instrument identifier, and resolve an ordered set of Trading Line identifiers. Returned Instruments and Trading Lines SHALL be deeply read-only, and a consumer SHALL NOT be able to change nested Instruments, nested Trading Lines, their arrays, or the catalog observed by later reads. The stored JSON SHALL remain an internal implementation detail rather than a consumer import.
-
-The order of Instruments in storage or in a complete listing SHALL have no domain meaning. Resolving Trading Line identifiers SHALL preserve the caller's requested order.
-
-#### Scenario: List recognized Instruments
-
-- **WHEN** a consumer requests all recognized Instruments
-- **THEN** the system returns every validated Instrument without promising a meaningful order
-
-#### Scenario: Resolve an existing Instrument
-
-- **WHEN** a consumer requests a recognized Instrument identifier
-- **THEN** the system returns that complete Instrument with its embedded Trading Lines
-
-#### Scenario: Consumer attempts to mutate nested returned data
-
-- **WHEN** a consumer attempts to change an Instrument field, a nested Trading Line field, or a returned array obtained from a catalog operation
-- **THEN** subsequent catalog reads still return the validated stored value
-
-### Requirement: Identifier lookup failures are explicit
-
-The system SHALL return a machine-readable failure when an Instrument identifier does not exist. A request to resolve Trading Lines SHALL reject blank identifiers, duplicate identifiers, and any identifier absent from the catalog without returning a partial successful set. A successful Trading Line resolution SHALL return each requested line exactly once in request order.
-
-#### Scenario: Instrument identifier is unknown
-
-- **WHEN** a consumer requests an Instrument identifier absent from the catalog
-- **THEN** the system returns an `instrument-not-found` failure identifying the requested value
-
-#### Scenario: Trading Line request contains an unknown identifier
-
-- **WHEN** a consumer requests one or more unknown Trading Line identifiers
-- **THEN** the system returns a `trading-line-not-found` failure identifying every missing value and no partial Trading Line set
-
-#### Scenario: Trading Line request contains a duplicate
-
-- **WHEN** a consumer requests the same Trading Line identifier more than once
-- **THEN** the system returns an `invalid-request` failure before returning any Trading Lines
-
-#### Scenario: Trading Lines resolve successfully
-
-- **WHEN** a consumer requests distinct recognized Trading Line identifiers
-- **THEN** the system returns those Trading Lines exactly once and in the requested order
-
-#### Scenario: No Trading Lines are requested
-
-- **WHEN** a consumer requests an empty list of Trading Line identifiers
-- **THEN** the system returns a successful empty ordered result
 
 ### Requirement: The initial catalog represents the first supported relationships
 

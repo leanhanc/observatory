@@ -49,6 +49,24 @@
 					"currency": "ARS"
 				}
 			]
+		},
+		{
+			"id": "al30-bond",
+			"type": "bond",
+			"tradingLines": [
+				{
+					"id": "al30-bond-byma-ars",
+					"symbol": "AL30",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				},
+				{
+					"id": "al30-bond-byma-usd-mep",
+					"symbol": "AL30D",
+					"exchange": "BYMA",
+					"currency": "USD"
+				}
+			]
 		}
 	]
 }

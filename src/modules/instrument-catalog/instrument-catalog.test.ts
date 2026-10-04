@@ -282,22 +282,45 @@ describe('Instrument Catalog validation', () => {
 });
 
 describe('Instrument Catalog interface', () => {
-	test('loads the initial Argentine stock, Apple relationship and AL30 bond entries', () => {
-		const instruments = instrumentCatalog.getInstruments();
-
-		expect(instruments.map((instrument) => instrument.id).toSorted()).toEqual([
-			'al30-bond',
-			'apple-cedear',
-			'apple-stock',
-			'galicia-stock',
-			'ypf-stock',
-		]);
-		expect(instrumentCatalog.getInstrumentById('apple-cedear')).toMatchObject({
+	test.each([
+		{
+			id: 'galicia-stock',
+			type: 'stock',
+			tradingLines: [
+				{ id: 'galicia-stock-byma-ars', symbol: 'GGAL', exchange: 'BYMA', currency: 'ARS' },
+			],
+		},
+		{
+			id: 'ypf-stock',
+			type: 'stock',
+			tradingLines: [
+				{ id: 'ypf-stock-byma-ars', symbol: 'YPFD', exchange: 'BYMA', currency: 'ARS' },
+			],
+		},
+		{
+			id: 'apple-stock',
+			type: 'stock',
+			tradingLines: [
+				{
+					id: 'apple-stock-nasdaq-usd',
+					symbol: 'AAPL',
+					exchange: 'NASDAQ',
+					currency: 'USD',
+				},
+			],
+		},
+		{
+			id: 'apple-cedear',
+			type: 'cedear',
+			underlyingInstrumentId: 'apple-stock',
+			tradingLines: [
+				{ id: 'apple-cedear-byma-ars', symbol: 'AAPL', exchange: 'BYMA', currency: 'ARS' },
+			],
+		},
+	])('keeps the original $id record unchanged', (instrument) => {
+		expect(instrumentCatalog.getInstrumentById(instrument.id)).toEqual({
 			ok: true,
-			instrument: {
-				type: 'cedear',
-				underlyingInstrumentId: 'apple-stock',
-			},
+			instrument,
 		});
 	});
 

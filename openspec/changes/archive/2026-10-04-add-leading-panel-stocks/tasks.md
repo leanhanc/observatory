@@ -1,0 +1,8 @@
+- [x] Inspect ADRs 0004 and 0005, the instrument-catalog spec and module, and the BYMA universe research.
+- [x] Draft proposal and delta spec.
+- [x] Add the catalog generator: panel parsing, merge, validation before writing, and a report of added and departed leaders.
+- [x] Unit-test parsing and merging with injected panel responses, without network.
+- [x] Run the generator once against Open BYMADATA and commit the generated catalog.
+- [x] Replace the exact-contents catalog test with tests of the original Instruments and the generated id convention.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation and an Analysis Run dry run.
+- [x] Review, then archive.

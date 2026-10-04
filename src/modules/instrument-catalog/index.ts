@@ -1,6 +1,8 @@
 import storedInstrumentCatalog from './data/instrument-catalog.v1.json' with { type: 'json' };
 import { createInstrumentCatalog } from './instrument-catalog.ts';
 
+export { validateInstrumentCatalog } from './instrument-catalog.ts';
+
 const catalogCreation = createInstrumentCatalog(storedInstrumentCatalog);
 
 if (!catalogCreation.ok) {
@@ -16,6 +18,8 @@ export type {
 	CedearInstrument,
 	Instrument,
 	InstrumentCatalog,
+	InstrumentCatalogValidationIssue,
+	InstrumentCatalogValue,
 	InstrumentLookupResult,
 	StockInstrument,
 	TradingLine,

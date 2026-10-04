@@ -12,6 +12,7 @@
 		"test:storage-integration": "bun test src/modules/bar-history/storage/bar-history-storage.integration.test.ts",
 		"analyze": "bun scripts/analysis-run.ts",
 		"canary:bar-history": "bun scripts/bar-history-canary.ts",
+		"generate:catalog": "bun scripts/instrument-catalog-generator.ts",
 		"observe": "bun scripts/bymadata-observer.ts",
 		"snapshot:history": "bun scripts/bymadata-history-snapshot.ts"
 	},

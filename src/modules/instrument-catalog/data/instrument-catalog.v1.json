@@ -67,6 +67,234 @@
 					"currency": "USD"
 				}
 			]
+		},
+		{
+			"id": "alua-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "alua-stock-byma-ars",
+					"symbol": "ALUA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "bbar-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "bbar-stock-byma-ars",
+					"symbol": "BBAR",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "bma-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "bma-stock-byma-ars",
+					"symbol": "BMA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "byma-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "byma-stock-byma-ars",
+					"symbol": "BYMA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "cepu-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "cepu-stock-byma-ars",
+					"symbol": "CEPU",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "come-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "come-stock-byma-ars",
+					"symbol": "COME",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ecog-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "ecog-stock-byma-ars",
+					"symbol": "ECOG",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "edn-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "edn-stock-byma-ars",
+					"symbol": "EDN",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "gfva-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "gfva-stock-byma-ars",
+					"symbol": "GFVA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "loma-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "loma-stock-byma-ars",
+					"symbol": "LOMA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "metr-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "metr-stock-byma-ars",
+					"symbol": "METR",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "pamp-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "pamp-stock-byma-ars",
+					"symbol": "PAMP",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "supv-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "supv-stock-byma-ars",
+					"symbol": "SUPV",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "teco2-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "teco2-stock-byma-ars",
+					"symbol": "TECO2",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "tgno4-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "tgno4-stock-byma-ars",
+					"symbol": "TGNO4",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "tgsu2-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "tgsu2-stock-byma-ars",
+					"symbol": "TGSU2",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "tran-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "tran-stock-byma-ars",
+					"symbol": "TRAN",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "txar-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "txar-stock-byma-ars",
+					"symbol": "TXAR",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "valo-stock",
+			"type": "stock",
+			"tradingLines": [
+				{
+					"id": "valo-stock-byma-ars",
+					"symbol": "VALO",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
 		}
 	]
 }

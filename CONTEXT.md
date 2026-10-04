@@ -28,6 +28,10 @@ _Avoid_: Trading Line, Daily Bar
 BYMA's term for the ticker or symbol shown for a negotiable security. It is source-specific language and does not by itself replace either Instrument or Trading Line.
 _Avoid_: Species, using Especie as Observatory's canonical identity
 
+**Leading Panel**:
+BYMA's term (panel líder) for its list of leading local shares, identified with the S&P Merval constituents and rebalanced about twice a year. It is source-specific language: membership is a fact about a BYMA list on a date, not a property of an Instrument.
+_Avoid_: Blue chips, Merval when referring to the panel's list of Trading Lines
+
 **Trading Session**:
 The market period represented by one Daily Bar. A completed Trading Session has final market facts; an active Trading Session does not.
 _Avoid_: Day

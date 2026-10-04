@@ -1,0 +1,12 @@
+- [x] Inspect CONTEXT.md, ADRs 0003, 0004, 0005, 0007 and the bar-history, dollarized-series, instrument-catalog and instrument-state specs and modules.
+- [x] Draft proposal and delta spec; run strict OpenSpec validation.
+- [x] Export the Open BYMADATA adapter, acquirer and `validateDailyBars` from the bar-history index.
+- [x] Implement the Analysis Run in `src/modules/analysis-run` with injected fetch, pause, clock, Catalog and snapshot storage.
+- [x] Implement S3 snapshot storage with the dated and `latest` keys.
+- [x] Add `scripts/analysis-run.ts` and the `analyze` package script, with a dry mode that writes to a local file.
+- [x] Add tests for line failure, MEP source failure, configuration version, latest State, Events from all three detectors, short history and storage key order.
+- [x] Add Analysis Run and Analysis Snapshot to CONTEXT.md.
+- [x] Run tests, typecheck, lint, format and strict OpenSpec validation.
+- [x] Accept a zero open on MEP rate source bars (AL30 and AL30D on 2025-10-13 have one) and record each in the snapshot.
+- [x] Address the adversarial review: reject the current market date and future sessions, fetch the MEP rate source first, distinguish provider no-data, record range repairs, and strengthen the dollarization, zero-open and look-ahead tests.
+- [x] Review, then archive.

@@ -7,7 +7,10 @@ import {
 
 import { buildOpenBymadataSource } from '../adapters/index.ts';
 import { validateBarHistory } from '../utils/index.ts';
-import { BAR_HISTORY_ACQUISITION_MODES } from './bar-history-acquirer.constants.ts';
+import {
+	BAR_HISTORY_ACQUISITION_MODES,
+	HISTORICAL_REQUEST_PAUSE_MS,
+} from './bar-history-acquirer.constants.ts';
 
 import type { ValidationError } from '#lib/utils/validation.ts';
 import type {
@@ -32,7 +35,6 @@ import type {
 } from './bar-history-acquirer.types.ts';
 
 const HISTORY_START_SESSION = '2000-01-01';
-const HISTORICAL_REQUEST_PAUSE_MS = 2_000;
 const TIMEZONE = 'America/Argentina/Buenos_Aires';
 const supportedAcquisitionModes = new Set<BarHistoryAcquisitionMode>(BAR_HISTORY_ACQUISITION_MODES);
 

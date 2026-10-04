@@ -9,8 +9,9 @@ import type { MepRateSession } from './dollarized-series.types.ts';
  * missing from either leg, or with a zero-volume leg, has no rate; no rate from
  * another session replaces it.
  *
- * Preconditions, not checked: both legs are validated Daily Bar histories
- * (chronological, one bar per session, positive finite prices).
+ * Preconditions, not checked: both legs are chronological with one bar per
+ * session, and every close is positive and finite. Open, high and low are not
+ * read, so a bar whose only defect is in those fields yields a correct rate.
  *
  * Both legs must use the same settlement term as the peso bars later passed to
  * `dollarizeBarHistory`. Daily Bars carry no settlement, so this is not checked.

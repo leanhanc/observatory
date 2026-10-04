@@ -1,5 +1,8 @@
 export { createOpenBymadataBarHistoryAcquirer } from './bar-history-acquirer.ts';
-export { BAR_HISTORY_ACQUISITION_MODES } from './bar-history-acquirer.constants.ts';
+export {
+	BAR_HISTORY_ACQUISITION_MODES,
+	HISTORICAL_REQUEST_PAUSE_MS,
+} from './bar-history-acquirer.constants.ts';
 export type {
 	BarHistoryAcquirer,
 	BarHistoryAcquisitionFailure,

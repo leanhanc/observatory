@@ -32,7 +32,7 @@ const historyResponseSchema = v.object({
 });
 
 /**
- * Creates the Open BYMADATA adapter used internally by Bar History.
+ * Creates the Open BYMADATA adapter. Bar History acquisition and the Analysis Run fetch through it.
  *
  * The fetch dependency is replaceable so provider behavior can be tested from captured fixtures
  * without network access.

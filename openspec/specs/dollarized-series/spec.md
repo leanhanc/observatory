@@ -8,7 +8,7 @@ Provide the Dollarized Series: a peso-line Bar History expressed in MEP dollars 
 
 ### Requirement: same-session MEP rate from a bond pair
 
-The dollarized-series module SHALL expose a pure `calculateMepRates(pesoBondBars, dollarBondBars)` returning one `{ sessionDate, mepRate }` row for each session in which both legs traded, in the order of the peso-bond input. Inputs SHALL be validated Daily Bar histories: chronological, one bar per session, with positive finite prices. The calculation SHALL NOT sort or validate them. `mepRate` SHALL equal the peso-bond close divided by the dollar-bond close of that same session. Open, high and low SHALL NOT be used. The calculation SHALL NOT mutate input or perform I/O.
+The dollarized-series module SHALL expose a pure `calculateMepRates(pesoBondBars, dollarBondBars)` returning one `{ sessionDate, mepRate }` row for each session in which both legs traded, in the order of the peso-bond input. Inputs SHALL be chronological, with one bar per session and positive finite closes. Open, high and low are not read, so a bar whose only defect is in those fields still yields a correct rate. The calculation SHALL NOT sort or validate them. `mepRate` SHALL equal the peso-bond close divided by the dollar-bond close of that same session. Open, high and low SHALL NOT be used. The calculation SHALL NOT mutate input or perform I/O.
 
 #### Scenario: close ratio of the same session
 

@@ -140,6 +140,14 @@ _Avoid_: Confidence score, pass/fail when referring to research evidence
 The versioned, project-wide set of measurement conventions and interpretation thresholds used to produce comparable analysis, such as indicator periods, warm-up rules, and event thresholds.
 _Avoid_: User preference, Attention Preference
 
+**Analysis Run**:
+One execution of the canonical analysis through a completed Requested-Through Session, covering every analyzed Trading Line: the peso line of each stock and CEDEAR. It produces at most one Analysis Snapshot and is independent of any viewer.
+_Avoid_: Calling an Analysis Run a Bar History update; per-visitor analysis
+
+**Analysis Snapshot**:
+The persisted result of one Analysis Run: for each analyzed Trading Line, its latest Instrument State and its Events, or why it could not be analyzed, together with the Analysis Configuration version that produced them.
+_Avoid_: Snapshot when referring to a single Instrument State or Event
+
 **Attention Preference**:
 A user's instruction about which already-computed Observations to order, filter, or deliver. It never combines evidence into a score or changes the meaning of an Analysis Configuration.
 _Avoid_: Weight, score, personalized analysis

@@ -1,7 +1,19 @@
+export {
+	HISTORICAL_REQUEST_PAUSE_MS,
+	createOpenBymadataBarHistoryAcquirer,
+} from './acquisition/index.ts';
+export { createOpenBymadataAdapter } from './adapters/index.ts';
 export { reconcileBarHistory } from './bar-history.ts';
 export { createBarHistoryReader } from './reader/index.ts';
 export { createBarHistoryStorage } from './storage/index.ts';
 export { createBarHistoryUpdater } from './updater/index.ts';
+export { validateDailyBars } from './utils/index.ts';
+export type {
+	BarHistoryAcquirer,
+	BarHistoryAcquisitionLineResult,
+	BarHistoryPause,
+} from './acquisition/index.ts';
+export type { OpenBymadataTradingLineDescriptor } from './adapters/index.ts';
 export type {
 	BarHistory,
 	BarHistoryCorrection,

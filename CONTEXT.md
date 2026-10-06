@@ -9,12 +9,12 @@ A legally and economically distinct market-listed asset that Observatory follows
 _Avoid_: Ticker, symbol, security
 
 **Instrument Catalog**:
-The authoritative collection of Instruments Observatory currently recognizes, including each Instrument's Trading Lines and any CEDEAR-to-Underlying-Instrument relationship.
+The authoritative collection of Instruments Observatory currently recognizes, including each Instrument's Trading Lines and each CEDEAR's Underlying.
 _Avoid_: Bar History, provider configuration, analysis configuration
 
-**Underlying Instrument**:
-An Instrument whose economic value another Instrument references, such as the foreign share represented by a CEDEAR. The CEDEAR and its Underlying Instrument remain distinct Instruments.
-_Avoid_: Treating a CEDEAR and its foreign share as the same Instrument
+**Underlying**:
+The foreign asset a CEDEAR represents, such as a share, an ADR or an ETF, described by its market of origin and its ticker there. It is a description, not an Instrument Observatory follows, and a CEDEAR and its Underlying are never the same Instrument.
+_Avoid_: Underlying Instrument, treating a CEDEAR and its foreign asset as the same Instrument
 
 **Trading Line**:
 One particular way an Instrument trades, distinguished by market, symbol, currency, settlement, or operative form. Different Trading Lines have independent prices, liquidity, volume, and Bar Histories.

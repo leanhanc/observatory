@@ -1,10 +1,9 @@
-# instrument-catalog Specification
+## RENAMED Requirements
 
-## Purpose
+- FROM: `### Requirement: The repository catalog holds the original Instruments and the leading-panel stocks`
+- TO: `### Requirement: The repository catalog holds the original Instruments, the leading-panel stocks and the leading CEDEARs`
 
-Provide one validated, read-only source for the Instruments and Trading Lines Observatory recognizes, including a description of each CEDEAR's Underlying: the market of origin and ticker of the foreign asset it represents, which is not itself a catalog Instrument (ADR 0008).
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: The catalog has one supported version and strict record shapes
 
@@ -34,7 +33,7 @@ A stock SHALL contain only its identifier, type, and Trading Lines. A bond SHALL
 - **WHEN** the repository catalog contains a BYMA USD Trading Line
 - **THEN** its identifier ends in `-usd-mep` or `-usd-ccl`
 
-#### Scenario: Bond declares an Underlying
+#### Scenario: Bond declares an Underlying Instrument
 
 - **WHEN** a bond record contains `underlying` or `underlyingInstrumentId`
 - **THEN** the system rejects the complete catalog and identifies that bond record as invalid
@@ -48,11 +47,6 @@ A stock SHALL contain only its identifier, type, and Trading Lines. A bond SHALL
 
 - **WHEN** a CEDEAR record has no `underlying`, an `underlying` with a blank `market` or `ticker`, or an `underlying` with an additional field
 - **THEN** the system rejects the complete catalog and identifies the invalid location
-
-#### Scenario: CEDEAR references an invalid underlying
-
-- **WHEN** a CEDEAR record references an Instrument through `underlyingInstrumentId`, whether that Instrument exists or not
-- **THEN** the system rejects the complete catalog and identifies `underlyingInstrumentId` as an unsupported field, because a CEDEAR describes its underlying instead of referencing an Instrument
 
 ### Requirement: Complete-catalog relationships are valid
 
@@ -73,60 +67,15 @@ The system SHALL validate relationships across the complete catalog before expos
 - **WHEN** two Trading Lines have different identifiers but the same exchange, symbol, and currency
 - **THEN** the system rejects the complete catalog as containing the same Trading Line twice
 
+#### Scenario: CEDEAR references an invalid underlying
+
+- **WHEN** a CEDEAR record references an Instrument through `underlyingInstrumentId`, whether that Instrument exists or not
+- **THEN** the system rejects the complete catalog and identifies `underlyingInstrumentId` as an unsupported field, because a CEDEAR describes its underlying instead of referencing an Instrument
+
 #### Scenario: One relationship is invalid among otherwise valid entries
 
 - **WHEN** any complete-catalog relationship is invalid
 - **THEN** the system exposes no partial Instrument Catalog
-
-### Requirement: Consumers use a read-only catalog interface
-
-The system SHALL expose operations that list all Instruments, resolve one Instrument identifier, and resolve an ordered set of Trading Line identifiers. Returned Instruments and Trading Lines SHALL be deeply read-only, and a consumer SHALL NOT be able to change nested Instruments, nested Trading Lines, their arrays, or the catalog observed by later reads. The stored JSON SHALL remain an internal implementation detail rather than a consumer import.
-
-The order of Instruments in storage or in a complete listing SHALL have no domain meaning. Resolving Trading Line identifiers SHALL preserve the caller's requested order.
-
-#### Scenario: List recognized Instruments
-
-- **WHEN** a consumer requests all recognized Instruments
-- **THEN** the system returns every validated Instrument without promising a meaningful order
-
-#### Scenario: Resolve an existing Instrument
-
-- **WHEN** a consumer requests a recognized Instrument identifier
-- **THEN** the system returns that complete Instrument with its embedded Trading Lines
-
-#### Scenario: Consumer attempts to mutate nested returned data
-
-- **WHEN** a consumer attempts to change an Instrument field, a nested Trading Line field, or a returned array obtained from a catalog operation
-- **THEN** subsequent catalog reads still return the validated stored value
-
-### Requirement: Identifier lookup failures are explicit
-
-The system SHALL return a machine-readable failure when an Instrument identifier does not exist. A request to resolve Trading Lines SHALL reject blank identifiers, duplicate identifiers, and any identifier absent from the catalog without returning a partial successful set. A successful Trading Line resolution SHALL return each requested line exactly once in request order.
-
-#### Scenario: Instrument identifier is unknown
-
-- **WHEN** a consumer requests an Instrument identifier absent from the catalog
-- **THEN** the system returns an `instrument-not-found` failure identifying the requested value
-
-#### Scenario: Trading Line request contains an unknown identifier
-
-- **WHEN** a consumer requests one or more unknown Trading Line identifiers
-- **THEN** the system returns a `trading-line-not-found` failure identifying every missing value and no partial Trading Line set
-
-#### Scenario: Trading Line request contains a duplicate
-
-- **WHEN** a consumer requests the same Trading Line identifier more than once
-- **THEN** the system returns an `invalid-request` failure before returning any Trading Lines
-
-#### Scenario: Trading Lines resolve successfully
-
-- **WHEN** a consumer requests distinct recognized Trading Line identifiers
-- **THEN** the system returns those Trading Lines exactly once and in the requested order
-
-#### Scenario: No Trading Lines are requested
-
-- **WHEN** a consumer requests an empty list of Trading Line identifiers
-- **THEN** the system returns a successful empty ordered result
 
 ### Requirement: The catalog does not select acquisition or analysis policy
 
@@ -146,70 +95,6 @@ The Instrument Catalog SHALL describe Instruments, their embedded Trading Lines,
 
 - **WHEN** a consumer resolves a bond Instrument
 - **THEN** the catalog returns its Trading Lines without marking any of them as a MEP rate source
-
-### Requirement: A generator merges the leading panel into the stored catalog
-
-A development command SHALL request BYMA's leading panel from Open BYMADATA with `excludeZeroPxAndQty: false`, `T1: true`, `T0: false` and `page_size: 5000`, and merge it into the stored version-1 catalog. The runtime SHALL NOT call the generator; it loads only the stored, committed catalog.
-
-The generator SHALL accept a panel response only when it is a single complete page: its record count equals `content.total_elements_count`. It SHALL consider only records whose `denominationCcy` is `ARS` and whose `settlementType` is `2` (24-hour settlement), and SHALL fail when the response is malformed, incomplete, or contains no such record. Every record's symbol SHALL consist only of uppercase letters, digits and dots, and the considered records SHALL NOT list the same symbol twice; otherwise the response is malformed.
-
-A panel symbol SHALL match an existing stock when that stock owns a Trading Line with exchange `BYMA`, currency `ARS` and that symbol. A matched stock SHALL be left unchanged. An unmatched symbol SHALL add a `stock` Instrument whose identifier is the symbol lowercased, with every run of characters outside `a-z0-9` replaced by `-` and any leading or trailing `-` removed, followed by `-stock`, and whose only Trading Line has the identifier `<instrument id>-byma-ars`, the panel symbol, exchange `BYMA` and currency `ARS`.
-
-The generator SHALL NOT delete or change any existing Instrument. It SHALL report every catalog stock owning a BYMA ARS Trading Line whose symbol is absent from the leading panel. That report identifies departed leaders only while the catalog's stocks with BYMA ARS lines are exactly the leaders; once other local stocks are catalogued, it also lists them.
-
-Existing Instruments SHALL keep their stored order and added Instruments SHALL follow them in symbol order, so the result does not depend on the panel's row order and a second run over the same panel produces an identical file.
-
-The generator SHALL validate the merged catalog with the Instrument Catalog's validation before writing. Any failure SHALL leave the stored catalog file unchanged, and a successful write SHALL replace the file in a single step, so an interrupted run never leaves a partial file.
-
-#### Scenario: Existing leaders keep their identifiers
-
-- **WHEN** the panel lists `GGAL` and `YPFD` and the catalog already holds `galicia-stock` and `ypf-stock` with those BYMA ARS lines
-- **THEN** both Instruments and their Trading Line identifiers are unchanged and no Instrument is added for those symbols
-
-#### Scenario: A symbol with punctuation yields a clean identifier
-
-- **WHEN** the panel lists `BMA.` and no catalog stock owns a BYMA ARS `BMA.` line
-- **THEN** the added stock's identifier is `bma-stock`
-
-#### Scenario: A new leader is added
-
-- **WHEN** the panel lists `TECO2` and no catalog stock owns a BYMA ARS `TECO2` line
-- **THEN** the catalog gains stock `teco2-stock` with the single Trading Line `teco2-stock-byma-ars`, symbol `TECO2`, on BYMA in ARS
-
-#### Scenario: A stock absent from the panel is reported, not deleted
-
-- **WHEN** a catalog stock owns a BYMA ARS line whose symbol the panel does not list
-- **THEN** the stock remains in the catalog and the generator reports it as a catalog stock with a BYMA ARS line absent from the leading panel
-
-#### Scenario: A stock's other lines do not affect the report
-
-- **WHEN** a catalog stock owns a BYMA ARS line listed by the panel and a BYMA USD line that the panel does not list
-- **THEN** the stock is not reported as absent
-
-#### Scenario: Other currencies and settlements are ignored
-
-- **WHEN** the panel contains rows denominated in `USD` or `EXT`, or with a settlement other than `2`
-- **THEN** those rows neither add Instruments nor count as leaders
-
-#### Scenario: Re-running is idempotent
-
-- **WHEN** the generator merges the same panel into its own output
-- **THEN** the result is identical and reports no added Instrument
-
-#### Scenario: Panel row order does not matter
-
-- **WHEN** two panel responses list the same rows in different orders
-- **THEN** the merged catalogs are identical
-
-#### Scenario: Unusable panel response
-
-- **WHEN** the panel response is malformed, paginated or incomplete, has no ARS 24-hour row, contains a symbol that is not uppercase letters, digits and dots, or lists an ARS 24-hour symbol twice
-- **THEN** the generator fails and does not write the catalog
-
-#### Scenario: Merge would produce an invalid catalog
-
-- **WHEN** an added stock would duplicate an existing Instrument identifier or an existing Trading Line's exchange, symbol and currency
-- **THEN** the generator fails with the catalog's validation issues and does not write the catalog
 
 ### Requirement: The repository catalog holds the original Instruments, the leading-panel stocks and the leading CEDEARs
 
@@ -238,6 +123,8 @@ The repository catalog SHALL also contain a `cedear` Instrument owning a BYMA AR
 
 - **WHEN** the generator merges, into the committed catalog, a `cedears` panel listing exactly the symbols of the committed catalog's CEDEARs' BYMA ARS Trading Lines
 - **THEN** it requests no CEDEAR's history or technical sheet, only the MEP rate source pair, adds no Instrument, reports no absent CEDEAR, and produces a file identical to the committed one
+
+## ADDED Requirements
 
 ### Requirement: The generator merges the liquidity-eligible CEDEARs
 

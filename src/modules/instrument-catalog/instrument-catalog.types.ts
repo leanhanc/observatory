@@ -22,7 +22,6 @@ export type InstrumentCatalogValidationIssue = Readonly<{
 		| 'duplicate-trading-line-id'
 		| 'invalid-schema-version'
 		| 'invalid-type'
-		| 'invalid-underlying'
 		| 'invalid-value';
 	path: string;
 	message: string;

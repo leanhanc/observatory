@@ -1,5 +1,5 @@
 ---
-status: accepted, refined by ADR-0005
+status: accepted, refined by ADR-0005 and ADR-0008
 ---
 
 # Analyze local stocks and CEDEARs instead of foreign underlyings

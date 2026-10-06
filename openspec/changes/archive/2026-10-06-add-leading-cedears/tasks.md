@@ -1,0 +1,12 @@
+- [x] Inspect ADRs 0004–0006, the instrument-catalog spec, module and generator, the liquidity research and the technical-sheet response.
+- [x] Write ADR 0008 and draft the proposal and delta spec.
+- [x] Replace the CEDEAR `underlyingInstrumentId` with `underlying: { market, ticker }` in the schema, validation and tests; remove `apple-stock`; migrate `apple-cedear`.
+- [x] Update the glossary: Underlying Instrument becomes Underlying, a description; ADR 0004 refined by ADR 0008.
+- [x] Add the generator's CEDEAR stage: `--through-session`, panel parsing, `B`-variant filter, eligibility with the liquidity-eligibility module, technical sheet, paced sequential requests, report.
+- [x] Test the CEDEAR stage with injected responses and no network.
+- [x] Run the generator once against Open BYMADATA and keep the generated catalog for review.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation and an Analysis Run dry run.
+- [x] Review.
+- [x] At archive, edit the instrument-catalog spec's Purpose: the catalog describes each CEDEAR's underlying instead of relating it to an Underlying Instrument.
+- [x] At archive, in the main instrument-catalog spec, move the scenario "CEDEAR references an invalid underlying" under the record-shape requirement and rename "Bond declares an Underlying Instrument" to "Bond declares an Underlying". OpenSpec deltas cannot move or rename a scenario.
+- [x] Archive.

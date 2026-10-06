@@ -52,12 +52,25 @@ export const stockInstrumentSchema = v.pipe(
 	v.readonly(),
 );
 
+// A description of the foreign asset a CEDEAR represents, as BYMA's technical sheet gives it, not
+// a reference to another Instrument. See ADR 0008.
+const cedearUnderlyingSchema = v.pipe(
+	v.strictObject(
+		{
+			market: nonBlankStringSchema,
+			ticker: nonBlankStringSchema,
+		},
+		messages.additionalField,
+	),
+	v.readonly(),
+);
+
 export const cedearInstrumentSchema = v.pipe(
 	v.strictObject(
 		{
 			id: lowercaseKebabCaseSchema,
 			type: v.literal('cedear', messages.invalidValue),
-			underlyingInstrumentId: lowercaseKebabCaseSchema,
+			underlying: cedearUnderlyingSchema,
 			tradingLines: tradingLinesSchema,
 		},
 		messages.additionalField,

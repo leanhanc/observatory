@@ -19,7 +19,7 @@ The system SHALL maintain each Bar History under exactly one catalog-owned Tradi
 
 Bar History SHALL read and update the Trading Lines requested by its caller without selecting which
 history represents an Instrument for technical analysis or substituting a related Trading Line or
-Underlying Instrument.
+a CEDEAR's Underlying.
 
 #### Scenario: Caller selects the histories it needs
 

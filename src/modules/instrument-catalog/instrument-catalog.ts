@@ -5,7 +5,6 @@ import { mapValibotIssues } from '#lib/utils/validation.ts';
 import { instrumentCatalogSchema, resolveSchemaIssueCode } from './instrument-catalog.schema.ts';
 
 import type {
-	CedearInstrument,
 	Instrument,
 	InstrumentCatalog,
 	InstrumentCatalogCreationResult,
@@ -171,7 +170,6 @@ function validateCompleteCatalog(
 		'duplicate-trading-line',
 		'Trading Line identity',
 	);
-	addInvalidUnderlyingIssues(issues, instruments);
 
 	return issues;
 }
@@ -245,37 +243,4 @@ function addDuplicateLocationIssues(
 			});
 		}
 	}
-}
-
-function addInvalidUnderlyingIssues(
-	issues: InstrumentCatalogValidationIssue[],
-	instruments: readonly Instrument[],
-): void {
-	const instrumentsById = new Map(instruments.map((instrument) => [instrument.id, instrument]));
-
-	for (const [index, instrument] of instruments.entries()) {
-		if (instrument.type !== 'cedear') {
-			continue;
-		}
-
-		const underlyingInstrument = instrumentsById.get(instrument.underlyingInstrumentId);
-		const hasValidUnderlying = underlyingInstrument?.type === 'stock';
-
-		if (hasValidUnderlying) {
-			continue;
-		}
-
-		issues.push(createInvalidUnderlyingIssue(instrument, index));
-	}
-}
-
-function createInvalidUnderlyingIssue(
-	instrument: CedearInstrument,
-	index: number,
-): InstrumentCatalogValidationIssue {
-	return {
-		code: 'invalid-underlying',
-		path: `instruments[${index}].underlyingInstrumentId`,
-		message: `CEDEAR ${instrument.id} must reference an existing stock Instrument.`,
-	};
 }

@@ -10,6 +10,7 @@ import {
 	MEP_RATE_SOURCE,
 	calculateMepRates,
 	dollarizeBarHistory,
+	validateMepRateSourceBars,
 } from '#modules/dollarized-series/index.ts';
 import { instrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import { calculateInstrumentStates } from '#modules/instrument-state/index.ts';
@@ -29,7 +30,6 @@ import type {
 	BarHistoryPause,
 	DailyBar,
 	OpenBymadataTradingLineDescriptor,
-	ValidationIssue,
 } from '#modules/bar-history/index.ts';
 import type { MepRateSession } from '#modules/dollarized-series/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
@@ -85,11 +85,6 @@ type AnalysisRunDependencies = Readonly<{
 
 const ANALYZED_INSTRUMENT_TYPES = new Set(['stock', 'cedear']);
 const MARKET_TIME_ZONE = 'America/Argentina/Buenos_Aires';
-// The provider marks a missing open with 0, which fails both the positive-price and the range check.
-const ZERO_OPEN_ISSUE_CODES = new Set<ValidationIssue['code']>([
-	'non-positive-price',
-	'invalid-price-range',
-]);
 
 /**
  * Creates the Analysis Run: a fresh provider fetch of the MEP rate source and every analyzed
@@ -222,6 +217,16 @@ async function runAnalysis(
 }
 
 /**
+ * Resolves the calendar date before `instant`'s date in Buenos Aires. When a session traded on it,
+ * that session has closed. Weekends and holidays are not skipped.
+ */
+export function resolvePreviousMarketDate(instant: string): string {
+	return Temporal.PlainDate.from(convertInstantToMarketDate(instant))
+		.subtract({ days: 1 })
+		.toString();
+}
+
+/**
  * The market date in Buenos Aires when the run starts. That day's session may still be trading,
  * so only earlier sessions count as completed.
  */
@@ -315,12 +320,9 @@ function validateAcquiredLine(
 	}
 
 	// Dollarization and analysis assume validated, chronological bars and do not check them.
-	const validation = validateDailyBars(result.bars, true, 'bars');
-	const zeroOpenIndexes = acceptsZeroOpen ? selectZeroOpenIndexes(result.bars) : [];
-	const zeroOpenPaths = new Set(zeroOpenIndexes.map((index) => `bars[${index}].open`));
-	const issues = validation.issues.filter(
-		(issue) => !(zeroOpenPaths.has(issue.path) && ZERO_OPEN_ISSUE_CODES.has(issue.code)),
-	);
+	const { issues, zeroOpenSessions } = acceptsZeroOpen
+		? validateMepRateSourceBars(result.bars)
+		: { issues: validateDailyBars(result.bars, true, 'bars').issues, zeroOpenSessions: [] };
 
 	if (issues.length > 0) {
 		const firstIssue = issues[0];
@@ -331,18 +333,9 @@ function validateAcquiredLine(
 	return {
 		ok: true,
 		bars: result.bars,
-		zeroOpenSessions: zeroOpenIndexes.map((index) => result.bars[index]!.sessionDate),
+		zeroOpenSessions,
 		rangeRepairSessions: result.repairs.map((repair) => repair.sessionDate),
 	};
-}
-
-/**
- * The provider has served traded AL30 and AL30D sessions with `open: 0` and a valid range and
- * close. The MEP Rate reads only close and volume, so on MEP rate source lines a zero open is
- * accepted while every other field, including the close's place in the range, is still validated.
- */
-function selectZeroOpenIndexes(bars: readonly DailyBar[]): readonly number[] {
-	return bars.flatMap((bar, index) => (bar.open === 0 ? [index] : []));
 }
 
 function calculateRunMepRates(fetchedLines: ReadonlyMap<string, FetchedLine>): MepRatesResult {

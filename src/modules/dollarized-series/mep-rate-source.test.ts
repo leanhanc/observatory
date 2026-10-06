@@ -2,8 +2,9 @@ import { describe, expect, test } from 'bun:test';
 
 import { instrumentCatalog } from '#modules/instrument-catalog/index.ts';
 
-import { MEP_RATE_SOURCE } from './index.ts';
+import { MEP_RATE_SOURCE, validateMepRateSourceBars } from './index.ts';
 
+import type { DailyBar } from '#modules/bar-history/index.ts';
 import type { Instrument, TradingLine } from '#modules/instrument-catalog/index.ts';
 
 const { pesoBondTradingLineId, dollarBondTradingLineId } = MEP_RATE_SOURCE;
@@ -82,3 +83,27 @@ function findOwningInstrument(tradingLineId: string): Instrument {
 
 	return owningInstrument;
 }
+
+describe('validateMepRateSourceBars', () => {
+	const validBar: DailyBar = {
+		sessionDate: '2025-10-13',
+		open: 1000,
+		high: 1010,
+		low: 990,
+		close: 1005,
+		volume: 50,
+	};
+
+	test('accepts a zero open when it is the only invalid field, and records its session', () => {
+		expect(validateMepRateSourceBars([{ ...validBar, open: 0 }])).toEqual({
+			issues: [],
+			zeroOpenSessions: ['2025-10-13'],
+		});
+	});
+
+	test('still rejects a zero-open bar whose close is outside its range', () => {
+		const validation = validateMepRateSourceBars([{ ...validBar, open: 0, close: 2000 }]);
+
+		expect(validation.issues.map((issue) => issue.path)).toContain('bars[0].close');
+	});
+});

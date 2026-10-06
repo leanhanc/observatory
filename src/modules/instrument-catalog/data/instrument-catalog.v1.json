@@ -26,21 +26,12 @@
 			]
 		},
 		{
-			"id": "apple-stock",
-			"type": "stock",
-			"tradingLines": [
-				{
-					"id": "apple-stock-nasdaq-usd",
-					"symbol": "AAPL",
-					"exchange": "NASDAQ",
-					"currency": "USD"
-				}
-			]
-		},
-		{
 			"id": "apple-cedear",
 			"type": "cedear",
-			"underlyingInstrumentId": "apple-stock",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "AAPL"
+			},
 			"tradingLines": [
 				{
 					"id": "apple-cedear-byma-ars",
@@ -291,6 +282,2422 @@
 				{
 					"id": "valo-stock-byma-ars",
 					"symbol": "VALO",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "aal-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "AAL"
+			},
+			"tradingLines": [
+				{
+					"id": "aal-cedear-byma-ars",
+					"symbol": "AAL",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "abt-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "ABT"
+			},
+			"tradingLines": [
+				{
+					"id": "abt-cedear-byma-ars",
+					"symbol": "ABT",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "acn-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "ACN"
+			},
+			"tradingLines": [
+				{
+					"id": "acn-cedear-byma-ars",
+					"symbol": "ACN",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "acwi-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GM",
+				"ticker": "ACWI"
+			},
+			"tradingLines": [
+				{
+					"id": "acwi-cedear-byma-ars",
+					"symbol": "ACWI",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "adbe-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "ADBE"
+			},
+			"tradingLines": [
+				{
+					"id": "adbe-cedear-byma-ars",
+					"symbol": "ADBE",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "adgo-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "AGRO"
+			},
+			"tradingLines": [
+				{
+					"id": "adgo-cedear-byma-ars",
+					"symbol": "ADGO",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "alab-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "ALAB"
+			},
+			"tradingLines": [
+				{
+					"id": "alab-cedear-byma-ars",
+					"symbol": "ALAB",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "amat-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "AMAT"
+			},
+			"tradingLines": [
+				{
+					"id": "amat-cedear-byma-ars",
+					"symbol": "AMAT",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "amd-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "AMD"
+			},
+			"tradingLines": [
+				{
+					"id": "amd-cedear-byma-ars",
+					"symbol": "AMD",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "amzn-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "AMZN"
+			},
+			"tradingLines": [
+				{
+					"id": "amzn-cedear-byma-ars",
+					"symbol": "AMZN",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "anf-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "ANF"
+			},
+			"tradingLines": [
+				{
+					"id": "anf-cedear-byma-ars",
+					"symbol": "ANF",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "arkk-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "ARKK"
+			},
+			"tradingLines": [
+				{
+					"id": "arkk-cedear-byma-ars",
+					"symbol": "ARKK",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "arm-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "ARM"
+			},
+			"tradingLines": [
+				{
+					"id": "arm-cedear-byma-ars",
+					"symbol": "ARM",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "asml-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "ASML"
+			},
+			"tradingLines": [
+				{
+					"id": "asml-cedear-byma-ars",
+					"symbol": "ASML",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "asts-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "ASTS"
+			},
+			"tradingLines": [
+				{
+					"id": "asts-cedear-byma-ars",
+					"symbol": "ASTS",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "avgo-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "AVGO"
+			},
+			"tradingLines": [
+				{
+					"id": "avgo-cedear-byma-ars",
+					"symbol": "AVGO",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "axp-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "AXP"
+			},
+			"tradingLines": [
+				{
+					"id": "axp-cedear-byma-ars",
+					"symbol": "AXP",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "b-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "B"
+			},
+			"tradingLines": [
+				{
+					"id": "b-cedear-byma-ars",
+					"symbol": "B",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ba-c-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "BAC"
+			},
+			"tradingLines": [
+				{
+					"id": "ba-c-cedear-byma-ars",
+					"symbol": "BA.C",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "baba-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "BABA"
+			},
+			"tradingLines": [
+				{
+					"id": "baba-cedear-byma-ars",
+					"symbol": "BABA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "bak-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "BAK"
+			},
+			"tradingLines": [
+				{
+					"id": "bak-cedear-byma-ars",
+					"symbol": "BAK",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "bbd-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "BBD"
+			},
+			"tradingLines": [
+				{
+					"id": "bbd-cedear-byma-ars",
+					"symbol": "BBD",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "bidu-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "BIDU"
+			},
+			"tradingLines": [
+				{
+					"id": "bidu-cedear-byma-ars",
+					"symbol": "BIDU",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "biox-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ CM",
+				"ticker": "BIOX"
+			},
+			"tradingLines": [
+				{
+					"id": "biox-cedear-byma-ars",
+					"symbol": "BIOX",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "brkb-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "BRK/B"
+			},
+			"tradingLines": [
+				{
+					"id": "brkb-cedear-byma-ars",
+					"symbol": "BRKB",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "c-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "C"
+			},
+			"tradingLines": [
+				{
+					"id": "c-cedear-byma-ars",
+					"symbol": "C",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "cat-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "CAT"
+			},
+			"tradingLines": [
+				{
+					"id": "cat-cedear-byma-ars",
+					"symbol": "CAT",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ceg-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "CEG"
+			},
+			"tradingLines": [
+				{
+					"id": "ceg-cedear-byma-ars",
+					"symbol": "CEG",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "cibr-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GM",
+				"ticker": "CIBR"
+			},
+			"tradingLines": [
+				{
+					"id": "cibr-cedear-byma-ars",
+					"symbol": "CIBR",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "coin-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "COIN"
+			},
+			"tradingLines": [
+				{
+					"id": "coin-cedear-byma-ars",
+					"symbol": "COIN",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "copx-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "COPX"
+			},
+			"tradingLines": [
+				{
+					"id": "copx-cedear-byma-ars",
+					"symbol": "COPX",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "crm-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "CRM"
+			},
+			"tradingLines": [
+				{
+					"id": "crm-cedear-byma-ars",
+					"symbol": "CRM",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "crwv-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "CRWV"
+			},
+			"tradingLines": [
+				{
+					"id": "crwv-cedear-byma-ars",
+					"symbol": "CRWV",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "csco-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "CSCO"
+			},
+			"tradingLines": [
+				{
+					"id": "csco-cedear-byma-ars",
+					"symbol": "CSCO",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "cvx-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "CVX"
+			},
+			"tradingLines": [
+				{
+					"id": "cvx-cedear-byma-ars",
+					"symbol": "CVX",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "dia-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "DIA"
+			},
+			"tradingLines": [
+				{
+					"id": "dia-cedear-byma-ars",
+					"symbol": "DIA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "disn-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "DIS"
+			},
+			"tradingLines": [
+				{
+					"id": "disn-cedear-byma-ars",
+					"symbol": "DISN",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ebay-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "EBAY"
+			},
+			"tradingLines": [
+				{
+					"id": "ebay-cedear-byma-ars",
+					"symbol": "EBAY",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "eem-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "EEM"
+			},
+			"tradingLines": [
+				{
+					"id": "eem-cedear-byma-ars",
+					"symbol": "EEM",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "etha-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GM",
+				"ticker": "ETHA"
+			},
+			"tradingLines": [
+				{
+					"id": "etha-cedear-byma-ars",
+					"symbol": "ETHA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ewy-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "EWY"
+			},
+			"tradingLines": [
+				{
+					"id": "ewy-cedear-byma-ars",
+					"symbol": "EWY",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ewz-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "EWZ"
+			},
+			"tradingLines": [
+				{
+					"id": "ewz-cedear-byma-ars",
+					"symbol": "EWZ",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "fcx-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "FCX"
+			},
+			"tradingLines": [
+				{
+					"id": "fcx-cedear-byma-ars",
+					"symbol": "FCX",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "fslr-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "FSLR"
+			},
+			"tradingLines": [
+				{
+					"id": "fslr-cedear-byma-ars",
+					"symbol": "FSLR",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "fxi-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "FXI"
+			},
+			"tradingLines": [
+				{
+					"id": "fxi-cedear-byma-ars",
+					"symbol": "FXI",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "gdx-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "GDX"
+			},
+			"tradingLines": [
+				{
+					"id": "gdx-cedear-byma-ars",
+					"symbol": "GDX",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ge-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "GE"
+			},
+			"tradingLines": [
+				{
+					"id": "ge-cedear-byma-ars",
+					"symbol": "GE",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "gld-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "GLD"
+			},
+			"tradingLines": [
+				{
+					"id": "gld-cedear-byma-ars",
+					"symbol": "GLD",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "glob-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "GLOB"
+			},
+			"tradingLines": [
+				{
+					"id": "glob-cedear-byma-ars",
+					"symbol": "GLOB",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "glw-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "GLW."
+			},
+			"tradingLines": [
+				{
+					"id": "glw-cedear-byma-ars",
+					"symbol": "GLW",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "googl-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "GOOGL"
+			},
+			"tradingLines": [
+				{
+					"id": "googl-cedear-byma-ars",
+					"symbol": "GOOGL",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "gprk-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "GPRK"
+			},
+			"tradingLines": [
+				{
+					"id": "gprk-cedear-byma-ars",
+					"symbol": "GPRK",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "hl-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "HL"
+			},
+			"tradingLines": [
+				{
+					"id": "hl-cedear-byma-ars",
+					"symbol": "HL",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "hmy-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "HMY"
+			},
+			"tradingLines": [
+				{
+					"id": "hmy-cedear-byma-ars",
+					"symbol": "HMY",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "hood-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "HOOD"
+			},
+			"tradingLines": [
+				{
+					"id": "hood-cedear-byma-ars",
+					"symbol": "HOOD",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "hpq-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "HPQ"
+			},
+			"tradingLines": [
+				{
+					"id": "hpq-cedear-byma-ars",
+					"symbol": "HPQ",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "hut-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "HUT"
+			},
+			"tradingLines": [
+				{
+					"id": "hut-cedear-byma-ars",
+					"symbol": "HUT",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ibit-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GM",
+				"ticker": "IBIT"
+			},
+			"tradingLines": [
+				{
+					"id": "ibit-cedear-byma-ars",
+					"symbol": "IBIT",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ibm-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "IBM"
+			},
+			"tradingLines": [
+				{
+					"id": "ibm-cedear-byma-ars",
+					"symbol": "IBM",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ilf-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "ILF"
+			},
+			"tradingLines": [
+				{
+					"id": "ilf-cedear-byma-ars",
+					"symbol": "ILF",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "intc-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "INTC"
+			},
+			"tradingLines": [
+				{
+					"id": "intc-cedear-byma-ars",
+					"symbol": "INTC",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "iren-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "IREN"
+			},
+			"tradingLines": [
+				{
+					"id": "iren-cedear-byma-ars",
+					"symbol": "IREN",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ivv-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "IVV"
+			},
+			"tradingLines": [
+				{
+					"id": "ivv-cedear-byma-ars",
+					"symbol": "IVV",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "iwm-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "IWM"
+			},
+			"tradingLines": [
+				{
+					"id": "iwm-cedear-byma-ars",
+					"symbol": "IWM",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "jd-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "JD"
+			},
+			"tradingLines": [
+				{
+					"id": "jd-cedear-byma-ars",
+					"symbol": "JD",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "jmia-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "JMIA"
+			},
+			"tradingLines": [
+				{
+					"id": "jmia-cedear-byma-ars",
+					"symbol": "JMIA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "jnj-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "JNJ"
+			},
+			"tradingLines": [
+				{
+					"id": "jnj-cedear-byma-ars",
+					"symbol": "JNJ",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "jpm-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "JPM"
+			},
+			"tradingLines": [
+				{
+					"id": "jpm-cedear-byma-ars",
+					"symbol": "JPM",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "keel-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GM",
+				"ticker": "KEEL"
+			},
+			"tradingLines": [
+				{
+					"id": "keel-cedear-byma-ars",
+					"symbol": "KEEL",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ko-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "KO"
+			},
+			"tradingLines": [
+				{
+					"id": "ko-cedear-byma-ars",
+					"symbol": "KO",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "lac-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "LAC"
+			},
+			"tradingLines": [
+				{
+					"id": "lac-cedear-byma-ars",
+					"symbol": "LAC",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "lar-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "LAR"
+			},
+			"tradingLines": [
+				{
+					"id": "lar-cedear-byma-ars",
+					"symbol": "LAR",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "lly-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "LLY."
+			},
+			"tradingLines": [
+				{
+					"id": "lly-cedear-byma-ars",
+					"symbol": "LLY",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "lmt-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "LMT."
+			},
+			"tradingLines": [
+				{
+					"id": "lmt-cedear-byma-ars",
+					"symbol": "LMT",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "lrcx-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "LRCX"
+			},
+			"tradingLines": [
+				{
+					"id": "lrcx-cedear-byma-ars",
+					"symbol": "LRCX",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ma-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "MA"
+			},
+			"tradingLines": [
+				{
+					"id": "ma-cedear-byma-ars",
+					"symbol": "MA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "mcd-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "MCD"
+			},
+			"tradingLines": [
+				{
+					"id": "mcd-cedear-byma-ars",
+					"symbol": "MCD",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "meli-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "MELI"
+			},
+			"tradingLines": [
+				{
+					"id": "meli-cedear-byma-ars",
+					"symbol": "MELI",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "meta-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "META"
+			},
+			"tradingLines": [
+				{
+					"id": "meta-cedear-byma-ars",
+					"symbol": "META",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "mo-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "MO"
+			},
+			"tradingLines": [
+				{
+					"id": "mo-cedear-byma-ars",
+					"symbol": "MO",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "mrna-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "MRNA"
+			},
+			"tradingLines": [
+				{
+					"id": "mrna-cedear-byma-ars",
+					"symbol": "MRNA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "mrvl-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "MRVL"
+			},
+			"tradingLines": [
+				{
+					"id": "mrvl-cedear-byma-ars",
+					"symbol": "MRVL",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "msft-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "MSFT"
+			},
+			"tradingLines": [
+				{
+					"id": "msft-cedear-byma-ars",
+					"symbol": "MSFT",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "mstr-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "MSTR"
+			},
+			"tradingLines": [
+				{
+					"id": "mstr-cedear-byma-ars",
+					"symbol": "MSTR",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "mu-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "MU"
+			},
+			"tradingLines": [
+				{
+					"id": "mu-cedear-byma-ars",
+					"symbol": "MU",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "nflx-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "NFLX"
+			},
+			"tradingLines": [
+				{
+					"id": "nflx-cedear-byma-ars",
+					"symbol": "NFLX",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "nio-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "NIO"
+			},
+			"tradingLines": [
+				{
+					"id": "nio-cedear-byma-ars",
+					"symbol": "NIO",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "nke-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "NKE."
+			},
+			"tradingLines": [
+				{
+					"id": "nke-cedear-byma-ars",
+					"symbol": "NKE",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "now-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "NOW"
+			},
+			"tradingLines": [
+				{
+					"id": "now-cedear-byma-ars",
+					"symbol": "NOW",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "nu-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "NU"
+			},
+			"tradingLines": [
+				{
+					"id": "nu-cedear-byma-ars",
+					"symbol": "NU",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "nvda-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "NVDA"
+			},
+			"tradingLines": [
+				{
+					"id": "nvda-cedear-byma-ars",
+					"symbol": "NVDA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "oklo-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "OKLO"
+			},
+			"tradingLines": [
+				{
+					"id": "oklo-cedear-byma-ars",
+					"symbol": "OKLO",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "orcl-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "ORCL"
+			},
+			"tradingLines": [
+				{
+					"id": "orcl-cedear-byma-ars",
+					"symbol": "ORCL",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "oxy-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "OXY"
+			},
+			"tradingLines": [
+				{
+					"id": "oxy-cedear-byma-ars",
+					"symbol": "OXY",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "paas-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "PAAS"
+			},
+			"tradingLines": [
+				{
+					"id": "paas-cedear-byma-ars",
+					"symbol": "PAAS",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "pags-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "PAGS"
+			},
+			"tradingLines": [
+				{
+					"id": "pags-cedear-byma-ars",
+					"symbol": "PAGS",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "panw-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "PANW"
+			},
+			"tradingLines": [
+				{
+					"id": "panw-cedear-byma-ars",
+					"symbol": "PANW",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "path-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "PATH"
+			},
+			"tradingLines": [
+				{
+					"id": "path-cedear-byma-ars",
+					"symbol": "PATH",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "pbr-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "PBR US"
+			},
+			"tradingLines": [
+				{
+					"id": "pbr-cedear-byma-ars",
+					"symbol": "PBR",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "pep-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "PEP"
+			},
+			"tradingLines": [
+				{
+					"id": "pep-cedear-byma-ars",
+					"symbol": "PEP",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "petr3-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "B3",
+				"ticker": "PETR3"
+			},
+			"tradingLines": [
+				{
+					"id": "petr3-cedear-byma-ars",
+					"symbol": "PETR3",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "pfe-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "PFE"
+			},
+			"tradingLines": [
+				{
+					"id": "pfe-cedear-byma-ars",
+					"symbol": "PFE",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "pg-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "PG"
+			},
+			"tradingLines": [
+				{
+					"id": "pg-cedear-byma-ars",
+					"symbol": "PG",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "pltr-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "PLTR"
+			},
+			"tradingLines": [
+				{
+					"id": "pltr-cedear-byma-ars",
+					"symbol": "PLTR",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "psq-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "PSQ"
+			},
+			"tradingLines": [
+				{
+					"id": "psq-cedear-byma-ars",
+					"symbol": "PSQ",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "pypl-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "PYPL"
+			},
+			"tradingLines": [
+				{
+					"id": "pypl-cedear-byma-ars",
+					"symbol": "PYPL",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "qcom-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "QCOM"
+			},
+			"tradingLines": [
+				{
+					"id": "qcom-cedear-byma-ars",
+					"symbol": "QCOM",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "qqq-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "QQQ"
+			},
+			"tradingLines": [
+				{
+					"id": "qqq-cedear-byma-ars",
+					"symbol": "QQQ",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "rblx-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "RBLX"
+			},
+			"tradingLines": [
+				{
+					"id": "rblx-cedear-byma-ars",
+					"symbol": "RBLX",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "rgti-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "RGTI"
+			},
+			"tradingLines": [
+				{
+					"id": "rgti-cedear-byma-ars",
+					"symbol": "RGTI",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "rio-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "RIO"
+			},
+			"tradingLines": [
+				{
+					"id": "rio-cedear-byma-ars",
+					"symbol": "RIO",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "riot-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "RIOT"
+			},
+			"tradingLines": [
+				{
+					"id": "riot-cedear-byma-ars",
+					"symbol": "RIOT",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "rklb-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "RKLB"
+			},
+			"tradingLines": [
+				{
+					"id": "rklb-cedear-byma-ars",
+					"symbol": "RKLB",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "rsp-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "RSP"
+			},
+			"tradingLines": [
+				{
+					"id": "rsp-cedear-byma-ars",
+					"symbol": "RSP",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "sap-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "SAP"
+			},
+			"tradingLines": [
+				{
+					"id": "sap-cedear-byma-ars",
+					"symbol": "SAP",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "satl-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "SATL"
+			},
+			"tradingLines": [
+				{
+					"id": "satl-cedear-byma-ars",
+					"symbol": "SATL",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "sh-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "SH"
+			},
+			"tradingLines": [
+				{
+					"id": "sh-cedear-byma-ars",
+					"symbol": "SH",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "sid-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "SID"
+			},
+			"tradingLines": [
+				{
+					"id": "sid-cedear-byma-ars",
+					"symbol": "SID",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "slv-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "SLV"
+			},
+			"tradingLines": [
+				{
+					"id": "slv-cedear-byma-ars",
+					"symbol": "SLV",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "smh-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GM",
+				"ticker": "SMH"
+			},
+			"tradingLines": [
+				{
+					"id": "smh-cedear-byma-ars",
+					"symbol": "SMH",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "snow-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "SNOW"
+			},
+			"tradingLines": [
+				{
+					"id": "snow-cedear-byma-ars",
+					"symbol": "SNOW",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "spce-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "SPCE"
+			},
+			"tradingLines": [
+				{
+					"id": "spce-cedear-byma-ars",
+					"symbol": "SPCE",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "spot-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "SPOT"
+			},
+			"tradingLines": [
+				{
+					"id": "spot-cedear-byma-ars",
+					"symbol": "SPOT",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "spxl-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "SPXL"
+			},
+			"tradingLines": [
+				{
+					"id": "spxl-cedear-byma-ars",
+					"symbol": "SPXL",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "spy-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "SPY"
+			},
+			"tradingLines": [
+				{
+					"id": "spy-cedear-byma-ars",
+					"symbol": "SPY",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "stne-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "STNE"
+			},
+			"tradingLines": [
+				{
+					"id": "stne-cedear-byma-ars",
+					"symbol": "STNE",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ten-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "TS US"
+			},
+			"tradingLines": [
+				{
+					"id": "ten-cedear-byma-ars",
+					"symbol": "TEN",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "tqqq-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GM",
+				"ticker": "TQQQ"
+			},
+			"tradingLines": [
+				{
+					"id": "tqqq-cedear-byma-ars",
+					"symbol": "TQQQ",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "tsla-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "TSLA"
+			},
+			"tradingLines": [
+				{
+					"id": "tsla-cedear-byma-ars",
+					"symbol": "TSLA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "tsm-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "TSM"
+			},
+			"tradingLines": [
+				{
+					"id": "tsm-cedear-byma-ars",
+					"symbol": "TSM",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "uber-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "UBER"
+			},
+			"tradingLines": [
+				{
+					"id": "uber-cedear-byma-ars",
+					"symbol": "UBER",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "unh-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "UNH"
+			},
+			"tradingLines": [
+				{
+					"id": "unh-cedear-byma-ars",
+					"symbol": "UNH",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "upst-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "UPST"
+			},
+			"tradingLines": [
+				{
+					"id": "upst-cedear-byma-ars",
+					"symbol": "UPST",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "ura-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "URA"
+			},
+			"tradingLines": [
+				{
+					"id": "ura-cedear-byma-ars",
+					"symbol": "URA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "uso-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "USO"
+			},
+			"tradingLines": [
+				{
+					"id": "uso-cedear-byma-ars",
+					"symbol": "USO",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "v-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "V"
+			},
+			"tradingLines": [
+				{
+					"id": "v-cedear-byma-ars",
+					"symbol": "V",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "vale-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "VALE"
+			},
+			"tradingLines": [
+				{
+					"id": "vale-cedear-byma-ars",
+					"symbol": "VALE",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "vea-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "VEA"
+			},
+			"tradingLines": [
+				{
+					"id": "vea-cedear-byma-ars",
+					"symbol": "VEA",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "vist-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "VIST US"
+			},
+			"tradingLines": [
+				{
+					"id": "vist-cedear-byma-ars",
+					"symbol": "VIST",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "vst-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "VST"
+			},
+			"tradingLines": [
+				{
+					"id": "vst-cedear-byma-ars",
+					"symbol": "VST",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "vxx-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "CBOE BZX",
+				"ticker": "VXX"
+			},
+			"tradingLines": [
+				{
+					"id": "vxx-cedear-byma-ars",
+					"symbol": "VXX",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "vz-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "VZ"
+			},
+			"tradingLines": [
+				{
+					"id": "vz-cedear-byma-ars",
+					"symbol": "VZ",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "wmt-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ GS",
+				"ticker": "WMY"
+			},
+			"tradingLines": [
+				{
+					"id": "wmt-cedear-byma-ars",
+					"symbol": "WMT",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "xle-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "XLE"
+			},
+			"tradingLines": [
+				{
+					"id": "xle-cedear-byma-ars",
+					"symbol": "XLE",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "xlf-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "XLF"
+			},
+			"tradingLines": [
+				{
+					"id": "xlf-cedear-byma-ars",
+					"symbol": "XLF",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "xlk-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "XLK"
+			},
+			"tradingLines": [
+				{
+					"id": "xlk-cedear-byma-ars",
+					"symbol": "XLK",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "xlp-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "XLP"
+			},
+			"tradingLines": [
+				{
+					"id": "xlp-cedear-byma-ars",
+					"symbol": "XLP",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "xlu-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "XLU"
+			},
+			"tradingLines": [
+				{
+					"id": "xlu-cedear-byma-ars",
+					"symbol": "XLU",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "xlv-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE Arca",
+				"ticker": "XLV"
+			},
+			"tradingLines": [
+				{
+					"id": "xlv-cedear-byma-ars",
+					"symbol": "XLV",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "xom-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NYSE",
+				"ticker": "XOM"
+			},
+			"tradingLines": [
+				{
+					"id": "xom-cedear-byma-ars",
+					"symbol": "XOM",
+					"exchange": "BYMA",
+					"currency": "ARS"
+				}
+			]
+		},
+		{
+			"id": "xp-cedear",
+			"type": "cedear",
+			"underlying": {
+				"market": "NASDAQ",
+				"ticker": "XP"
+			},
+			"tradingLines": [
+				{
+					"id": "xp-cedear-byma-ars",
+					"symbol": "XP",
 					"exchange": "BYMA",
 					"currency": "ARS"
 				}

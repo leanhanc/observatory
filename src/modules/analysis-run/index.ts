@@ -1,4 +1,4 @@
-export { createAnalysisRunner } from './analysis-run.ts';
+export { createAnalysisRunner, resolvePreviousMarketDate } from './analysis-run.ts';
 export {
 	LATEST_ANALYSIS_SNAPSHOT_KEY,
 	buildAnalysisSnapshotKey,

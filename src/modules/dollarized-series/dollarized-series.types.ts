@@ -1,4 +1,4 @@
-import type { DailyBar } from '#modules/bar-history/index.ts';
+import type { DailyBar, ValidationIssue } from '#modules/bar-history/index.ts';
 
 /** The peso price of one dollar implied by a bond pair on one session. */
 export type MepRateSession = Readonly<{
@@ -15,4 +15,9 @@ export type DollarizedSeries = Readonly<{
 export type MepRateSource = Readonly<{
 	pesoBondTradingLineId: string;
 	dollarBondTradingLineId: string;
+}>;
+
+export type MepRateSourceBarsValidation = Readonly<{
+	issues: readonly ValidationIssue[];
+	zeroOpenSessions: readonly string[];
 }>;

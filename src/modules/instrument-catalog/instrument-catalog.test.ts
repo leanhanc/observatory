@@ -23,7 +23,7 @@ const validCatalog = {
 		{
 			id: 'apple-cedear',
 			type: 'cedear',
-			underlyingInstrumentId: 'apple-stock',
+			underlying: { market: 'NASDAQ', ticker: 'AAPL' },
 			tradingLines: [
 				{
 					id: 'apple-cedear-byma-ars',
@@ -195,36 +195,34 @@ describe('Instrument Catalog validation', () => {
 		]);
 	});
 
-	test('rejects a CEDEAR whose underlying Instrument is missing', () => {
-		const value = structuredClone(validCatalog);
-		Reflect.set(value.instruments[1], 'underlyingInstrumentId', 'missing-stock');
-		const result = validateInstrumentCatalog(value);
+	test('accepts a CEDEAR whose underlying has no Instrument in the catalog', () => {
+		const value = { ...validCatalog, instruments: [validCatalog.instruments[1]] };
 
-		expect(selectIssuePaths(result, 'invalid-underlying')).toEqual([
-			'instruments[1].underlyingInstrumentId',
-		]);
+		expect(validateInstrumentCatalog(value)).toEqual({ isValid: true, catalog: value });
 	});
 
-	test('rejects a CEDEAR whose underlying Instrument is another CEDEAR', () => {
-		const value = structuredClone(validCatalog);
-		Array.prototype.push.call(value.instruments, {
-			id: 'second-cedear',
-			type: 'cedear',
-			underlyingInstrumentId: 'apple-cedear',
-			tradingLines: [
-				{
-					id: 'second-cedear-byma-ars',
-					symbol: 'AAP2',
-					exchange: 'BYMA',
-					currency: 'ARS',
-				},
-			],
-		});
-		const result = validateInstrumentCatalog(value);
+	test.each([
+		[
+			'a reference to an Instrument',
+			{ underlyingInstrumentId: 'apple-stock' },
+			'underlyingInstrumentId',
+		],
+		['no underlying', { underlying: undefined }, 'underlying'],
+		['a blank market', { underlying: { market: ' ', ticker: 'AAPL' } }, 'underlying.market'],
+		['a blank ticker', { underlying: { market: 'NASDAQ', ticker: '' } }, 'underlying.ticker'],
+		[
+			'an additional underlying field',
+			{ underlying: { market: 'NASDAQ', ticker: 'AAPL', ratio: '20:1' } },
+			'underlying.ratio',
+		],
+	])('rejects a CEDEAR with %s', (_label, changes, field) => {
+		const cedear = { ...validCatalog.instruments[1], ...changes };
+		const result = validateInstrumentCatalog({ ...validCatalog, instruments: [cedear] });
 
-		expect(selectIssuePaths(result, 'invalid-underlying')).toEqual([
-			'instruments[2].underlyingInstrumentId',
-		]);
+		expect(result.isValid).toBeFalse();
+		expect(result.isValid ? [] : result.issues.map((issue) => issue.path)).toContain(
+			`instruments[0].${field}`,
+		);
 	});
 
 	test('accepts a bond with peso and local-dollar Trading Lines', () => {
@@ -254,25 +252,9 @@ describe('Instrument Catalog validation', () => {
 		});
 	});
 
-	test('rejects a CEDEAR whose underlying Instrument is a bond', () => {
-		const cedearOfBond = {
-			...validCatalog.instruments[1],
-			underlyingInstrumentId: 'test-bond',
-		};
-		const value = {
-			...validCatalog,
-			instruments: [validCatalog.instruments[0], cedearOfBond, validBond],
-		};
-		const result = validateInstrumentCatalog(value);
-
-		expect(selectIssuePaths(result, 'invalid-underlying')).toEqual([
-			'instruments[1].underlyingInstrumentId',
-		]);
-	});
-
 	test('does not create a partial catalog from invalid input', () => {
 		const value = structuredClone(validCatalog);
-		Reflect.set(value.instruments[1], 'underlyingInstrumentId', 'missing-stock');
+		Reflect.set(value.instruments[1], 'id', 'apple-stock');
 
 		expect(createInstrumentCatalog(value)).toMatchObject({
 			ok: false,
@@ -298,21 +280,9 @@ describe('Instrument Catalog interface', () => {
 			],
 		},
 		{
-			id: 'apple-stock',
-			type: 'stock',
-			tradingLines: [
-				{
-					id: 'apple-stock-nasdaq-usd',
-					symbol: 'AAPL',
-					exchange: 'NASDAQ',
-					currency: 'USD',
-				},
-			],
-		},
-		{
 			id: 'apple-cedear',
 			type: 'cedear',
-			underlyingInstrumentId: 'apple-stock',
+			underlying: { market: 'NASDAQ', ticker: 'AAPL' },
 			tradingLines: [
 				{ id: 'apple-cedear-byma-ars', symbol: 'AAPL', exchange: 'BYMA', currency: 'ARS' },
 			],
@@ -322,6 +292,16 @@ describe('Instrument Catalog interface', () => {
 			ok: true,
 			instrument,
 		});
+	});
+
+	test('holds no Apple stock and no NASDAQ Trading Line', () => {
+		const exchanges = instrumentCatalog
+			.getInstruments()
+			.flatMap((instrument) => instrument.tradingLines)
+			.map((tradingLine) => tradingLine.exchange);
+
+		expect(instrumentCatalog.getInstrumentById('apple-stock').ok).toBeFalse();
+		expect(exchanges).not.toContain('NASDAQ');
 	});
 
 	test('loads the AL30 bond with its peso and local-dollar Trading Lines', () => {
@@ -403,7 +383,7 @@ describe('Instrument Catalog interface', () => {
 	test('reports every missing Trading Line without a partial result', () => {
 		const result = instrumentCatalog.getTradingLinesByIds([
 			'missing-first',
-			'apple-stock-nasdaq-usd',
+			'galicia-stock-byma-ars',
 			'missing-second',
 		]);
 

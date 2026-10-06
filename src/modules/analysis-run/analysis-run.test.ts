@@ -573,7 +573,7 @@ function createTestCatalog(): InstrumentCatalog {
 				...createInstrument('apple-cedear', 'cedear', [
 					['apple-cedear-byma-ars', 'AAPL', 'ARS'],
 				]),
-				underlyingInstrumentId: 'apple-stock',
+				underlying: { market: 'NASDAQ', ticker: 'AAPL' },
 			},
 			createInstrument('new-stock', 'stock', [['new-stock-byma-ars', 'NEW', 'ARS']]),
 			createInstrument('galicia-dollar-line', 'stock', [

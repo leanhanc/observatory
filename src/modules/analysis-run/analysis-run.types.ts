@@ -110,11 +110,32 @@ export type AnalysisRunRequest = Readonly<{
 	requestedThroughSession: string;
 }>;
 
+/**
+ * A step of a running Analysis Run, reported as it happens. Run-level failures are not reported
+ * here; they are the run's result.
+ */
+export type AnalysisRunProgress =
+	| Readonly<{
+			type: 'run-started';
+			requestedThroughSession: string;
+			analyzedLineCount: number;
+			analysisConfigurationVersion: number;
+	  }>
+	| Readonly<{ type: 'mep-rate-source-fetched'; latestRateSessionDate: string }>
+	| Readonly<{
+			type: 'line-analyzed';
+			/** 1-based position of the line among the analyzed Trading Lines. */
+			position: number;
+			analyzedLineCount: number;
+			line: AnalyzedLine;
+	  }>;
+
 export type AnalysisRunnerOptions = Readonly<{
 	fetchFromProvider?: (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 	pause?: BarHistoryPause;
 	getCurrentInstant?: () => string;
 	catalog?: InstrumentCatalog;
+	reportProgress?: (progress: AnalysisRunProgress) => void;
 }>;
 
 export type AnalysisRunner = Readonly<{

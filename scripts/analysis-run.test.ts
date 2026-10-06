@@ -1,35 +1,335 @@
-import { describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
+import { rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-import { resolveAnalysisRunInvocation } from './analysis-run.ts';
+import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
+import { createInstrumentCatalog } from '#modules/instrument-catalog/instrument-catalog.ts';
+import { loadGgalFixture } from '#modules/technical-analysis/tests/support/index.ts';
+
+import { resolveAnalysisRunInvocation, runAnalysisCommand } from './analysis-run.ts';
+
+import type { DailyBar } from '#modules/bar-history/index.ts';
+import type { AnalysisRunLog } from './analysis-run.ts';
+
+const DRY_RUN_ARGS = ['--output', 'snapshot.json'];
+const WEDNESDAY_MORNING = '2026-10-07T09:00:00Z';
 
 describe('Analysis Run command', () => {
-	test('requires an explicit real Requested-Through Session', () => {
-		expect(() => resolveAnalysisRunInvocation(['--output', 'snapshot.json'], {})).toThrow(
-			'--through-session must be a real YYYY-MM-DD date.',
+	describe('default Requested-Through Session', () => {
+		test('is the previous date on a weekday morning', () => {
+			const invocation = resolveAnalysisRunInvocation(DRY_RUN_ARGS, {}, WEDNESDAY_MORNING);
+
+			expect(invocation.requestedThroughSession).toBe('2026-10-06');
+		});
+
+		test('is Friday on a Saturday morning', () => {
+			const invocation = resolveAnalysisRunInvocation(
+				DRY_RUN_ARGS,
+				{},
+				'2026-10-10T09:00:00Z',
+			);
+
+			expect(invocation.requestedThroughSession).toBe('2026-10-09');
+		});
+
+		test('follows the Buenos Aires date, not the UTC date, around midnight', () => {
+			// 02:00 UTC on Oct 8 is still 23:00 on Oct 7 in Buenos Aires (UTC-3).
+			const beforeBuenosAiresMidnight = resolveAnalysisRunInvocation(
+				DRY_RUN_ARGS,
+				{},
+				'2026-10-08T02:00:00Z',
+			);
+			const afterBuenosAiresMidnight = resolveAnalysisRunInvocation(
+				DRY_RUN_ARGS,
+				{},
+				'2026-10-08T03:00:00Z',
+			);
+
+			expect(beforeBuenosAiresMidnight.requestedThroughSession).toBe('2026-10-06');
+			expect(afterBuenosAiresMidnight.requestedThroughSession).toBe('2026-10-07');
+		});
+
+		test('crosses month and year boundaries', () => {
+			const invocation = resolveAnalysisRunInvocation(
+				DRY_RUN_ARGS,
+				{},
+				'2027-01-01T09:00:00Z',
+			);
+
+			expect(invocation.requestedThroughSession).toBe('2026-12-31');
+		});
+	});
+
+	test('an explicit Requested-Through Session wins over the default', () => {
+		const invocation = resolveAnalysisRunInvocation(
+			['--through-session', '2026-10-01', ...DRY_RUN_ARGS],
+			{},
+			WEDNESDAY_MORNING,
 		);
+
+		expect(invocation.requestedThroughSession).toBe('2026-10-01');
+	});
+
+	test('rejects an explicit Requested-Through Session that is not a real date', () => {
 		expect(() =>
 			resolveAnalysisRunInvocation(
-				['--through-session', '2026-02-30', '--output', 'x.json'],
+				['--through-session', '2026-02-30', ...DRY_RUN_ARGS],
 				{},
+				WEDNESDAY_MORNING,
+			),
+		).toThrow('--through-session must be a real YYYY-MM-DD date.');
+		expect(() =>
+			resolveAnalysisRunInvocation(
+				['--through-session=', ...DRY_RUN_ARGS],
+				{},
+				WEDNESDAY_MORNING,
 			),
 		).toThrow('--through-session must be a real YYYY-MM-DD date.');
 	});
 
 	test('rejects an empty output path instead of writing to the bucket', () => {
 		expect(() =>
-			resolveAnalysisRunInvocation(['--through-session', '2026-10-02', '--output='], {}),
+			resolveAnalysisRunInvocation(
+				['--through-session', '2026-10-02', '--output='],
+				{},
+				WEDNESDAY_MORNING,
+			),
 		).toThrow('--output must be a file path.');
 	});
 
 	test('requires storage configuration unless writing to a local file', () => {
-		expect(() => resolveAnalysisRunInvocation(['--through-session', '2026-10-02'], {})).toThrow(
+		expect(() => resolveAnalysisRunInvocation([], {}, WEDNESDAY_MORNING)).toThrow(
 			'Missing storage configuration',
 		);
 		expect(
-			resolveAnalysisRunInvocation(
-				['--through-session', '2026-10-02', '--output', 'snapshot.json'],
-				{},
-			).requestedThroughSession,
-		).toBe('2026-10-02');
+			resolveAnalysisRunInvocation(DRY_RUN_ARGS, {}, WEDNESDAY_MORNING)
+				.requestedThroughSession,
+		).toBe('2026-10-06');
 	});
 });
+
+// Noon in Buenos Aires on 2026-10-01: the fixture's last session, 2026-09-30, has closed.
+const RAN_AT = '2026-10-01T15:00:00Z';
+const MEP_RATE = 1_000;
+const SNAPSHOT_PATH = join(tmpdir(), `analysis-run-command-test-${process.pid}.json`);
+const SECRET_SENTINEL = 'sentinel-secret-7f3a9c';
+const ACCESS_KEY_SENTINEL = 'sentinel-access-key-2b8e';
+// Nothing listens on the discard port, so the real S3 client fails its write without leaving the
+// machine.
+const UNREACHABLE_STORAGE_ENVIRONMENT = {
+	OBSERVATORY_STORAGE_ACCESS_KEY_ID: ACCESS_KEY_SENTINEL,
+	OBSERVATORY_STORAGE_SECRET_ACCESS_KEY: SECRET_SENTINEL,
+	OBSERVATORY_STORAGE_BUCKET: 'observatory-test',
+	OBSERVATORY_STORAGE_ENDPOINT: 'http://127.0.0.1:9',
+	OBSERVATORY_STORAGE_REGION: 'auto',
+	OBSERVATORY_STORAGE_VIRTUAL_HOSTED_STYLE: 'false',
+};
+
+// The fixture is read as dollar prices; at a constant MEP Rate the peso line is liquid.
+const ggalDollarBars = await loadGgalFixture();
+const ggalPesoBars = ggalDollarBars.map((bar) => scaleBarPrices(bar, MEP_RATE));
+const thinlyTradedPesoBars = ggalPesoBars.map((bar) => ({ ...bar, volume: 1 }));
+const al30Bars = ggalDollarBars.map((bar) => createFlatBar(bar.sessionDate, MEP_RATE));
+const al30dBars = ggalDollarBars.map((bar) => createFlatBar(bar.sessionDate, 1));
+
+describe('Analysis Run command logging', () => {
+	afterAll(() => rm(SNAPSHOT_PATH, { force: true }));
+
+	test('logs the start, the MEP rate source, each line in order and the outcome', async () => {
+		const { entries, isSnapshotWritten } = await runCommandWithProvider({
+			GGAL: ggalPesoBars,
+			THIN: thinlyTradedPesoBars,
+		});
+
+		expect(isSnapshotWritten).toBe(true);
+		expect(entries.map(({ level, message }) => `${level} ${message}`)).toEqual([
+			`info Analysis Run through 2026-09-30: 3 lines, configuration v${ANALYSIS_CONFIGURATION.version}.`,
+			'info MEP rate source fetched; latest rate session 2026-09-30.',
+			expect.stringMatching(
+				/^info \[1\/3\] galicia-stock-byma-ars: available \(last session 2026-09-30, \d+ events\)$/,
+			),
+			expect.stringMatching(
+				/^info \[2\/3\] thin-stock-byma-ars: unavailable: insufficient-liquidity \(participation 1\.00, median USD \d+k\)$/,
+			),
+			expect.stringMatching(
+				/^warn \[3\/3\] missing-stock-byma-ars: unavailable: fetch-failed \(.+\)$/,
+			),
+			expect.stringMatching(
+				/^info Analysis Run through 2026-09-30 completed in \d+ s: 1 available, 2 unavailable; written to .+\.json\.$/,
+			),
+		]);
+		expect(entries[2]!.fields).toMatchObject({
+			event: 'line-analyzed',
+			position: 1,
+			analyzedLineCount: 3,
+			tradingLineId: 'galicia-stock-byma-ars',
+			status: 'available',
+			lastSessionDate: '2026-09-30',
+		});
+	});
+
+	test('logs a failed MEP rate source as one error and reports failure', async () => {
+		const { entries, isSnapshotWritten } = await runCommandWithProvider({
+			GGAL: ggalPesoBars,
+			AL30D: null,
+		});
+
+		expect(isSnapshotWritten).toBe(false);
+		expect(entries.map(({ level }) => level)).toEqual(['info', 'error']);
+		expect(entries[1]!.message).toStartWith(
+			'Analysis Run failed: mep-rate-source-unavailable: ',
+		);
+		expect(entries[1]!.fields).toMatchObject({ reason: 'mep-rate-source-unavailable' });
+	});
+
+	test('logs an invalid invocation as one error', async () => {
+		const { entries, isSnapshotWritten } = await runCommandWithProvider({}, [
+			'--through-session',
+			'2026-02-30',
+			'--output',
+			SNAPSHOT_PATH,
+		]);
+
+		expect(isSnapshotWritten).toBe(false);
+		expect(entries).toEqual([
+			{
+				level: 'error',
+				message: 'Analysis Run failed: --through-session must be a real YYYY-MM-DD date.',
+				fields: expect.any(Object),
+			},
+		]);
+	});
+
+	test('never logs storage credentials, even when the bucket write fails', async () => {
+		const { entries, isSnapshotWritten } = await runCommandWithProvider(
+			{ GGAL: ggalPesoBars, THIN: thinlyTradedPesoBars },
+			['--through-session', '2026-09-30'],
+			UNREACHABLE_STORAGE_ENVIRONMENT,
+		);
+		const serializedLog = JSON.stringify(entries);
+
+		expect(isSnapshotWritten).toBe(false);
+		expect(entries.at(-1)!.message).toStartWith('Analysis Run failed: snapshot-write-failed: ');
+		expect(serializedLog).not.toContain(SECRET_SENTINEL);
+		expect(serializedLog).not.toContain(ACCESS_KEY_SENTINEL);
+	});
+});
+
+type LogEntry = Readonly<{ level: 'info' | 'warn' | 'error'; message: string; fields: object }>;
+
+/** Symbols missing from the provider answer with an HTTP error; `null` forces one. */
+async function runCommandWithProvider(
+	provider: Readonly<Record<string, readonly DailyBar[] | null>>,
+	args: readonly string[] = ['--through-session', '2026-09-30', '--output', SNAPSHOT_PATH],
+	environment: Readonly<Record<string, string>> = {},
+): Promise<Readonly<{ entries: readonly LogEntry[]; isSnapshotWritten: boolean }>> {
+	const bars: Readonly<Record<string, readonly DailyBar[] | null>> = {
+		AL30: al30Bars,
+		AL30D: al30dBars,
+		...provider,
+	};
+	const entries: LogEntry[] = [];
+	const recordAt =
+		(level: LogEntry['level']) =>
+		(fields: object, message: string): void => {
+			entries.push({ level, message, fields });
+		};
+	const log: AnalysisRunLog = {
+		info: recordAt('info'),
+		warn: recordAt('warn'),
+		error: recordAt('error'),
+	};
+	const isSnapshotWritten = await runAnalysisCommand({
+		args,
+		environment,
+		log,
+		getCurrentInstant: () => RAN_AT,
+		runnerOptions: {
+			fetchFromProvider: (input) => {
+				const url = new URL(input instanceof Request ? input.url : input);
+				const symbol = url.searchParams.get('symbol')!.replace(' 24HS', '');
+				return Promise.resolve(createProviderResponse(bars[symbol] ?? null));
+			},
+			pause: () => Promise.resolve(),
+			catalog: createTestCatalog(),
+		},
+	});
+
+	return { entries, isSnapshotWritten };
+}
+
+function createProviderResponse(bars: readonly DailyBar[] | null): Response {
+	if (!bars) {
+		return new Response(null, { status: 500 });
+	}
+
+	return Response.json({
+		s: 'ok',
+		t: bars.map((bar) => convertSessionDateToEpochSeconds(bar.sessionDate)),
+		o: bars.map((bar) => bar.open),
+		h: bars.map((bar) => bar.high),
+		l: bars.map((bar) => bar.low),
+		c: bars.map((bar) => bar.close),
+		v: bars.map((bar) => bar.volume),
+	});
+}
+
+function convertSessionDateToEpochSeconds(sessionDate: string): number {
+	const zonedMidnight = Temporal.PlainDate.from(sessionDate).toZonedDateTime(
+		'America/Argentina/Buenos_Aires',
+	);
+	return zonedMidnight.epochMilliseconds / 1_000;
+}
+
+function createTestCatalog() {
+	const creation = createInstrumentCatalog({
+		schemaVersion: 1,
+		instruments: [
+			createStock('galicia-stock', 'GGAL'),
+			createStock('thin-stock', 'THIN'),
+			createStock('missing-stock', 'MISSING'),
+			{
+				id: 'al30-bond',
+				type: 'bond',
+				tradingLines: [
+					{ id: 'al30-bond-byma-ars', symbol: 'AL30', exchange: 'BYMA', currency: 'ARS' },
+					{
+						id: 'al30-bond-byma-usd-mep',
+						symbol: 'AL30D',
+						exchange: 'BYMA',
+						currency: 'USD',
+					},
+				],
+			},
+		],
+	});
+
+	if (!creation.ok) {
+		throw new Error('The test Instrument Catalog is invalid.');
+	}
+
+	return creation.catalog;
+}
+
+function createStock(id: string, symbol: string) {
+	return {
+		id,
+		type: 'stock' as const,
+		tradingLines: [{ id: `${id}-byma-ars`, symbol, exchange: 'BYMA', currency: 'ARS' }],
+	};
+}
+
+function createFlatBar(sessionDate: string, price: number): DailyBar {
+	return { sessionDate, open: price, high: price, low: price, close: price, volume: 1_000_000 };
+}
+
+function scaleBarPrices(bar: DailyBar, factor: number): DailyBar {
+	return {
+		...bar,
+		open: bar.open * factor,
+		high: bar.high * factor,
+		low: bar.low * factor,
+		close: bar.close * factor,
+	};
+}

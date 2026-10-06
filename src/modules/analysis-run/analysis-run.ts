@@ -36,6 +36,7 @@ import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type { LiquidityWindow } from '#modules/liquidity-eligibility/index.ts';
 import type {
 	AnalysisEvent,
+	AnalysisRunProgress,
 	AnalysisRunRequest,
 	AnalysisRunResult,
 	AnalysisRunner,
@@ -81,6 +82,7 @@ type AnalysisRunDependencies = Readonly<{
 	catalog: InstrumentCatalog;
 	snapshotStorage: AnalysisSnapshotStorage;
 	getCurrentInstant: () => string;
+	reportProgress: (progress: AnalysisRunProgress) => void;
 }>;
 
 const ANALYZED_INSTRUMENT_TYPES = new Set(['stock', 'cedear']);
@@ -108,6 +110,7 @@ export function createAnalysisRunner(
 		catalog: options.catalog ?? instrumentCatalog,
 		snapshotStorage,
 		getCurrentInstant: options.getCurrentInstant ?? getCurrentUtcInstant,
+		reportProgress: options.reportProgress ?? (() => {}),
 	};
 
 	return {
@@ -119,7 +122,7 @@ async function runAnalysis(
 	dependencies: AnalysisRunDependencies,
 	request: AnalysisRunRequest,
 ): Promise<AnalysisRunResult> {
-	const { acquirer, pause, catalog, snapshotStorage, getCurrentInstant } = dependencies;
+	const { acquirer, catalog, snapshotStorage, getCurrentInstant, reportProgress } = dependencies;
 	const { requestedThroughSession } = request;
 	const ranAt = getCurrentInstant();
 
@@ -140,6 +143,14 @@ async function runAnalysis(
 		);
 	}
 
+	const analyzedLines = selectAnalyzedTradingLines(catalog);
+	reportProgress({
+		type: 'run-started',
+		requestedThroughSession,
+		analyzedLineCount: analyzedLines.length,
+		analysisConfigurationVersion: ANALYSIS_CONFIGURATION.version,
+	});
+
 	const mepRateSourceLines = resolveMepRateSourceLines(catalog);
 	const mepRateSourceFetch = await fetchTradingLines(
 		acquirer,
@@ -152,6 +163,11 @@ async function runAnalysis(
 	if (!mepRates.ok) {
 		return createRunFailure('mep-rate-source-unavailable', mepRates.message);
 	}
+
+	reportProgress({
+		type: 'mep-rate-source-fetched',
+		latestRateSessionDate: mepRates.latestRateSessionDate,
+	});
 
 	// Eligibility is evaluated once, at the run's last market session, over a window every line
 	// shares.
@@ -167,22 +183,12 @@ async function runAnalysis(
 		);
 	}
 
-	const analyzedLines = selectAnalyzedTradingLines(catalog);
-	// The acquirer paces requests within one acquisition; this keeps the pace across the two.
-	await pause(HISTORICAL_REQUEST_PAUSE_MS);
-	const analyzedLineFetch = await fetchTradingLines(
-		acquirer,
-		analyzedLines.map((line) => line.tradingLine),
+	const analyzedLineResults = await analyzeTradingLines(
+		dependencies,
+		analyzedLines,
 		requestedThroughSession,
-		false,
-	);
-	const analyzedLineResults = analyzedLines.map((line) =>
-		analyzeTradingLine(
-			line,
-			getRequiredFetchedLine(analyzedLineFetch, line.tradingLine.tradingLineId),
-			mepRates.rates,
-			liquidityWindowSelection.window,
-		),
+		mepRates.rates,
+		liquidityWindowSelection.window,
 	);
 	const hasAvailableLine = analyzedLineResults.some((line) => line.status === 'available');
 
@@ -381,6 +387,51 @@ function labelSessions(
 	sessionDates: readonly string[],
 ): readonly TradingLineSession[] {
 	return sessionDates.map((sessionDate) => ({ tradingLineId, sessionDate }));
+}
+
+/**
+ * Fetches and analyzes the lines one at a time, reporting each as soon as it is analyzed. The
+ * acquirer paces requests only within one acquisition, so the pause keeps that pace between these
+ * single-line acquisitions and after the MEP rate source's.
+ */
+async function analyzeTradingLines(
+	dependencies: AnalysisRunDependencies,
+	lines: readonly AnalyzedTradingLine[],
+	requestedThroughSession: string,
+	mepRates: readonly MepRateSession[],
+	liquidityWindow: LiquidityWindow,
+): Promise<readonly AnalyzedLine[]> {
+	const { acquirer, pause, reportProgress } = dependencies;
+	const analyzedLines: AnalyzedLine[] = [];
+
+	for (const [index, line] of lines.entries()) {
+		// oxlint-disable-next-line no-await-in-loop -- Provider requests are paced, one at a time.
+		await pause(HISTORICAL_REQUEST_PAUSE_MS);
+		const { tradingLineId } = line.tradingLine;
+		// oxlint-disable-next-line no-await-in-loop -- Provider requests are paced, one at a time.
+		const fetchedLines = await fetchTradingLines(
+			acquirer,
+			[line.tradingLine],
+			requestedThroughSession,
+			false,
+		);
+		const analyzedLine = analyzeTradingLine(
+			line,
+			getRequiredFetchedLine(fetchedLines, tradingLineId),
+			mepRates,
+			liquidityWindow,
+		);
+
+		analyzedLines.push(analyzedLine);
+		reportProgress({
+			type: 'line-analyzed',
+			position: index + 1,
+			analyzedLineCount: lines.length,
+			line: analyzedLine,
+		});
+	}
+
+	return analyzedLines;
 }
 
 function analyzeTradingLine(

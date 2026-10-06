@@ -8,6 +8,7 @@ export {
 export type {
 	AnalysisEvent,
 	AnalysisRunFailureReason,
+	AnalysisRunProgress,
 	AnalysisRunRequest,
 	AnalysisRunResult,
 	AnalysisRunner,

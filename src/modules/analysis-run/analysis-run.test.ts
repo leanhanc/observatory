@@ -11,6 +11,7 @@ import { createAnalysisRunner } from './analysis-run.ts';
 import type { DailyBar } from '#modules/bar-history/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type {
+	AnalysisRunProgress,
 	AnalysisRunResult,
 	AnalysisSnapshot,
 	AnalysisSnapshotStorage,
@@ -475,6 +476,76 @@ describe('createAnalysisRunner', () => {
 	});
 });
 
+describe('Analysis Run progress', () => {
+	test('reports each analyzed line once, in order, as soon as it is analyzed', async () => {
+		const provider = { ...createHealthyProvider(), AAPL: 'http-error' as const };
+		const timeline = await recordRunTimeline(provider);
+
+		expect(timeline).toEqual([
+			'run-started 2026-09-30 lines=3 configuration=' + ANALYSIS_CONFIGURATION.version,
+			'request AL30',
+			'request AL30D',
+			'mep-rate-source-fetched 2026-09-30',
+			'request GGAL',
+			'line 1/3 galicia-stock-byma-ars available',
+			'request AAPL',
+			'line 2/3 apple-cedear-byma-ars unavailable fetch-failed',
+			'request NEW',
+			'line 3/3 new-stock-byma-ars available',
+		]);
+	});
+
+	test('reports no MEP rate or line when the MEP rate source fails', async () => {
+		const provider = { ...createHealthyProvider(), AL30D: 'http-error' as const };
+		const timeline = await recordRunTimeline(provider);
+
+		expect(timeline).toEqual([
+			'run-started 2026-09-30 lines=3 configuration=' + ANALYSIS_CONFIGURATION.version,
+			'request AL30',
+			'request AL30D',
+		]);
+	});
+
+	test('reports nothing for an invalid request', async () => {
+		const timeline = await recordRunTimeline(createHealthyProvider(), '2026-10-01');
+
+		expect(timeline).toEqual([]);
+	});
+});
+
+/** Provider requests and progress reports, interleaved in the order they happened. */
+async function recordRunTimeline(
+	provider: FakeProvider,
+	requestedThroughSession = REQUESTED_THROUGH_SESSION,
+): Promise<readonly string[]> {
+	const timeline: string[] = [];
+	const storage: AnalysisSnapshotStorage = {
+		write: () => Promise.resolve({ ok: true, locations: ['memory'] }),
+	};
+	const runner = createAnalysisRunner(storage, {
+		...createRunnerOptions(provider, (symbol) => timeline.push(`request ${symbol}`)),
+		reportProgress: (progress) => timeline.push(describeProgress(progress)),
+	});
+
+	await runner.run({ requestedThroughSession });
+
+	return timeline;
+}
+
+function describeProgress(progress: AnalysisRunProgress): string {
+	if (progress.type === 'run-started') {
+		return `run-started ${progress.requestedThroughSession} lines=${progress.analyzedLineCount} configuration=${progress.analysisConfigurationVersion}`;
+	}
+
+	if (progress.type === 'mep-rate-source-fetched') {
+		return `mep-rate-source-fetched ${progress.latestRateSessionDate}`;
+	}
+
+	const { line, position, analyzedLineCount } = progress;
+	const outcome = line.status === 'available' ? 'available' : `unavailable ${line.reason}`;
+	return `line ${position}/${analyzedLineCount} ${line.tradingLineId} ${outcome}`;
+}
+
 type ProviderResponse = readonly DailyBar[] | 'http-error' | 'no-data';
 type FakeProvider = Readonly<Record<string, ProviderResponse>>;
 
@@ -506,18 +577,24 @@ async function runWithProvider(
 			return Promise.resolve({ ok: true, locations: ['memory'] });
 		},
 	};
-	const runner = createAnalysisRunner(storage, createRunnerOptions(provider, requestedSymbols));
+	const runner = createAnalysisRunner(
+		storage,
+		createRunnerOptions(provider, (symbol) => requestedSymbols.push(symbol)),
+	);
 	const result = await runner.run({ requestedThroughSession });
 
 	return { result, writes, requestedSymbols };
 }
 
-function createRunnerOptions(provider: FakeProvider, requestedSymbols: string[] = []) {
+function createRunnerOptions(
+	provider: FakeProvider,
+	recordRequest: (symbol: string) => void = () => {},
+) {
 	return {
 		fetchFromProvider: (input: string | URL | Request) => {
 			const url = new URL(input instanceof Request ? input.url : input);
 			const symbol = url.searchParams.get('symbol')!.replace(' 24HS', '');
-			requestedSymbols.push(symbol);
+			recordRequest(symbol);
 			return Promise.resolve(createProviderResponse(provider[symbol]));
 		},
 		pause: () => Promise.resolve(),

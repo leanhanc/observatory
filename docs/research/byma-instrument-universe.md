@@ -61,6 +61,12 @@ Settlement codes come from the bundle's own mapping: `"ci"` → `"1"`, `"24hs"` 
 `settlementType: "2"` rows, and a `leading-equity` request with only `T0: true` returned the same 21
 symbols with `settlementType: "1"`. The inference is that `T0` selects CI and `T1` selects 24HS.
 
+The web app's own label file, <https://open.bymadata.com.ar/assets/api/langs/es.json>, confirms
+this: it labels `T0` "Cdo", `T1` "24hs" and `T2` "48hs", and settlement codes `"1"`, `"2"` and
+`"3"` as "Cdo", "24hs" and "48hs". A `leading-equity` request with only `T2: true` returned
+`total_elements_count: 0` and an empty `data` array, consistent with the same file's notice that
+market settlement is now only CI and 24 hours.
+
 ## Panel response shape
 
 All four equity-like panels return the same record fields. `leading-equity` and `general-equity`
@@ -153,9 +159,8 @@ difference is unexplained. See open questions.
 ## Full membership, zero rows, and paging
 
 - With `excludeZeroPxAndQty: false`, every panel returned rows on a Sunday, but every numeric field
-  in every row was `0`. That includes `closingPrice` and `previousClosingPrice`. This contradicts
-  the [Go wrapper's](https://github.com/carvalab/openbymadata) claim, quoted in the earlier note,
-  that a closed market shows the last available data, at least on a weekend.
+  in every row was `0`. That includes `closingPrice` and `previousClosingPrice`. On a weekend, a
+  panel does not show the last trading session's data.
 - With `excludeZeroPxAndQty: true`, the same `general-equity` request returned
   `total_elements_count: 0` and `data: []`. The flag drops rows without price and quantity. On a
   non-trading day that is every row. The web app enables it by default, so the public site

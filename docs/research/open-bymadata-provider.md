@@ -69,8 +69,11 @@ POST /vanoms-be-core/rest/api/bymadata/free/market-time
 
 On 2026-09-04 it returned `isWorkingDay`, opening and closing wall-clock times, and the market
 timezone. It did not return a session date. The independent
-[OpenBYMAData Go wrapper](https://github.com/carvalab/openbymadata) exposes the same fields and
-documents that panels fetched while the market is closed show the last available trading data.
+[OpenBYMAData Go wrapper](https://github.com/carvalab/openbymadata) exposes the same fields. Its
+code once carried a usage example that printed "Market is CLOSED - showing last available data"
+before fetching panels, but that was a doc-comment example, not an observed or documented
+behaviour, and commit `8bf5c9f` removed it on 2026-07-15. What a panel returns while the market is
+closed is recorded in [BYMA instrument universe](./byma-instrument-universe.md).
 
 Consequently, a panel adapter cannot discover which session an undated row belongs to. Observatory
 does not convert panel rows into Daily Bars or use them to advance Bar History check progress. The

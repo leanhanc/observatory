@@ -1,0 +1,12 @@
+- [x] Inspect the liquidity research, the analysis-run spec and module, and the dollarized-series module.
+- [x] Draft proposal and delta specs.
+- [x] Add `liquidityEligibility` to `ANALYSIS_CONFIGURATION` and bump its version to 2.
+- [x] Add `src/modules/liquidity-eligibility`: window selection and the per-line measure and gate.
+- [x] Test boundaries, a mid-window listing, a block trade, zero-volume and missing bars, causality and per-session rates.
+- [x] Gate the Analysis Run on eligibility at its last market session and record ineligible lines with their measures.
+- [x] Add the Liquidity Eligibility glossary entry to `CONTEXT.md`.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation and an Analysis Run dry run.
+- [x] Bump the snapshot `schemaVersion` to 2 and its key prefix to `analysis-snapshots/v2/`.
+- [x] Review.
+- [x] At archive, edit the `analysis-run` spec's Purpose: the run now calculates liquidity eligibility. If `schedule-analysis-run` is archived first, or later, reconcile its edit to the same paragraph.
+- [x] Archive.

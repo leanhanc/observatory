@@ -7,7 +7,7 @@
  * Expansion's baseline and the Instrument State's distance unit are separate conventions.
  */
 export const ANALYSIS_CONFIGURATION = {
-	version: 1,
+	version: 2,
 	regime: {
 		fastEmaPeriod: 50,
 		slowEmaPeriod: 200,
@@ -26,5 +26,13 @@ export const ANALYSIS_CONFIGURATION = {
 		rsiPeriod: 14,
 		emaPeriod: 20,
 		atrPeriod: 14,
+	},
+	// A Trading Line is analyzed only when, over the last `windowSessions` market sessions, it
+	// traded on at least `minimumParticipation` of them and its median traded value in MEP dollars
+	// reached `minimumMedianTradedValueUsd`. See docs/research/cedear-liquidity-distribution.md.
+	liquidityEligibility: {
+		windowSessions: 125,
+		minimumParticipation: 0.9,
+		minimumMedianTradedValueUsd: 50_000,
 	},
 } as const;

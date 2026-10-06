@@ -32,14 +32,15 @@ const al30Bars = sessionDates.map((sessionDate) =>
 );
 const al30dBars = sessionDates.map((sessionDate) => createFlatBar(sessionDate, 1));
 // A steady rise has no confirmed swing highs, so Structure stays unavailable while RSI and the
-// EMA distance warm up within 30 sessions and Regime's EMA200 does not.
-const shortHistoryDollarBars = sessionDates.slice(-30).map((sessionDate, index) => ({
+// EMA distance warm up within 120 sessions and Regime's EMA200 does not. Trading on 120 of the last
+// 125 sessions at USD 100k or more a day, the line is liquidity-eligible.
+const shortHistoryDollarBars = sessionDates.slice(-120).map((sessionDate, index) => ({
 	sessionDate,
 	open: 100 + index,
 	high: 101 + index,
 	low: 99 + index,
 	close: 100 + index,
-	volume: 1,
+	volume: 1_000,
 }));
 
 const catalog = createTestCatalog();
@@ -127,7 +128,7 @@ describe('createAnalysisRunner', () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 		const shortLine = selectAvailableLine(result, 'new-stock-byma-ars');
 
-		expect(shortLine.window.barCount).toBe(30);
+		expect(shortLine.window.barCount).toBe(120);
 		expect(shortLine.latestState.regime).toBeNull();
 		expect(shortLine.latestState.structure).toBeNull();
 		expect(shortLine.latestState.rsi).toBeNumber();
@@ -138,7 +139,7 @@ describe('createAnalysisRunner', () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 
 		expect(result.ok && result.snapshot).toMatchObject({
-			schemaVersion: 1,
+			schemaVersion: 2,
 			ranAt: RAN_AT,
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			analysisConfigurationVersion: ANALYSIS_CONFIGURATION.version,
@@ -372,6 +373,56 @@ describe('createAnalysisRunner', () => {
 			status: 'unavailable',
 			reason: 'no-provider-bars',
 		});
+	});
+
+	test('records an illiquid line as unavailable with both liquidity measures', async () => {
+		// USD 100 × 200 = USD 20,000 a day on every session, below the USD 50,000 floor.
+		const thinDollarBars = sessionDates.map((sessionDate) => ({
+			...createFlatBar(sessionDate, 100),
+			volume: 200,
+		}));
+		const provider = {
+			...createHealthyProvider(),
+			NEW: convertDollarBarsToPeso(thinDollarBars),
+		};
+		const { result } = await runWithProvider(provider);
+
+		expect(selectLine(result, 'new-stock-byma-ars')).toEqual({
+			status: 'unavailable',
+			instrumentId: 'new-stock',
+			tradingLineId: 'new-stock-byma-ars',
+			reason: 'insufficient-liquidity',
+			message:
+				'The line did not trade regularly or heavily enough over the liquidity window.',
+			liquidity: { participation: 1, medianDailyTradedValueUsd: 20_000 },
+		});
+		expect(selectLine(result, 'galicia-stock-byma-ars').status).toBe('available');
+	});
+
+	test('does not analyze a line listed within the liquidity window', async () => {
+		const recentDollarBars = shortHistoryDollarBars.slice(-30);
+		const provider = {
+			...createHealthyProvider(),
+			NEW: convertDollarBarsToPeso(recentDollarBars),
+		};
+		const { result } = await runWithProvider(provider);
+
+		expect(selectLine(result, 'new-stock-byma-ars')).toMatchObject({
+			reason: 'insufficient-liquidity',
+			liquidity: { participation: 30 / 125 },
+		});
+	});
+
+	test('fails before fetching analyzed lines when the liquidity window cannot be filled', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AL30: al30Bars.slice(-124),
+		};
+		const { result, writes, requestedSymbols } = await runWithProvider(provider);
+
+		expect(result).toMatchObject({ ok: false, reason: 'insufficient-market-sessions' });
+		expect(writes).toEqual([]);
+		expect(requestedSymbols).toEqual(['AL30', 'AL30D']);
 	});
 
 	test('records the sessions whose range the adapter repaired', async () => {

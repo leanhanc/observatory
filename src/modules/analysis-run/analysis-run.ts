@@ -14,6 +14,10 @@ import {
 import { instrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import { calculateInstrumentStates } from '#modules/instrument-state/index.ts';
 import {
+	evaluateLiquidityEligibility,
+	selectLiquidityWindow,
+} from '#modules/liquidity-eligibility/index.ts';
+import {
 	detectRegimeTransitionEvents,
 	detectStructureBreakEvents,
 	detectVolatilityExpansionEvents,
@@ -29,6 +33,7 @@ import type {
 } from '#modules/bar-history/index.ts';
 import type { MepRateSession } from '#modules/dollarized-series/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
+import type { LiquidityWindow } from '#modules/liquidity-eligibility/index.ts';
 import type {
 	AnalysisEvent,
 	AnalysisRunRequest,
@@ -88,11 +93,13 @@ const ZERO_OPEN_ISSUE_CODES = new Set<ValidationIssue['code']>([
 
 /**
  * Creates the Analysis Run: a fresh provider fetch of the MEP rate source and every analyzed
- * Trading Line, dollarization, analysis, and one persisted Analysis Snapshot.
+ * Trading Line, dollarization, a liquidity-eligibility gate, analysis, and one persisted Analysis
+ * Snapshot.
  *
  * Stored Bar Histories are neither read nor written; a single fetch keeps every bar on the
- * provider's current price scale. A line that cannot be analyzed is recorded as unavailable. The
- * run writes nothing when the MEP rate source fails or when no line could be analyzed.
+ * provider's current price scale. A line that cannot be analyzed, including one that is not
+ * liquidity-eligible, is recorded as unavailable. The run writes nothing when the MEP rate source
+ * fails or has too few market sessions for the liquidity window, or when no line could be analyzed.
  */
 export function createAnalysisRunner(
 	snapshotStorage: AnalysisSnapshotStorage,
@@ -151,6 +158,20 @@ async function runAnalysis(
 		return createRunFailure('mep-rate-source-unavailable', mepRates.message);
 	}
 
+	// Eligibility is evaluated once, at the run's last market session, over a window every line
+	// shares.
+	const liquidityWindowSelection = selectLiquidityWindow(
+		mepRates.rates,
+		mepRates.latestRateSessionDate,
+	);
+
+	if (!liquidityWindowSelection.ok) {
+		return createRunFailure(
+			'insufficient-market-sessions',
+			`The MEP rate source has ${liquidityWindowSelection.marketSessionCount} market sessions through ${mepRates.latestRateSessionDate}, fewer than the liquidity window needs.`,
+		);
+	}
+
 	const analyzedLines = selectAnalyzedTradingLines(catalog);
 	// The acquirer paces requests within one acquisition; this keeps the pace across the two.
 	await pause(HISTORICAL_REQUEST_PAUSE_MS);
@@ -165,6 +186,7 @@ async function runAnalysis(
 			line,
 			getRequiredFetchedLine(analyzedLineFetch, line.tradingLine.tradingLineId),
 			mepRates.rates,
+			liquidityWindowSelection.window,
 		),
 	);
 	const hasAvailableLine = analyzedLineResults.some((line) => line.status === 'available');
@@ -177,7 +199,7 @@ async function runAnalysis(
 	}
 
 	const snapshot = {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		ranAt,
 		requestedThroughSession,
 		analysisConfigurationVersion: ANALYSIS_CONFIGURATION.version,
@@ -372,6 +394,7 @@ function analyzeTradingLine(
 	line: AnalyzedTradingLine,
 	fetchedLine: FetchedLine,
 	mepRates: readonly MepRateSession[],
+	liquidityWindow: LiquidityWindow,
 ): AnalyzedLine {
 	const identity = {
 		instrumentId: line.instrumentId,
@@ -407,6 +430,19 @@ function analyzeTradingLine(
 			...identity,
 			reason: 'no-dollarized-bars',
 			message: 'No session had both a peso-line bar and a MEP Rate.',
+		};
+	}
+
+	const liquidity = evaluateLiquidityEligibility(fetchedLine.bars, liquidityWindow);
+
+	if (!liquidity.isEligible) {
+		return {
+			status: 'unavailable',
+			...identity,
+			reason: 'insufficient-liquidity',
+			message:
+				'The line did not trade regularly or heavily enough over the liquidity window.',
+			liquidity: liquidity.measures,
 		};
 	}
 

@@ -1,6 +1,7 @@
 import type { BarHistoryPause } from '#modules/bar-history/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type { InstrumentState } from '#modules/instrument-state/index.ts';
+import type { LiquidityMeasures } from '#modules/liquidity-eligibility/index.ts';
 import type {
 	RegimeTransitionEvent,
 	StructureBreakEvent,
@@ -19,7 +20,8 @@ export type AnalyzedLineFailureReason =
 	| 'fetch-failed'
 	| 'invalid-bars'
 	| 'no-provider-bars'
-	| 'no-dollarized-bars';
+	| 'no-dollarized-bars'
+	| 'insufficient-liquidity';
 
 export type AnalyzedLine =
 	| Readonly<{
@@ -41,8 +43,17 @@ export type AnalyzedLine =
 			status: 'unavailable';
 			instrumentId: string;
 			tradingLineId: string;
-			reason: AnalyzedLineFailureReason;
+			reason: Exclude<AnalyzedLineFailureReason, 'insufficient-liquidity'>;
 			message: string;
+	  }>
+	| Readonly<{
+			status: 'unavailable';
+			instrumentId: string;
+			tradingLineId: string;
+			reason: 'insufficient-liquidity';
+			message: string;
+			/** Both measures over the run's liquidity window, so a reader sees how far it missed. */
+			liquidity: LiquidityMeasures;
 	  }>;
 
 /** One session of one Trading Line, used to report bars the run accepted with a defect. */
@@ -52,7 +63,7 @@ export type TradingLineSession = Readonly<{
 }>;
 
 export type AnalysisSnapshot = Readonly<{
-	schemaVersion: 1;
+	schemaVersion: 2;
 	ranAt: string;
 	requestedThroughSession: string;
 	analysisConfigurationVersion: number;
@@ -79,6 +90,7 @@ export type AnalysisSnapshotStorage = Readonly<{
 export type AnalysisRunFailureReason =
 	| 'invalid-request'
 	| 'mep-rate-source-unavailable'
+	| 'insufficient-market-sessions'
 	| 'no-analyzed-lines'
 	| 'snapshot-write-failed';
 

@@ -144,6 +144,14 @@ _Avoid_: Confidence score, pass/fail when referring to research evidence
 The versioned, project-wide set of measurement conventions and interpretation thresholds used to produce comparable analysis, such as indicator periods, warm-up rules, and event thresholds.
 _Avoid_: User preference, Attention Preference
 
+**Market Session**:
+A Trading Session that has a MEP Rate. Measures that count sessions, such as Liquidity Eligibility, count only Market Sessions, because a session without a MEP Rate cannot be valued in MEP dollars.
+_Avoid_: Calendar day, a session on which only some lines traded
+
+**Liquidity Eligibility**:
+Whether a Trading Line traded regularly enough, and with enough value, over a recent window of Market Sessions for indicators to describe market behavior rather than sparse trading. It is a yes/no gate on participation and median traded value, not a score, and says nothing about direction or opportunity.
+_Avoid_: Liquidity score, tradability, quality filter
+
 **Analysis Run**:
 One execution of the canonical analysis through a completed Requested-Through Session, covering every analyzed Trading Line: the peso line of each stock and CEDEAR. It produces at most one Analysis Snapshot and is independent of any viewer.
 _Avoid_: Calling an Analysis Run a Bar History update; per-visitor analysis

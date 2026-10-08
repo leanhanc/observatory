@@ -6,23 +6,18 @@ The corporate-actions module SHALL load `src/modules/corporate-actions/data/corp
 
 - `tradingLineId`: a lowercase kebab-case Trading Line identifier;
 - `exDate`: a real `YYYY-MM-DD` date, the first session on which the line trades without the entitlement;
-- `priceFactor`: a positive finite number other than 1, by which a price before the ex-date is multiplied to put it on the post-ex-date scale;
+- `priceFactor`: a positive finite number by which a price before the ex-date is multiplied to put it on the post-ex-date scale. It SHALL be at least `ANALYSIS_CONFIGURATION.corporateActions.maximumStepDeviation` squared away from 1: at most 1/1.5625 = 0.64, or at least 1.5625. The step guard below accepts an observed ratio within ×/÷1.25 of the factor, so this keeps the accepted band at least ×1.25 away from no step, and a history the provider already adjusted is adjusted again only when a real move of ×/÷1.25 or more lands on the ex-date. A nearer factor, such as a 5-for-4 split's 0.8, cannot be listed;
 - `kind`: `share-distribution`, `split` or `reverse-split`. A share distribution or a split multiplies the share count, so its factor SHALL be below 1; a reverse split combines shares, so its factor SHALL be above 1;
 - `sourceUrl`: an `https` URL of a primary source that confirms the action.
 
-Two entries SHALL NOT share a `tradingLineId` and `exDate`. Validation SHALL report every issue with its path. Each entry SHALL be a Corporate Action that the provider was observed not to adjust; the list SHALL NOT be used for actions the provider adjusts.
+Two entries SHALL NOT share a `tradingLineId` and `exDate`. Validation SHALL report every invalid field with its path; duplicates SHALL be reported, at both entries, once every entry is valid. Each entry SHALL be a Corporate Action that the provider was observed not to adjust; the list SHALL NOT be used for actions the provider adjusts.
 
-The list SHALL contain BYMA's 1:1 share distribution: `byma-stock-byma-ars`, ex-date `2025-05-26`, price factor `0.5`, kind `share-distribution`, source `https://www.byma.com.ar/newsroom/byma-anuncia-pago-en-acciones`. The list SHALL also contain ETHA's 1-for-3 reverse split, which the CEDEAR follows from its underlying ETF: `etha-cedear-byma-ars`, ex-date `2026-10-06`, price factor `3`, kind `reverse-split`, source `https://www.sec.gov/Archives/edgar/data/0002000638/000143774926025654/etha20260803_8k.htm`. Every entry's `tradingLineId` SHALL resolve through the repository Instrument Catalog.
+The list SHALL contain BYMA's 1:1 share distribution: `byma-stock-byma-ars`, ex-date `2025-05-26`, price factor `0.5`, kind `share-distribution`, source `https://www.byma.com.ar/newsroom/byma-anuncia-pago-en-acciones`. The list SHALL also contain ETHA's 1-for-3 reverse split, which the CEDEAR follows from its underlying ETF: `etha-cedear-byma-ars`, ex-date `2026-10-06`, price factor `3`, kind `reverse-split`, source `https://www.sec.gov/Archives/edgar/data/0002000638/000143774926025654/etha20260803_8k.htm`.
 
 #### Scenario: the BYMA and ETHA entries are loaded
 
 - **WHEN** the committed list is loaded
 - **THEN** it contains the BYMA share distribution with factor 0.5 and the ETHA reverse split with factor 3, each with its source
-
-#### Scenario: every entry names a catalog Trading Line
-
-- **WHEN** each entry's `tradingLineId` is resolved through the repository Instrument Catalog
-- **THEN** it resolves to a Trading Line
 
 #### Scenario: a missing source is rejected
 
@@ -31,8 +26,13 @@ The list SHALL contain BYMA's 1:1 share distribution: `byma-stock-byma-ars`, ex-
 
 #### Scenario: invalid fields are rejected
 
-- **WHEN** an entry has a price factor of 0, 1, a negative or a non-finite number, an `exDate` of `2025-02-30`, an unknown `kind`, a non-`https` source or an extra field
+- **WHEN** an entry has a price factor of 0, 1, 0.65, 1.56, a negative or a non-finite number, an `exDate` of `2025-02-30`, an unknown `kind`, a non-`https` source or an extra field
 - **THEN** validation fails with an issue at that field
+
+#### Scenario: factors at the distance limit are accepted
+
+- **WHEN** a split has a price factor of 0.64, or a reverse split one of 1.5625
+- **THEN** validation accepts it
 
 #### Scenario: the factor contradicts the kind
 
@@ -46,7 +46,7 @@ The list SHALL contain BYMA's 1:1 share distribution: `byma-stock-byma-ars`, ex-
 
 ### Requirement: a correction rescales the bars before the ex-date
 
-The module SHALL expose a pure `applyCorporateActions(bars, corporateActions)` that takes one line's validated, chronological Daily Bars and that line's Corporate Actions. It SHALL return the corrected bars and one outcome per Corporate Action, in input order: the action's fields, a `status` of `applied`, `already-adjusted` or `outside-window`, and `observedCloseRatio`.
+The module SHALL expose a pure `applyCorporateActions(bars, corporateActions)` that takes one line's validated, chronological Daily Bars and that line's Corporate Actions. It SHALL return the corrected bars and one outcome per Corporate Action, in input order: the action's fields, including `tradingLineId`, a `status` of `applied`, `step-not-observed` or `outside-window`, and `observedCloseRatio`.
 
 For an applied action, every bar with `sessionDate` before `exDate` SHALL have its open, high, low and close multiplied by `priceFactor` and its volume divided by it. Bars on or after `exDate` SHALL be unchanged. Traded value, volume times price, is therefore unchanged on every bar. When several actions apply to a line, each SHALL rescale the bars before its own ex-date, so a bar before both is rescaled by both factors. The input SHALL NOT be mutated.
 
@@ -70,29 +70,33 @@ For an applied action, every bar with `sessionDate` before `exDate` SHALL have i
 
 ### Requirement: an action is applied only when the step is still present
 
-The observed close ratio SHALL be `close(first bar on or after exDate) / close(last bar before exDate)`, on the uncorrected input bars. The action SHALL be applied only when both hold:
+The observed close ratio SHALL be `close(first bar on or after exDate) / close(last bar before exDate)`, on the uncorrected input bars. Those two bars need not be adjacent sessions: the ratio spans every session between them that the line did not trade, such as a halt on the ex-date. The action SHALL be applied only when `|ln(observedCloseRatio) − ln(priceFactor)| ≤ ln(ANALYSIS_CONFIGURATION.corporateActions.maximumStepDeviation)`, which is ln 1.25. Each action is evaluated on its own.
 
-- `|ln(observedCloseRatio) − ln(priceFactor)| ≤ ln(ANALYSIS_CONFIGURATION.corporateActions.maximumStepDeviation)`, which is ln 1.25;
-- `|ln(observedCloseRatio) − ln(priceFactor)| < |ln(observedCloseRatio)|`: the observed ratio is closer to the factor than to no step.
-
-Otherwise the action SHALL be skipped with status `already-adjusted`, because the provider's data no longer shows the step, and the bars SHALL NOT be changed by it. When the bars have no bar before `exDate` or no bar on or after it, the action SHALL be skipped with status `outside-window` and `observedCloseRatio: null`.
+Otherwise the action SHALL be skipped with status `step-not-observed`, and the bars SHALL NOT be changed by it. The status SHALL NOT claim a cause: the provider may have adjusted the history, or a real move on the ex-date may hide the step, and `observedCloseRatio` lets a reader tell which. When the bars have no bar before `exDate` or no bar on or after it, the action SHALL be skipped with status `outside-window` and `observedCloseRatio: null`.
 
 #### Scenario: the provider already adjusted the history
 
 - **WHEN** a line's close moves from 200 to 201 across an ex-date with factor 0.5
-- **THEN** the outcome is `already-adjusted` with `observedCloseRatio` 1.005
+- **THEN** the outcome is `step-not-observed` with `observedCloseRatio` 1.005
+- **AND** no bar is changed
+
+#### Scenario: a real move hides the step
+
+- **WHEN** a line's close moves from 400 to 150 across an ex-date with factor 0.5
+- **THEN** the outcome is `step-not-observed` with `observedCloseRatio` 0.375
+- **AND** no bar is changed
+
+#### Scenario: two ex-dates with no bar between them
+
+- **WHEN** a line has factor-0.5 actions on 2026-01-05 and 2026-01-07, and its bars close at 400 on 2026-01-02 and at 100 on 2026-01-08
+- **THEN** both outcomes are `step-not-observed`, because each sees the combined ratio 0.25
 - **AND** no bar is changed
 
 #### Scenario: tolerance boundaries
 
 - **WHEN** the observed ratio is exactly 0.5 × 1.25, or exactly 0.5 ÷ 1.25
 - **THEN** the action is applied
-- **AND** a ratio beyond either bound is `already-adjusted`
-
-#### Scenario: a factor near 1
-
-- **WHEN** a factor is 0.85 and the observed ratio is 0.99
-- **THEN** the outcome is `already-adjusted`, although 0.99 is within ×1.25 of 0.85, because it is closer to no step
+- **AND** a ratio beyond either bound is `step-not-observed`
 
 #### Scenario: the ex-date is outside the fetched window
 

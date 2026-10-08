@@ -4,10 +4,10 @@
 - [x] Add `src/modules/corporate-actions`: the validated list with BYMA's entry, and `applyCorporateActions` with the double-adjustment guard.
 - [x] Add `detectLargeOneSessionMoves` to `technical-analysis`.
 - [x] Correct lines before liquidity and dollarization in the Analysis Run, record `corporateActions`, `largeMoves` and `coincidesWithLargeMove`, and bump the snapshot to schema and prefix `v3`.
-- [x] Log Large One-Session Move counts and Corporate Action statuses in the `analyze` command, warning on `already-adjusted`.
+- [x] Log Large One-Session Move counts and Corporate Action statuses in the `analyze` command, warning on a step that is not observed.
 - [x] Test threshold boundaries, per-session MEP Rates, Event marking, an applied and a skipped correction, ordering, list validation and causality.
 - [x] Write ADR 0009, update decision 4 of `handle-provider-adjusted-history`, and add the glossary entries.
 - [x] Run tests, typecheck, lint, format, strict OpenSpec validation and an Analysis Run dry run.
-- [ ] Review.
-- [ ] At archive, add a Purpose to the new `corporate-actions` spec, and edit the `analysis-run` and `technical-analysis` Purposes to mention corrections and the large-move flag.
-- [ ] Archive.
+- [x] Review: report a step that is not observed without claiming a cause (`step-not-observed`, with its ratio in the log), limit price factors to at least ×1.25 squared from 1, reject actions for lines the run does not analyze, and warn on each Large One-Session Move with its session and ratio.
+- [x] At archive, add a Purpose to the new `corporate-actions` spec, and edit the `analysis-run` and `technical-analysis` Purposes to mention corrections and the large-move flag.
+- [x] Archive.

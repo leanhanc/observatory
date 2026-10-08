@@ -4,5 +4,5 @@
 - [x] Log an available line with dropped bars as a warning.
 - [x] Test a close outside the range, all-zero placeholder bars, participation after a drop, a duplicate session, every bar invalid, and the unchanged MEP rate source rule.
 - [x] Run tests, typecheck, lint, format, strict OpenSpec validation and an Analysis Run dry run.
-- [ ] Review.
-- [ ] Archive after `add-large-move-safeguard`, whose requirement text this change's deltas build on.
+- [x] Review: record dropped bars and range repairs on `no-dollarized-bars` and `insufficient-liquidity` entries, warn on an illiquid line with drops, test that a repaired bar is kept, and correct the proposal's claim about moves across a dropped session.
+- [x] Archive after `add-large-move-safeguard`, whose requirement text this change's deltas build on.

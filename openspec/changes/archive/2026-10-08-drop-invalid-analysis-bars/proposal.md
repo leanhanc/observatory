@@ -18,12 +18,12 @@ Each of these is one wrong bar, or a run of placeholders, in about 490 sessions.
 
 ## What Changes
 
-For an analyzed line, each bar is validated on its own. A bar that is not a valid Daily Bar is **dropped**: it is not a market fact Observatory can read, and repairing it would invent prices. The other bars are kept and analyzed. Every dropped session is recorded in the line's snapshot entry as `droppedBarSessions`, and the `analyze` command logs that line as a warning, so the data problem stays visible.
+For an analyzed line, each bar is validated on its own. A bar that is not a valid Daily Bar is **dropped**: it is not a market fact Observatory can read, and repairing it would invent prices. The other bars are kept and analyzed. Every dropped session is recorded in the line's snapshot entry as `droppedBarSessions`, and the `analyze` command logs that line as a warning, so the data problem stays visible. This holds for a line the liquidity gate then rejects, too: its entry records `droppedBarSessions` and `rangeRepairSessions`, as does a `no-dollarized-bars` entry, and an `insufficient-liquidity` line with drops logs as a warning rather than at info, because the drops may be why it missed the participation floor.
 
 Dropping a bar removes the session from the line, exactly as if the line had not traded that day:
 
-- The Dollarized Series has no bar there, and indicators step from the previous bar to the next one. True Range on the next bar includes the gap from the previous kept close, so a real move across the dropped session still counts.
-- Liquidity eligibility counts the session as not traded. A dropped bar inside the 125-session window lowers participation by 1/125.
+- The Dollarized Series has no bar there, and indicators step from the previous bar to the next one. The dropped session's own move is lost: TGNO4's 2025-01-17 was a real −8.3% day, and the Volatility Expansion it would have produced disappears. True Range on the next bar includes the gap from the previous kept close, so the next session absorbs the price change instead.
+- Liquidity eligibility counts the session as not traded. A dropped bar inside the 125-session window lowers participation by 1/125. This is a deliberate, conservative choice: the run cannot tell whether or how much the line traded that day, so it does not credit liquidity it cannot measure.
 - The large-move flag compares the next bar with the previous kept bar.
 
 The line is still unavailable with reason `invalid-bars` when the remaining bars are not a valid history: duplicate or out-of-order sessions, which no per-bar drop can fix. If every bar is invalid, the line is also `invalid-bars`, not `no-provider-bars`, because the provider did answer.
@@ -38,8 +38,9 @@ The snapshot gains `droppedBarSessions` on available entries. This change ships 
 
 ## Trade-offs
 
-- **A dropped bar is a missing session.** If the bar hid a real move, that move moves to the next kept bar and still reaches True Range, but the dropped session's own range is lost.
-- **No limit on how many bars may be dropped.** A line that loses many bars stays available. `droppedBarSessions` lists them all, and the log warns. A threshold can be added when a case needs one.
+- **A dropped bar is a missing session.** The session's own range, and any Event it would have produced, is lost, as TGNO4's Volatility Expansion on 2025-01-17 is.
+- **The session after a drop compares against a non-adjacent close.** Its True Range and close ratio span two sessions of movement, so it can carry a Volatility Expansion or a Large One-Session Move that neither session alone would have. Nothing marks such a session yet; the dropped session listed just before it is the hint.
+- **No limit on how many bars may be dropped.** Inside the liquidity window, drops lower participation and can make a line `insufficient-liquidity`, which is then logged as a warning. Outside it, a line that loses many bars stays available. `droppedBarSessions` lists them all, and the log warns. A threshold can be added when a case needs one.
 - **Widening was rejected.** Stretching the range to contain a close 3% outside it keeps the session but makes the range partly invented, and the existing 1% repair already covers rounding.
 
 ## Out of scope

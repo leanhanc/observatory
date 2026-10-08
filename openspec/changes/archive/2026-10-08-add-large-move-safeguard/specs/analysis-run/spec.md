@@ -2,9 +2,9 @@
 
 ### Requirement: confirmed Corporate Actions are corrected before analysis
 
-After a line's bars are validated and found non-empty, the run SHALL apply that line's entries from the committed Corporate Action list with `applyCorporateActions`, before liquidity eligibility, dollarization, State and Events. Every later step SHALL read the corrected peso bars. The MEP rate source lines SHALL NOT be corrected. The list SHALL be replaceable through the runner options, defaulting to the committed list.
+After a line's bars are validated and found non-empty, the run SHALL apply that line's entries from the committed Corporate Action list with `applyCorporateActions`, before liquidity eligibility, dollarization, State and Events. Every later step SHALL read the corrected peso bars. The MEP rate source lines SHALL NOT be corrected. The list SHALL be replaceable through the runner options, defaulting to the committed list. Creating the runner SHALL fail when any action, from the committed or an injected list, names a Trading Line the run does not analyze, such as a dollar line, a MEP rate source line or a line missing from the catalog: such an action would never be applied or reported.
 
-Each available line SHALL record `corporateActions`: one `{ exDate, kind, priceFactor, sourceUrl, status, observedCloseRatio }` for each of its Corporate Actions, with the status `applied`, `already-adjusted` or `outside-window` from the corporate-actions module. A line with no Corporate Action SHALL record an empty list.
+Each available line SHALL record `corporateActions`: one `{ tradingLineId, exDate, kind, priceFactor, sourceUrl, status, observedCloseRatio }` for each of its Corporate Actions, with the status `applied`, `step-not-observed` or `outside-window` from the corporate-actions module. A line with no Corporate Action SHALL record an empty list.
 
 #### Scenario: an unadjusted share distribution is corrected
 
@@ -16,8 +16,18 @@ Each available line SHALL record `corporateActions`: one `{ exDate, kind, priceF
 #### Scenario: the provider already adjusted the history
 
 - **WHEN** the list has a factor-0.5 entry for a line whose fetched prices show no step at the ex-date
-- **THEN** the line's `corporateActions` lists the entry as `already-adjusted`
+- **THEN** the line's `corporateActions` lists the entry as `step-not-observed`
 - **AND** its analysis equals the analysis without the entry
+
+#### Scenario: an action for a line the run does not analyze
+
+- **WHEN** the runner is created with an action for `al30-bond-byma-ars`, for a dollar line, or for a Trading Line missing from the catalog
+- **THEN** creating the runner fails with an error naming that Trading Line
+
+#### Scenario: the committed list names analyzed lines
+
+- **WHEN** the runner is created with the committed list and the committed catalog
+- **THEN** it is created
 
 #### Scenario: the correction is in pesos, before dollarization
 
@@ -27,7 +37,7 @@ Each available line SHALL record `corporateActions`: one `{ exDate, kind, priceF
 
 ### Requirement: Large One-Session Moves are flagged on available lines
 
-Each available line SHALL record `largeMoves`: the Large One-Session Moves of its Dollarized Series, after corrections, from `detectLargeOneSessionMoves`, each as `{ sessionDate, closeRatio }` in session order. Every Event SHALL carry `coincidesWithLargeMove`, `true` when its `sessionDate` is a flagged session and `false` otherwise. The flag SHALL NOT make a line unavailable and SHALL NOT remove or change any Event.
+Each available line SHALL record `largeMoves`: the Large One-Session Moves of its Dollarized Series, after corrections, from `detectLargeOneSessionMoves`, each as `{ sessionDate, closeRatio }` in session order. Every Event SHALL carry `coincidesWithLargeMove`, `true` when its `sessionDate` is a flagged session and `false` otherwise. Only Events on the flagged session are marked: a later Event that the same step causes, such as a Regime Transition once the averages catch up or a swing confirmed afterwards, is not. The flag SHALL NOT make a line unavailable and SHALL NOT remove or change any Event.
 
 #### Scenario: an Event on a flagged session
 
@@ -144,7 +154,7 @@ The dated object SHALL be written first. `latest` SHALL be written only after th
 
 ### Requirement: the command logs progress and exits with the run's outcome
 
-The `analyze` command SHALL log each progress report as it arrives through the Observatory logger: structured JSON in production, readable lines locally. Each analyzed line SHALL be logged exactly once with its position, its Trading Line ID and its outcome: `available` with its last session, Event count and number of Large One-Session Moves, or `unavailable` with its reason. An available line with Corporate Actions SHALL also show each one's ex-date and status; when any of them is `already-adjusted`, the entry SHALL be a warning, because the list holds an entry the provider no longer needs. An `insufficient-liquidity` line SHALL also show its participation and median daily traded value; other unavailable reasons SHALL show the line's message and log as warnings. When the latest MEP Rate session is before the Requested-Through Session, which happens on a holiday or when the provider has not yet published the session, the command SHALL log a warning naming both dates. A successful run SHALL end with one entry giving the available and unavailable counts, how many available lines end before the latest MEP Rate session, the snapshot locations and the run's duration.
+The `analyze` command SHALL log each progress report as it arrives through the Observatory logger: structured JSON in production, readable lines locally. Each analyzed line SHALL be logged exactly once with its position, its Trading Line ID and its outcome: `available` with its last session, Event count and number of Large One-Session Moves, or `unavailable` with its reason. An available line with Large One-Session Moves SHALL also show each one's session and close ratio, and the entry SHALL be a warning, because an unlisted Corporate Action surfaces this way. An available line with Corporate Actions SHALL also show each one's ex-date and status. When any of them is `step-not-observed`, the entry SHALL also show its observed close ratio, tell the reader to check the history before removing the entry, and be a warning: the provider may no longer need the entry, or a real move may have hidden the step. A line whose Corporate Actions are all `applied` or `outside-window`, with no other reason to warn, SHALL log at info. An `insufficient-liquidity` line SHALL also show its participation and median daily traded value; other unavailable reasons SHALL show the line's message and log as warnings. When the latest MEP Rate session is before the Requested-Through Session, which happens on a holiday or when the provider has not yet published the session, the command SHALL log a warning naming both dates. A successful run SHALL end with one entry giving the available and unavailable counts, how many available lines end before the latest MEP Rate session, the snapshot locations and the run's duration.
 
 Every failure, whether an invalid invocation, a run failure or an unexpected error, SHALL be logged as one error entry whose message starts with `Analysis Run failed:`; for a run failure it SHALL contain the failure reason. Logs SHALL NOT contain the storage configuration's credentials.
 
@@ -157,10 +167,20 @@ The run SHALL have a deadline, 30 minutes by default. A run still unfinished at 
 - **WHEN** a run analyzes an available line, a line excluded by the liquidity gate and a line that fails to fetch
 - **THEN** the log has, in order, `[1/3] <id>: available (last session ..., N events, M large moves)`, `[2/3] <id>: unavailable: insufficient-liquidity (participation ..., median ...)` and a warning `[3/3] <id>: unavailable: fetch-failed (...)`
 
-#### Scenario: a Corporate Action the provider already adjusted
+#### Scenario: a Corporate Action whose step is not observed
 
-- **WHEN** an available line's Corporate Action is `already-adjusted`
-- **THEN** its entry is a warning that names the ex-date and `already-adjusted`
+- **WHEN** an available line's Corporate Action is `step-not-observed`
+- **THEN** its entry is a warning that names the ex-date, `step-not-observed` and the observed close ratio, and asks for the history to be checked before the entry is removed
+
+#### Scenario: an applied Corporate Action
+
+- **WHEN** an available line's only Corporate Action is `applied` and the line has no Large One-Session Move or dropped bar
+- **THEN** its entry logs at info and names the ex-date and `applied`
+
+#### Scenario: a Large One-Session Move
+
+- **WHEN** an available line has a Large One-Session Move on 2025-06-02
+- **THEN** its entry is a warning that names 2025-06-02 and the move's close ratio
 
 #### Scenario: failed run
 

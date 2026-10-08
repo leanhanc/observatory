@@ -16,7 +16,7 @@ The default is a calendar date, not a known trading session. When no session tra
 - **WHEN** the command runs without `--through-session` at 2026-10-10T09:00:00Z, a Saturday
 - **THEN** the Requested-Through Session is 2026-10-09, the Friday
 
-#### Scenario: UTC midnight is still the previous market day
+#### Scenario: 02:00 UTC is still the previous market day
 
 - **WHEN** the command runs without `--through-session` at 2026-10-08T02:00:00Z, which is 2026-10-07T23:00 in Buenos Aires
 - **THEN** the Requested-Through Session is 2026-10-06
@@ -38,7 +38,7 @@ The default is a calendar date, not a known trading session. When no session tra
 The Analysis Run SHALL accept an optional progress callback and SHALL call it, in order, with:
 
 - `run-started` once the request is valid, before any fetch, with the Requested-Through Session, the number of analyzed Trading Lines and the Analysis Configuration version;
-- `mep-rate-source-fetched` once the MEP rate source yielded MEP Rates, with the latest MEP Rate session;
+- `mep-rate-source-fetched` once the MEP rate source yielded MEP Rates, with the Requested-Through Session and the latest MEP Rate session;
 - `line-analyzed` once for each analyzed Trading Line, in Catalog order, as soon as that line is analyzed and before the next line is fetched, with its 1-based position, the number of analyzed Trading Lines and its snapshot entry.
 
 Run-level failures SHALL NOT be reported through the callback; they are the run's result. An invalid request SHALL report nothing. Without a callback the run SHALL behave the same.
@@ -59,11 +59,13 @@ So that each line can be reported as soon as it is analyzed, each analyzed Tradi
 
 ### Requirement: the command logs progress and exits with the run's outcome
 
-The `analyze` command SHALL log each progress report as it arrives through the Observatory logger: structured JSON in production, readable lines locally. Each analyzed line SHALL be logged exactly once with its position, its Trading Line ID and its outcome: `available` with its last session and Event count, or `unavailable` with its reason. An `insufficient-liquidity` line SHALL also show its participation and median daily traded value; other unavailable reasons SHALL show the line's message and log as warnings. A successful run SHALL end with one entry giving the available and unavailable counts, the snapshot locations and the run's duration.
+The `analyze` command SHALL log each progress report as it arrives through the Observatory logger: structured JSON in production, readable lines locally. Each analyzed line SHALL be logged exactly once with its position, its Trading Line ID and its outcome: `available` with its last session and Event count, or `unavailable` with its reason. An `insufficient-liquidity` line SHALL also show its participation and median daily traded value; other unavailable reasons SHALL show the line's message and log as warnings. When the latest MEP Rate session is before the Requested-Through Session, which happens on a holiday or when the provider has not yet published the session, the command SHALL log a warning naming both dates. A successful run SHALL end with one entry giving the available and unavailable counts, how many available lines end before the latest MEP Rate session, the snapshot locations and the run's duration.
 
 Every failure, whether an invalid invocation, a run failure or an unexpected error, SHALL be logged as one error entry whose message starts with `Analysis Run failed:`; for a run failure it SHALL contain the failure reason. Logs SHALL NOT contain the storage configuration's credentials.
 
 The command SHALL exit with status `0` after a snapshot is written and with a non-zero status otherwise. The process SHALL NOT stay alive after the run ends, so that a scheduler that waits for it to exit can start the next run.
+
+The run SHALL have a deadline, 30 minutes by default. A run still unfinished at the deadline SHALL be logged as a failure with reason `deadline-exceeded` and the process SHALL exit non-zero, even if a request is still pending. Railway skips a cron run while the previous one is still running, so a hung request would otherwise block every later run.
 
 #### Scenario: line outcomes
 
@@ -79,3 +81,18 @@ The command SHALL exit with status `0` after a snapshot is written and with a no
 
 - **WHEN** the storage credentials contain a sentinel value and the bucket write fails
 - **THEN** no log entry contains the sentinel
+
+#### Scenario: requested session has no MEP Rate
+
+- **WHEN** the Requested-Through Session is 2026-10-01 and the latest MEP Rate session is 2026-09-30
+- **THEN** the command logs a warning `No MEP Rate session on 2026-10-01; analyzing through 2026-09-30.`
+
+#### Scenario: lines ending before the latest session are counted
+
+- **WHEN** one available line's window ends one session before the latest MEP Rate session
+- **THEN** the completion entry counts one line ending before that session
+
+#### Scenario: hung run
+
+- **WHEN** a provider request never answers and the deadline passes
+- **THEN** the command logs `Analysis Run failed: deadline-exceeded: ...` and exits non-zero

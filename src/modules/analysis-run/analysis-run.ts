@@ -166,6 +166,7 @@ async function runAnalysis(
 
 	reportProgress({
 		type: 'mep-rate-source-fetched',
+		requestedThroughSession,
 		latestRateSessionDate: mepRates.latestRateSessionDate,
 	});
 

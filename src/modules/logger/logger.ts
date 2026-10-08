@@ -21,7 +21,14 @@ export interface LoggerEnvironment {
 const { isoTime } = pino.stdTimeFunctions;
 
 const DEFAULT_LOGGER_NAME = 'OBSERVATORY';
-const SENSITIVE_FIELD_NAMES = ['password', 'token', 'apiKey', 'secret'] as const;
+const SENSITIVE_FIELD_NAMES = [
+	'password',
+	'token',
+	'apiKey',
+	'secret',
+	'accessKeyId',
+	'secretAccessKey',
+] as const;
 const DEFAULT_REDACT_PATHS = [
 	...SENSITIVE_FIELD_NAMES,
 	...SENSITIVE_FIELD_NAMES.map((fieldName) => `*.${fieldName}`),

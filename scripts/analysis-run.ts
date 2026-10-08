@@ -18,6 +18,9 @@ import type {
 } from '#modules/analysis-run/index.ts';
 
 const PROVIDER_REQUEST_TIMEOUT_MS = 20_000;
+// Railway skips a cron run while the previous one is still running, so a hung request (the
+// snapshot write has no timeout) must not outlive the next schedule. A full run takes minutes.
+const RUN_DEADLINE_MS = 30 * 60_000;
 
 type AnalysisRunInvocation = Readonly<{
 	requestedThroughSession: string;
@@ -38,7 +41,15 @@ export type AnalysisRunCommand = Readonly<{
 	getCurrentInstant: () => string;
 	/** Provider, pacing and Catalog overrides; the defaults fetch Open BYMADATA. */
 	runnerOptions?: Omit<AnalysisRunnerOptions, 'getCurrentInstant' | 'reportProgress'>;
+	/** How long the run may take before it is logged as failed; 30 minutes by default. */
+	deadlineMs?: number;
 }>;
+
+/**
+ * `deadline-exceeded` leaves the run's pending work behind, which can keep the process alive, so
+ * the caller must exit explicitly.
+ */
+export type AnalysisRunCommandOutcome = 'snapshot-written' | 'failed' | 'deadline-exceeded';
 
 /**
  * Resolves the Requested-Through Session and where the snapshot goes.
@@ -102,18 +113,45 @@ function createLocalFileStorage(outputPath: string): AnalysisSnapshotStorage {
 
 /**
  * Runs the Analysis Run and logs its progress: the start, the MEP rate source, each analyzed line
- * as soon as it is analyzed, and the outcome. Every failure, including an invalid invocation, is
- * logged as one error entry starting with `Analysis Run failed:`.
+ * as soon as it is analyzed, and the outcome. Every failure, including an invalid invocation and a
+ * run that misses its deadline, is logged as one error entry starting with `Analysis Run failed:`.
  *
  * Logs carry dates, Trading Line IDs, outcomes and snapshot keys only, never the storage
  * configuration.
- *
- * @returns whether a snapshot was written.
  */
-export async function runAnalysisCommand(command: AnalysisRunCommand): Promise<boolean> {
-	const { args, environment, log, getCurrentInstant, runnerOptions } = command;
+export async function runAnalysisCommand(
+	command: AnalysisRunCommand,
+): Promise<AnalysisRunCommandOutcome> {
+	const { log, deadlineMs = RUN_DEADLINE_MS } = command;
 	const startedAt = performance.now();
 	const measureDurationSeconds = () => Math.round((performance.now() - startedAt) / 1_000);
+	const deadline = startDeadline(deadlineMs);
+
+	try {
+		return await Promise.race([
+			runAndLogAnalysis(command, measureDurationSeconds),
+			deadline.expiry.then(() => {
+				log.error(
+					{
+						event: 'run-failed',
+						reason: 'deadline-exceeded',
+						durationSeconds: measureDurationSeconds(),
+					},
+					`Analysis Run failed: deadline-exceeded: the run did not finish within ${deadlineMs} ms.`,
+				);
+				return 'deadline-exceeded' as const;
+			}),
+		]);
+	} finally {
+		deadline.clear();
+	}
+}
+
+async function runAndLogAnalysis(
+	command: AnalysisRunCommand,
+	measureDurationSeconds: () => number,
+): Promise<Exclude<AnalysisRunCommandOutcome, 'deadline-exceeded'>> {
+	const { args, environment, log, getCurrentInstant, runnerOptions } = command;
 
 	try {
 		const invocation = resolveAnalysisRunInvocation(args, environment, getCurrentInstant());
@@ -133,19 +171,28 @@ export async function runAnalysisCommand(command: AnalysisRunCommand): Promise<b
 				{ event: 'run-failed', reason: result.reason, durationSeconds },
 				`Analysis Run failed: ${result.reason}: ${result.message}`,
 			);
-			return false;
+			return 'failed';
 		}
 
 		logCompletion(log, result.snapshot, result.locations, durationSeconds);
-		return true;
+		return 'snapshot-written';
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		log.error(
 			{ event: 'run-failed', durationSeconds: measureDurationSeconds() },
 			`Analysis Run failed: ${message}`,
 		);
-		return false;
+		return 'failed';
 	}
+}
+
+function startDeadline(milliseconds: number): Readonly<{ expiry: Promise<void>; clear(): void }> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const expiry = new Promise<void>((resolve) => {
+		timer = setTimeout(resolve, milliseconds);
+	});
+
+	return { expiry, clear: () => clearTimeout(timer) };
 }
 
 function logProgress(log: AnalysisRunLog, progress: AnalysisRunProgress): void {
@@ -165,11 +212,20 @@ function logProgress(log: AnalysisRunLog, progress: AnalysisRunProgress): void {
 	}
 
 	if (progress.type === 'mep-rate-source-fetched') {
-		const { latestRateSessionDate } = progress;
-		log.info(
-			{ event: progress.type, latestRateSessionDate },
-			`MEP rate source fetched; latest rate session ${latestRateSessionDate}.`,
-		);
+		const { requestedThroughSession, latestRateSessionDate } = progress;
+		const fields = { event: progress.type, requestedThroughSession, latestRateSessionDate };
+		// A holiday and a provider that has not published the session yet look the same here.
+		const hasRateForRequestedSession = latestRateSessionDate === requestedThroughSession;
+
+		if (!hasRateForRequestedSession) {
+			log.warn(
+				fields,
+				`No MEP Rate session on ${requestedThroughSession}; analyzing through ${latestRateSessionDate}.`,
+			);
+			return;
+		}
+
+		log.info(fields, `MEP rate source fetched; latest rate session ${latestRateSessionDate}.`);
 		return;
 	}
 
@@ -184,12 +240,12 @@ function logAnalyzedLine(
 	log: AnalysisRunLog,
 	progress: Extract<AnalysisRunProgress, { type: 'line-analyzed' }>,
 ): void {
-	const { line, position: linePosition, analyzedLineCount } = progress;
+	const { line, position, analyzedLineCount } = progress;
 	const { tradingLineId, status } = line;
-	const position = `[${linePosition}/${analyzedLineCount}]`;
+	const positionLabel = `[${position}/${analyzedLineCount}]`;
 	const fields = {
 		event: progress.type,
-		position: linePosition,
+		position,
 		analyzedLineCount,
 		tradingLineId,
 		status,
@@ -200,7 +256,7 @@ function logAnalyzedLine(
 		const eventCount = line.events.length;
 		log.info(
 			{ ...fields, lastSessionDate, eventCount },
-			`${position} ${tradingLineId}: available (last session ${lastSessionDate}, ${eventCount} events)`,
+			`${positionLabel} ${tradingLineId}: available (last session ${lastSessionDate}, ${eventCount} events)`,
 		);
 		return;
 	}
@@ -210,14 +266,14 @@ function logAnalyzedLine(
 		const median = formatUsdThousands(medianDailyTradedValueUsd);
 		log.info(
 			{ ...fields, reason: line.reason, participation, medianDailyTradedValueUsd },
-			`${position} ${tradingLineId}: unavailable: ${line.reason} (participation ${participation.toFixed(2)}, median ${median})`,
+			`${positionLabel} ${tradingLineId}: unavailable: ${line.reason} (participation ${participation.toFixed(2)}, median ${median})`,
 		);
 		return;
 	}
 
 	log.warn(
 		{ ...fields, reason: line.reason },
-		`${position} ${tradingLineId}: unavailable: ${line.reason} (${line.message})`,
+		`${positionLabel} ${tradingLineId}: unavailable: ${line.reason} (${line.message})`,
 	);
 }
 
@@ -235,10 +291,16 @@ function logCompletion(
 	locations: readonly string[],
 	durationSeconds: number,
 ): void {
-	const availableLineCount = snapshot.analyzedLines.filter(
-		(line) => line.status === 'available',
-	).length;
+	const { latestRateSessionDate } = snapshot.mepRateSource;
+	const availableLines = snapshot.analyzedLines.flatMap((line) =>
+		line.status === 'available' ? [line] : [],
+	);
+	const availableLineCount = availableLines.length;
 	const unavailableLineCount = snapshot.analyzedLines.length - availableLineCount;
+	// Lines that did not trade on the latest market session; many at once suggests a provider lag.
+	const lateLineCount = availableLines.filter(
+		(line) => line.window.lastSessionDate < latestRateSessionDate,
+	).length;
 
 	log.info(
 		{
@@ -246,12 +308,14 @@ function logCompletion(
 			requestedThroughSession: snapshot.requestedThroughSession,
 			ranAt: snapshot.ranAt,
 			analysisConfigurationVersion: snapshot.analysisConfigurationVersion,
+			latestRateSessionDate,
 			availableLineCount,
+			lateLineCount,
 			unavailableLineCount,
 			locations,
 			durationSeconds,
 		},
-		`Analysis Run through ${snapshot.requestedThroughSession} completed in ${durationSeconds} s: ${availableLineCount} available, ${unavailableLineCount} unavailable; written to ${locations.join(', ')}.`,
+		`Analysis Run through ${snapshot.requestedThroughSession} completed in ${durationSeconds} s: ${availableLineCount} available (${lateLineCount} ending before ${latestRateSessionDate}), ${unavailableLineCount} unavailable; written to ${locations.join(', ')}.`,
 	);
 }
 
@@ -266,11 +330,16 @@ async function fetchOpenBymadataWithTimeout(
 }
 
 if (import.meta.main) {
-	const isSnapshotWritten = await runAnalysisCommand({
+	const outcome = await runAnalysisCommand({
 		args: Bun.argv.slice(2),
 		environment: Bun.env,
 		log: createLogger({ name: 'ANALYSIS-RUN' }),
 		getCurrentInstant: () => Temporal.Now.instant().toString(),
 	});
-	process.exitCode = isSnapshotWritten ? 0 : 1;
+
+	if (outcome === 'deadline-exceeded') {
+		process.exit(1);
+	}
+
+	process.exitCode = outcome === 'snapshot-written' ? 0 : 1;
 }

@@ -10,7 +10,7 @@ import { loadGgalFixture } from '#modules/technical-analysis/tests/support/index
 import { resolveAnalysisRunInvocation, runAnalysisCommand } from './analysis-run.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
-import type { AnalysisRunLog } from './analysis-run.ts';
+import type { AnalysisRunCommandOutcome, AnalysisRunLog } from './analysis-run.ts';
 
 const DRY_RUN_ARGS = ['--output', 'snapshot.json'];
 const WEDNESDAY_MORNING = '2026-10-07T09:00:00Z';
@@ -137,17 +137,18 @@ describe('Analysis Run command logging', () => {
 	afterAll(() => rm(SNAPSHOT_PATH, { force: true }));
 
 	test('logs the start, the MEP rate source, each line in order and the outcome', async () => {
-		const { entries, isSnapshotWritten } = await runCommandWithProvider({
-			GGAL: ggalPesoBars,
+		// Galicia's last bar is missing, so it ends one session before the MEP rate source.
+		const { entries, outcome } = await runCommandWithProvider({
+			GGAL: ggalPesoBars.slice(0, -1),
 			THIN: thinlyTradedPesoBars,
 		});
 
-		expect(isSnapshotWritten).toBe(true);
+		expect(outcome).toBe('snapshot-written');
 		expect(entries.map(({ level, message }) => `${level} ${message}`)).toEqual([
 			`info Analysis Run through 2026-09-30: 3 lines, configuration v${ANALYSIS_CONFIGURATION.version}.`,
 			'info MEP rate source fetched; latest rate session 2026-09-30.',
 			expect.stringMatching(
-				/^info \[1\/3\] galicia-stock-byma-ars: available \(last session 2026-09-30, \d+ events\)$/,
+				/^info \[1\/3\] galicia-stock-byma-ars: available \(last session 2026-09-29, \d+ events\)$/,
 			),
 			expect.stringMatching(
 				/^info \[2\/3\] thin-stock-byma-ars: unavailable: insufficient-liquidity \(participation 1\.00, median USD \d+k\)$/,
@@ -156,7 +157,7 @@ describe('Analysis Run command logging', () => {
 				/^warn \[3\/3\] missing-stock-byma-ars: unavailable: fetch-failed \(.+\)$/,
 			),
 			expect.stringMatching(
-				/^info Analysis Run through 2026-09-30 completed in \d+ s: 1 available, 2 unavailable; written to .+\.json\.$/,
+				/^info Analysis Run through 2026-09-30 completed in \d+ s: 1 available \(1 ending before 2026-09-30\), 2 unavailable; written to .+\.json\.$/,
 			),
 		]);
 		expect(entries[2]!.fields).toMatchObject({
@@ -165,17 +166,34 @@ describe('Analysis Run command logging', () => {
 			analyzedLineCount: 3,
 			tradingLineId: 'galicia-stock-byma-ars',
 			status: 'available',
-			lastSessionDate: '2026-09-30',
+			lastSessionDate: '2026-09-29',
+		});
+		expect(entries.at(-1)!.fields).toMatchObject({ lateLineCount: 1 });
+	});
+
+	test('warns when the requested session has no MEP Rate, as on a holiday', async () => {
+		const { entries, outcome } = await runCommandWithProvider(
+			{ GGAL: ggalPesoBars, THIN: thinlyTradedPesoBars },
+			{
+				args: ['--through-session', '2026-10-01', '--output', SNAPSHOT_PATH],
+				currentInstant: '2026-10-02T15:00:00Z',
+			},
+		);
+
+		expect(outcome).toBe('snapshot-written');
+		expect(entries[1]).toMatchObject({
+			level: 'warn',
+			message: 'No MEP Rate session on 2026-10-01; analyzing through 2026-09-30.',
 		});
 	});
 
 	test('logs a failed MEP rate source as one error and reports failure', async () => {
-		const { entries, isSnapshotWritten } = await runCommandWithProvider({
+		const { entries, outcome } = await runCommandWithProvider({
 			GGAL: ggalPesoBars,
 			AL30D: null,
 		});
 
-		expect(isSnapshotWritten).toBe(false);
+		expect(outcome).toBe('failed');
 		expect(entries.map(({ level }) => level)).toEqual(['info', 'error']);
 		expect(entries[1]!.message).toStartWith(
 			'Analysis Run failed: mep-rate-source-unavailable: ',
@@ -184,14 +202,12 @@ describe('Analysis Run command logging', () => {
 	});
 
 	test('logs an invalid invocation as one error', async () => {
-		const { entries, isSnapshotWritten } = await runCommandWithProvider({}, [
-			'--through-session',
-			'2026-02-30',
-			'--output',
-			SNAPSHOT_PATH,
-		]);
+		const { entries, outcome } = await runCommandWithProvider(
+			{},
+			{ args: ['--through-session', '2026-02-30', '--output', SNAPSHOT_PATH] },
+		);
 
-		expect(isSnapshotWritten).toBe(false);
+		expect(outcome).toBe('failed');
 		expect(entries).toEqual([
 			{
 				level: 'error',
@@ -201,15 +217,30 @@ describe('Analysis Run command logging', () => {
 		]);
 	});
 
+	test('fails a run that does not finish before its deadline', async () => {
+		const { entries, outcome } = await runCommandWithProvider(
+			{},
+			{ deadlineMs: 20, fetchFromProvider: () => new Promise<Response>(() => {}) },
+		);
+
+		expect(outcome).toBe('deadline-exceeded');
+		expect(entries.at(-1)).toMatchObject({
+			level: 'error',
+			message: 'Analysis Run failed: deadline-exceeded: the run did not finish within 20 ms.',
+		});
+	});
+
 	test('never logs storage credentials, even when the bucket write fails', async () => {
-		const { entries, isSnapshotWritten } = await runCommandWithProvider(
+		const { entries, outcome } = await runCommandWithProvider(
 			{ GGAL: ggalPesoBars, THIN: thinlyTradedPesoBars },
-			['--through-session', '2026-09-30'],
-			UNREACHABLE_STORAGE_ENVIRONMENT,
+			{
+				args: ['--through-session', '2026-09-30'],
+				environment: UNREACHABLE_STORAGE_ENVIRONMENT,
+			},
 		);
 		const serializedLog = JSON.stringify(entries);
 
-		expect(isSnapshotWritten).toBe(false);
+		expect(outcome).toBe('failed');
 		expect(entries.at(-1)!.message).toStartWith('Analysis Run failed: snapshot-write-failed: ');
 		expect(serializedLog).not.toContain(SECRET_SENTINEL);
 		expect(serializedLog).not.toContain(ACCESS_KEY_SENTINEL);
@@ -218,17 +249,26 @@ describe('Analysis Run command logging', () => {
 
 type LogEntry = Readonly<{ level: 'info' | 'warn' | 'error'; message: string; fields: object }>;
 
+type CommandOverrides = Readonly<{
+	args?: readonly string[];
+	environment?: Readonly<Record<string, string>>;
+	currentInstant?: string;
+	deadlineMs?: number;
+	fetchFromProvider?: (input: string | URL | Request) => Promise<Response>;
+}>;
+
 /** Symbols missing from the provider answer with an HTTP error; `null` forces one. */
 async function runCommandWithProvider(
 	provider: Readonly<Record<string, readonly DailyBar[] | null>>,
-	args: readonly string[] = ['--through-session', '2026-09-30', '--output', SNAPSHOT_PATH],
-	environment: Readonly<Record<string, string>> = {},
-): Promise<Readonly<{ entries: readonly LogEntry[]; isSnapshotWritten: boolean }>> {
-	const bars: Readonly<Record<string, readonly DailyBar[] | null>> = {
-		AL30: al30Bars,
-		AL30D: al30dBars,
-		...provider,
-	};
+	overrides: CommandOverrides = {},
+): Promise<Readonly<{ entries: readonly LogEntry[]; outcome: AnalysisRunCommandOutcome }>> {
+	const {
+		args = ['--through-session', '2026-09-30', '--output', SNAPSHOT_PATH],
+		environment = {},
+		currentInstant = RAN_AT,
+		deadlineMs = 60_000,
+		fetchFromProvider = createFakeProvider(provider),
+	} = overrides;
 	const entries: LogEntry[] = [];
 	const recordAt =
 		(level: LogEntry['level']) =>
@@ -240,23 +280,36 @@ async function runCommandWithProvider(
 		warn: recordAt('warn'),
 		error: recordAt('error'),
 	};
-	const isSnapshotWritten = await runAnalysisCommand({
+	const outcome = await runAnalysisCommand({
 		args,
 		environment,
 		log,
-		getCurrentInstant: () => RAN_AT,
+		getCurrentInstant: () => currentInstant,
+		deadlineMs,
 		runnerOptions: {
-			fetchFromProvider: (input) => {
-				const url = new URL(input instanceof Request ? input.url : input);
-				const symbol = url.searchParams.get('symbol')!.replace(' 24HS', '');
-				return Promise.resolve(createProviderResponse(bars[symbol] ?? null));
-			},
+			fetchFromProvider,
 			pause: () => Promise.resolve(),
 			catalog: createTestCatalog(),
 		},
 	});
 
-	return { entries, isSnapshotWritten };
+	return { entries, outcome };
+}
+
+function createFakeProvider(
+	provider: Readonly<Record<string, readonly DailyBar[] | null>>,
+): (input: string | URL | Request) => Promise<Response> {
+	const bars: Readonly<Record<string, readonly DailyBar[] | null>> = {
+		AL30: al30Bars,
+		AL30D: al30dBars,
+		...provider,
+	};
+
+	return (input) => {
+		const url = new URL(input instanceof Request ? input.url : input);
+		const symbol = url.searchParams.get('symbol')!.replace(' 24HS', '');
+		return Promise.resolve(createProviderResponse(bars[symbol] ?? null));
+	};
 }
 
 function createProviderResponse(bars: readonly DailyBar[] | null): Response {

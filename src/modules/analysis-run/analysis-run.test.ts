@@ -457,6 +457,29 @@ describe('createAnalysisRunner', () => {
 		]);
 	});
 
+	test('analyzes through the last session before a Requested-Through Session with no session', async () => {
+		// The fixture's last session is 2026-09-30; 2026-10-01 is treated as a holiday.
+		const writes: AnalysisSnapshot[] = [];
+		const storage: AnalysisSnapshotStorage = {
+			write: (snapshot) => {
+				writes.push(snapshot);
+				return Promise.resolve({ ok: true, locations: ['memory'] });
+			},
+		};
+		const runner = createAnalysisRunner(storage, {
+			...createRunnerOptions(createHealthyProvider()),
+			getCurrentInstant: () => '2026-10-02T15:00:00Z',
+		});
+
+		const result = await runner.run({ requestedThroughSession: '2026-10-01' });
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+
+		expect(result.ok && result.snapshot.requestedThroughSession).toBe('2026-10-01');
+		expect(result.ok && result.snapshot.mepRateSource.latestRateSessionDate).toBe('2026-09-30');
+		expect(ggal.latestState.sessionDate).toBe('2026-09-30');
+		expect(writes).toHaveLength(1);
+	});
+
 	test('reports a failed snapshot write', async () => {
 		const failingStorage: AnalysisSnapshotStorage = {
 			write: () => Promise.resolve({ ok: false, message: 'bucket unavailable' }),
@@ -481,15 +504,21 @@ describe('Analysis Run progress', () => {
 		const provider = { ...createHealthyProvider(), AAPL: 'http-error' as const };
 		const timeline = await recordRunTimeline(provider);
 
+		// Exactly one historical request pause separates every pair of provider requests, including
+		// the MEP rate source's last request and the first analyzed line's.
 		expect(timeline).toEqual([
 			'run-started 2026-09-30 lines=3 configuration=' + ANALYSIS_CONFIGURATION.version,
 			'request AL30',
+			'pause 2000',
 			'request AL30D',
 			'mep-rate-source-fetched 2026-09-30',
+			'pause 2000',
 			'request GGAL',
 			'line 1/3 galicia-stock-byma-ars available',
+			'pause 2000',
 			'request AAPL',
 			'line 2/3 apple-cedear-byma-ars unavailable fetch-failed',
+			'pause 2000',
 			'request NEW',
 			'line 3/3 new-stock-byma-ars available',
 		]);
@@ -502,6 +531,7 @@ describe('Analysis Run progress', () => {
 		expect(timeline).toEqual([
 			'run-started 2026-09-30 lines=3 configuration=' + ANALYSIS_CONFIGURATION.version,
 			'request AL30',
+			'pause 2000',
 			'request AL30D',
 		]);
 	});
@@ -513,7 +543,7 @@ describe('Analysis Run progress', () => {
 	});
 });
 
-/** Provider requests and progress reports, interleaved in the order they happened. */
+/** Provider requests, pauses and progress reports, interleaved in the order they happened. */
 async function recordRunTimeline(
 	provider: FakeProvider,
 	requestedThroughSession = REQUESTED_THROUGH_SESSION,
@@ -524,6 +554,10 @@ async function recordRunTimeline(
 	};
 	const runner = createAnalysisRunner(storage, {
 		...createRunnerOptions(provider, (symbol) => timeline.push(`request ${symbol}`)),
+		pause: (milliseconds) => {
+			timeline.push(`pause ${milliseconds}`);
+			return Promise.resolve();
+		},
 		reportProgress: (progress) => timeline.push(describeProgress(progress)),
 	});
 

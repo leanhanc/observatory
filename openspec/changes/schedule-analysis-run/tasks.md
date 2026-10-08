@@ -2,11 +2,13 @@
 - [x] Draft proposal and delta spec; run strict OpenSpec validation.
 - [x] Default the Requested-Through Session to the previous Buenos Aires date in the command, with an injected clock.
 - [x] Test the weekday, Saturday and UTC-midnight defaults and that an explicit session wins, without network.
-- [x] Add `railway.json` with the start command, cron schedule and no restarts.
+- [x] Add the Railway config (now `railway/analysis-run.json`) with the start command, cron schedule and no restarts.
 - [x] Dry run locally without `--through-session`; check the exit code.
 - [x] Run tests, typecheck, lint, format and strict OpenSpec validation.
 - [x] Report progress from the runner through an optional callback, fetching one analyzed line per acquisition.
 - [x] Log progress, failures and completion from the command through the Observatory logger.
 - [x] Test progress order and outcomes, failure reporting and that credentials never reach the log.
-- [ ] Create the Railway service, set the bucket reference variables, and trigger one run (after Lean approves each step).
+- [x] Address the adversarial review: test request pacing, warn when the requested session has no MEP Rate and count late lines, add a run deadline, test the holiday run, redact storage credential field names, move the Railway config out of the repository root.
+- [ ] Create the Railway service with `/railway/analysis-run.json` as its config file, set the bucket reference variables, and trigger one run (after Lean approves each step).
+- [ ] At archive, reconcile the analysis-run spec Purpose by hand: replace "does not schedule itself" with the `analyze` command defaulting to the previous Buenos Aires date and being run by a Railway cron.
 - [ ] Review, then archive.

@@ -121,7 +121,11 @@ export type AnalysisRunProgress =
 			analyzedLineCount: number;
 			analysisConfigurationVersion: number;
 	  }>
-	| Readonly<{ type: 'mep-rate-source-fetched'; latestRateSessionDate: string }>
+	| Readonly<{
+			type: 'mep-rate-source-fetched';
+			requestedThroughSession: string;
+			latestRateSessionDate: string;
+	  }>
 	| Readonly<{
 			type: 'line-analyzed';
 			/** 1-based position of the line among the analyzed Trading Lines. */

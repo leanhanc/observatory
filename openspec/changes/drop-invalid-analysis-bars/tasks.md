@@ -1,0 +1,8 @@
+- [x] Find the invalid bars behind the dry run's `invalid-bars` lines: TGNO4, HUT and SATL on 2025-01-17, XLP on 2025-04-21, and ARM's ten all-zero bars.
+- [x] Draft the proposal and the `analysis-run` delta.
+- [x] Drop invalid bars of analyzed lines in the Analysis Run, validate the rest as a history, and record `droppedBarSessions`.
+- [x] Log an available line with dropped bars as a warning.
+- [x] Test a close outside the range, all-zero placeholder bars, participation after a drop, a duplicate session, every bar invalid, and the unchanged MEP rate source rule.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation and an Analysis Run dry run.
+- [ ] Review.
+- [ ] Archive after `add-large-move-safeguard`, whose requirement text this change's deltas build on.

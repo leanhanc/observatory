@@ -212,6 +212,25 @@ describe('Analysis Run command logging', () => {
 		});
 	});
 
+	test('warns about an available line with a dropped bar', async () => {
+		const droppedSession = ggalPesoBars.at(-5)!.sessionDate;
+		const ggalWithInvalidBar = ggalPesoBars.map((bar) =>
+			bar.sessionDate === droppedSession ? { ...bar, close: 0 } : bar,
+		);
+		const { entries } = await runCommandWithProvider({
+			GGAL: ggalWithInvalidBar,
+			THIN: thinlyTradedPesoBars,
+		});
+
+		expect(entries[2]).toMatchObject({
+			level: 'warn',
+			message: expect.stringMatching(
+				/^\[1\/3\] galicia-stock-byma-ars: available \(.+; 1 dropped bars\)$/,
+			),
+			fields: { droppedBarSessions: [droppedSession] },
+		});
+	});
+
 	test('logs a failed MEP rate source as one error and reports failure', async () => {
 		const { entries, outcome } = await runCommandWithProvider({
 			GGAL: ggalPesoBars,

@@ -186,11 +186,85 @@ describe('createAnalysisRunner', () => {
 		expect(writes).toHaveLength(1);
 	});
 
-	test('records a line whose bars fail validation as unavailable', async () => {
-		const lastBar = ggalPesoBars.at(-1)!;
+	test('drops a bar whose close is outside its range and keeps the line', async () => {
+		const droppedSession = '2025-06-02';
+		const pesoBar = ggalPesoBars.find((bar) => bar.sessionDate === droppedSession)!;
+		// 1.2% below the low: beyond the adapter's 1% repair tolerance.
 		const provider = {
 			...createHealthyProvider(),
-			AAPL: replaceBar(ggalPesoBars, lastBar.sessionDate, { close: lastBar.high * 2 }),
+			AAPL: replaceBar(ggalPesoBars, droppedSession, { close: pesoBar.low * 0.988 }),
+		};
+		const { result } = await runWithProvider(provider);
+		const apple = selectAvailableLine(result, 'apple-cedear-byma-ars');
+		const eventSessions = apple.events.map((entry) => entry.sessionDate);
+		const largeMoveSessions = apple.largeMoves.map((move) => move.sessionDate);
+
+		expect(apple.droppedBarSessions).toEqual([droppedSession]);
+		expect(apple.window.barCount).toBe(ggalDollarBars.length - 1);
+		expect(eventSessions).not.toContain(droppedSession);
+		expect(largeMoveSessions).not.toContain(droppedSession);
+		expect(selectAvailableLine(result, 'galicia-stock-byma-ars').droppedBarSessions).toEqual(
+			[],
+		);
+	});
+
+	test('drops placeholder bars before a line traded and analyzes from its first valid bar', async () => {
+		const placeholderBars = ggalPesoBars.slice(0, 10).map((bar) => ({
+			sessionDate: bar.sessionDate,
+			open: 0,
+			high: 0,
+			low: 0,
+			close: 0,
+			volume: 0,
+		}));
+		const provider = {
+			...createHealthyProvider(),
+			AAPL: [...placeholderBars, ...ggalPesoBars.slice(10)],
+		};
+		const { result } = await runWithProvider(provider);
+		const apple = selectAvailableLine(result, 'apple-cedear-byma-ars');
+
+		expect(apple.droppedBarSessions).toEqual(sessionDates.slice(0, 10));
+		expect(apple.window.firstSessionDate).toBe(sessionDates[10]!);
+	});
+
+	test('counts a dropped session as not traded for liquidity', async () => {
+		const thinDollarBars = sessionDates.map((sessionDate) => ({
+			...createFlatBar(sessionDate, 100),
+			volume: 200,
+		}));
+		const thinPesoBars = convertDollarBarsToPeso(thinDollarBars);
+		const droppedSession = sessionDates.at(-5)!;
+		const provider = {
+			...createHealthyProvider(),
+			NEW: replaceBar(thinPesoBars, droppedSession, { close: 0 }),
+		};
+		const { result } = await runWithProvider(provider);
+
+		expect(selectLine(result, 'new-stock-byma-ars')).toMatchObject({
+			reason: 'insufficient-liquidity',
+			liquidity: { participation: 124 / 125 },
+		});
+	});
+
+	test('records a line whose kept bars are not a history as unavailable', async () => {
+		const duplicatedBar = ggalPesoBars.at(-1)!;
+		const provider = {
+			...createHealthyProvider(),
+			AAPL: [...ggalPesoBars, duplicatedBar],
+		};
+		const { result } = await runWithProvider(provider);
+
+		expect(selectLine(result, 'apple-cedear-byma-ars')).toMatchObject({
+			status: 'unavailable',
+			reason: 'invalid-bars',
+		});
+	});
+
+	test('records a line whose every bar is invalid as invalid-bars, not as missing', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AAPL: ggalPesoBars.map((bar) => ({ ...bar, close: 0 })),
 		};
 		const { result } = await runWithProvider(provider);
 
@@ -287,17 +361,27 @@ describe('createAnalysisRunner', () => {
 		expect(writes).toEqual([]);
 	});
 
-	test('gives analyzed lines no zero-open exception', async () => {
+	test('drops an analyzed bar with a zero open instead of accepting it', async () => {
 		const provider = {
 			...createHealthyProvider(),
 			AAPL: replaceBar(ggalPesoBars, '2026-09-29', { open: 0 }),
 		};
 		const { result } = await runWithProvider(provider);
+		const apple = selectAvailableLine(result, 'apple-cedear-byma-ars');
 
-		expect(selectLine(result, 'apple-cedear-byma-ars')).toMatchObject({
-			status: 'unavailable',
-			reason: 'invalid-bars',
-		});
+		expect(apple.droppedBarSessions).toEqual(['2026-09-29']);
+		expect(result.ok && result.snapshot.mepRateSource.acceptedZeroOpens).toEqual([]);
+	});
+
+	test('drops no bar of the MEP rate source', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AL30D: replaceBar(al30dBars, '2026-09-29', { close: 5 }),
+		};
+		const { result, writes } = await runWithProvider(provider);
+
+		expect(result).toMatchObject({ ok: false, reason: 'mep-rate-source-unavailable' });
+		expect(writes).toEqual([]);
 	});
 
 	test('fails without writing when the MEP rate source yields no rate', async () => {

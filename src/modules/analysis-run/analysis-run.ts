@@ -35,6 +35,7 @@ import type {
 	BarHistoryPause,
 	DailyBar,
 	OpenBymadataTradingLineDescriptor,
+	ValidationIssue,
 } from '#modules/bar-history/index.ts';
 import type { CorporateAction } from '#modules/corporate-actions/index.ts';
 import type { MepRateSession } from '#modules/dollarized-series/index.ts';
@@ -66,6 +67,7 @@ type FetchedLine =
 			bars: readonly DailyBar[];
 			zeroOpenSessions: readonly string[];
 			rangeRepairSessions: readonly string[];
+			droppedBarSessions: readonly string[];
 	  }>
 	| Readonly<{
 			ok: false;
@@ -298,7 +300,7 @@ async function fetchTradingLines(
 	acquirer: BarHistoryAcquirer,
 	tradingLines: readonly OpenBymadataTradingLineDescriptor[],
 	requestedThroughSession: string,
-	acceptsZeroOpen: boolean,
+	isMepRateSource: boolean,
 ): Promise<ReadonlyMap<string, FetchedLine>> {
 	const acquisition = await acquirer.acquire({
 		requestedThroughSession,
@@ -318,14 +320,14 @@ async function fetchTradingLines(
 	return new Map(
 		acquisition.lines.map((line) => [
 			line.tradingLineId,
-			validateAcquiredLine(line, acceptsZeroOpen),
+			validateAcquiredLine(line, isMepRateSource),
 		]),
 	);
 }
 
 function validateAcquiredLine(
 	result: BarHistoryAcquisitionLineResult,
-	acceptsZeroOpen: boolean,
+	isMepRateSource: boolean,
 ): FetchedLine {
 	if (result.status === 'not-required') {
 		throw new Error(`The acquisition skipped ${result.tradingLineId} during a full fetch.`);
@@ -335,23 +337,79 @@ function validateAcquiredLine(
 		return { ok: false, reason: 'fetch-failed', message: result.message };
 	}
 
-	// Dollarization and analysis assume validated, chronological bars and do not check them.
-	const { issues, zeroOpenSessions } = acceptsZeroOpen
-		? validateMepRateSourceBars(result.bars)
-		: { issues: validateDailyBars(result.bars, true, 'bars').issues, zeroOpenSessions: [] };
+	const rangeRepairSessions = result.repairs.map((repair) => repair.sessionDate);
+
+	if (isMepRateSource) {
+		return validateMepRateSourceLine(result.bars, rangeRepairSessions);
+	}
+
+	return validateAnalyzedLine(result.bars, rangeRepairSessions);
+}
+
+/**
+ * A wrong MEP Rate would mis-dollarize every line on its session, so the MEP rate source drops no
+ * bar: any invalid bar other than an accepted zero open fails the line.
+ */
+function validateMepRateSourceLine(
+	bars: readonly DailyBar[],
+	rangeRepairSessions: readonly string[],
+): FetchedLine {
+	const { issues, zeroOpenSessions } = validateMepRateSourceBars(bars);
 
 	if (issues.length > 0) {
-		const firstIssue = issues[0];
-		const message = `${issues.length} invalid Daily Bar issue(s); first: ${firstIssue?.path}: ${firstIssue?.message}`;
-		return { ok: false, reason: 'invalid-bars', message };
+		return createInvalidBarsFailure(issues);
+	}
+
+	return { ok: true, bars, zeroOpenSessions, rangeRepairSessions, droppedBarSessions: [] };
+}
+
+/**
+ * Drops each bar that is not a valid Daily Bar on its own, so one wrong bar does not hide the whole
+ * line, and then requires the kept bars to be a chronological history. A dropped session is treated
+ * like a session the line did not trade.
+ */
+function validateAnalyzedLine(
+	bars: readonly DailyBar[],
+	rangeRepairSessions: readonly string[],
+): FetchedLine {
+	const keptBars = bars.filter(checkIfBarIsValid);
+	const droppedBarSessions = bars
+		.filter((bar) => !checkIfBarIsValid(bar))
+		.map((bar) => bar.sessionDate);
+	const isEveryBarDropped = bars.length > 0 && keptBars.length === 0;
+
+	if (isEveryBarDropped) {
+		return {
+			ok: false,
+			reason: 'invalid-bars',
+			message: `All ${bars.length} Daily Bars are invalid.`,
+		};
+	}
+
+	// Dollarization and analysis assume validated, chronological bars and do not check them.
+	const { issues } = validateDailyBars(keptBars, true, 'bars');
+
+	if (issues.length > 0) {
+		return createInvalidBarsFailure(issues);
 	}
 
 	return {
 		ok: true,
-		bars: result.bars,
-		zeroOpenSessions,
-		rangeRepairSessions: result.repairs.map((repair) => repair.sessionDate),
+		bars: keptBars,
+		zeroOpenSessions: [],
+		rangeRepairSessions,
+		droppedBarSessions,
 	};
+}
+
+function checkIfBarIsValid(bar: DailyBar): boolean {
+	return validateDailyBars([bar], false, 'bar').isValid;
+}
+
+function createInvalidBarsFailure(issues: readonly ValidationIssue[]): FetchedLine {
+	const firstIssue = issues[0];
+	const message = `${issues.length} invalid Daily Bar issue(s); first: ${firstIssue?.path}: ${firstIssue?.message}`;
+	return { ok: false, reason: 'invalid-bars', message };
 }
 
 function calculateRunMepRates(fetchedLines: ReadonlyMap<string, FetchedLine>): MepRatesResult {
@@ -525,6 +583,7 @@ function analyzeTradingLine(
 		},
 		sessionsWithoutMepRate: dollarizedSeries.sessionsWithoutMepRate,
 		rangeRepairSessions: fetchedLine.rangeRepairSessions,
+		droppedBarSessions: fetchedLine.droppedBarSessions,
 	};
 }
 

@@ -274,8 +274,8 @@ function logAnalyzedLine(
 }
 
 /**
- * A Corporate Action the provider already adjusted is a stale list entry, so its line logs as a
- * warning.
+ * Dropped bars are a data problem, and a Corporate Action the provider already adjusted is a stale
+ * list entry, so either makes the line log as a warning.
  */
 function logAvailableLine(
 	log: AnalysisRunLog,
@@ -283,10 +283,11 @@ function logAvailableLine(
 	fields: object,
 	positionLabel: string,
 ): void {
-	const { tradingLineId, window, events, largeMoves } = line;
+	const { tradingLineId, window, events, largeMoves, droppedBarSessions } = line;
 	const lastSessionDate = window.lastSessionDate;
 	const eventCount = events.length;
 	const largeMoveCount = largeMoves.length;
+	const droppedBarCount = droppedBarSessions.length;
 	const corporateActions = line.corporateActions.map(({ exDate, status }) => ({
 		exDate,
 		status,
@@ -294,19 +295,22 @@ function logAvailableLine(
 	const corporateActionSummary = corporateActions
 		.map(({ exDate, status }) => `; corporate action ${exDate}: ${status}`)
 		.join('');
+	const droppedBarSummary = droppedBarCount > 0 ? `; ${droppedBarCount} dropped bars` : '';
 	const hasAlreadyAdjustedAction = corporateActions.some(
 		({ status }) => status === 'already-adjusted',
 	);
+	const shouldWarn = hasAlreadyAdjustedAction || droppedBarCount > 0;
 	const lineFields = {
 		...fields,
 		lastSessionDate,
 		eventCount,
 		largeMoveCount,
 		corporateActions,
+		droppedBarSessions,
 	};
-	const message = `${positionLabel} ${tradingLineId}: available (last session ${lastSessionDate}, ${eventCount} events, ${largeMoveCount} large moves${corporateActionSummary})`;
+	const message = `${positionLabel} ${tradingLineId}: available (last session ${lastSessionDate}, ${eventCount} events, ${largeMoveCount} large moves${corporateActionSummary}${droppedBarSummary})`;
 
-	if (hasAlreadyAdjustedAction) {
+	if (shouldWarn) {
 		log.warn(lineFields, message);
 		return;
 	}

@@ -49,6 +49,8 @@ export type AnalyzedLine =
 			sessionsWithoutMepRate: readonly string[];
 			/** Peso-line sessions whose range the adapter widened to contain the open and close. */
 			rangeRepairSessions: readonly string[];
+			/** Peso-line sessions whose bar was invalid and was dropped, as if the line had not traded. */
+			droppedBarSessions: readonly string[];
 	  }>
 	| Readonly<{
 			status: 'unavailable';

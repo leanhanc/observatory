@@ -133,6 +133,18 @@ const ggalPesoBars = ggalDollarBars.map((bar) => scaleBarPrices(bar, MEP_RATE));
 const thinlyTradedPesoBars = ggalPesoBars.map((bar) => ({ ...bar, volume: 1 }));
 const al30Bars = ggalDollarBars.map((bar) => createFlatBar(bar.sessionDate, MEP_RATE));
 const al30dBars = ggalDollarBars.map((bar) => createFlatBar(bar.sessionDate, 1));
+const GGAL_SHARE_DISTRIBUTION: CorporateAction = {
+	tradingLineId: 'galicia-stock-byma-ars',
+	exDate: '2025-06-02',
+	priceFactor: 0.5,
+	kind: 'share-distribution',
+	sourceUrl: 'https://example.com/notice',
+};
+// Galicia as a provider that did not adjust a 1:1 share distribution: earlier prices are twice the
+// later scale.
+const unadjustedGgalPesoBars = ggalPesoBars.map((bar) =>
+	bar.sessionDate < GGAL_SHARE_DISTRIBUTION.exDate ? scaleBarPrices(bar, 2) : bar,
+);
 
 describe('Analysis Run command logging', () => {
 	afterAll(() => rm(SNAPSHOT_PATH, { force: true }));
@@ -188,26 +200,56 @@ describe('Analysis Run command logging', () => {
 		});
 	});
 
-	test('warns about a listed Corporate Action the provider already adjusted', async () => {
-		const corporateAction = {
-			tradingLineId: 'galicia-stock-byma-ars',
-			exDate: '2025-06-02',
-			priceFactor: 0.5,
-			kind: 'share-distribution' as const,
-			sourceUrl: 'https://example.com/notice',
-		};
+	test('warns about a listed Corporate Action whose step is not observed, with its ratio', async () => {
 		const { entries } = await runCommandWithProvider(
 			{ GGAL: ggalPesoBars, THIN: thinlyTradedPesoBars },
-			{ corporateActions: [corporateAction] },
+			{ corporateActions: [GGAL_SHARE_DISTRIBUTION] },
 		);
 
 		expect(entries[2]).toMatchObject({
 			level: 'warn',
 			message: expect.stringMatching(
-				/^\[1\/3\] galicia-stock-byma-ars: available \(.+; corporate action 2025-06-02: already-adjusted\)$/,
+				/^\[1\/3\] galicia-stock-byma-ars: available \(.+; corporate action 2025-06-02: step-not-observed \(observed ×\d\.\d{3}; check the history before removing the entry\)\)$/,
 			),
 			fields: {
-				corporateActions: [{ exDate: '2025-06-02', status: 'already-adjusted' }],
+				corporateActions: [
+					{
+						exDate: '2025-06-02',
+						status: 'step-not-observed',
+						observedCloseRatio: expect.any(Number),
+					},
+				],
+			},
+		});
+	});
+
+	test('logs a line whose listed Corporate Action was applied at info', async () => {
+		const { entries } = await runCommandWithProvider(
+			{ GGAL: unadjustedGgalPesoBars, THIN: thinlyTradedPesoBars },
+			{ corporateActions: [GGAL_SHARE_DISTRIBUTION] },
+		);
+
+		expect(entries[2]).toMatchObject({
+			level: 'info',
+			message: expect.stringMatching(
+				/^\[1\/3\] galicia-stock-byma-ars: available \(.+, 0 large moves; corporate action 2025-06-02: applied\)$/,
+			),
+		});
+	});
+
+	test('warns about each Large One-Session Move with its session and ratio', async () => {
+		const { entries } = await runCommandWithProvider({
+			GGAL: unadjustedGgalPesoBars,
+			THIN: thinlyTradedPesoBars,
+		});
+
+		expect(entries[2]).toMatchObject({
+			level: 'warn',
+			message: expect.stringMatching(
+				/^\[1\/3\] galicia-stock-byma-ars: available \(.+, 1 large moves; large move 2025-06-02 ×0\.\d{3}\)$/,
+			),
+			fields: {
+				largeMoves: [{ sessionDate: '2025-06-02', closeRatio: expect.any(Number) }],
 			},
 		});
 	});
@@ -225,7 +267,26 @@ describe('Analysis Run command logging', () => {
 		expect(entries[2]).toMatchObject({
 			level: 'warn',
 			message: expect.stringMatching(
-				/^\[1\/3\] galicia-stock-byma-ars: available \(.+; 1 dropped bars\)$/,
+				/^\[1\/3\] galicia-stock-byma-ars: available \(.+; 1 dropped bar\)$/,
+			),
+			fields: { droppedBarSessions: [droppedSession] },
+		});
+	});
+
+	test('warns about an illiquid line with dropped bars, which lower its participation', async () => {
+		const droppedSession = ggalPesoBars.at(-5)!.sessionDate;
+		const thinWithInvalidBar = thinlyTradedPesoBars.map((bar) =>
+			bar.sessionDate === droppedSession ? { ...bar, close: 0 } : bar,
+		);
+		const { entries } = await runCommandWithProvider({
+			GGAL: ggalPesoBars,
+			THIN: thinWithInvalidBar,
+		});
+
+		expect(entries[3]).toMatchObject({
+			level: 'warn',
+			message: expect.stringMatching(
+				/^\[2\/3\] thin-stock-byma-ars: unavailable: insufficient-liquidity \(participation 0\.99, median USD \d+k; 1 dropped bar\)$/,
 			),
 			fields: { droppedBarSessions: [droppedSession] },
 		});

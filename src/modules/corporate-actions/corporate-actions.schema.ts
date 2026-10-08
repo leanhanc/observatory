@@ -1,12 +1,22 @@
 import * as v from 'valibot';
 
+import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
 import { checkIfIsoDateIsValid } from '#lib/utils/validation.ts';
+
+const { maximumStepDeviation } = ANALYSIS_CONFIGURATION.corporateActions;
+
+// The double-adjustment guard accepts an observed step within `maximumStepDeviation` of the factor.
+// A factor at least that deviation squared away from 1 keeps the accepted band at least
+// `maximumStepDeviation` away from 1, so an already-adjusted history is adjusted again only when a
+// real move of that size lands on the ex-date. Nearer factors, such as a 5-for-4 split's 0.8, cannot
+// be listed.
+const MINIMUM_FACTOR_DEVIATION = maximumStepDeviation ** 2;
 
 const messages = {
 	additionalField: 'Value contains a field not supported by Corporate Action list schema v1.',
 	invalidDate: 'Date must be a real YYYY-MM-DD date.',
 	invalidIdentifier: 'Identifier must use lowercase kebab-case.',
-	invalidPriceFactor: 'Price factor must be a positive finite number other than 1.',
+	invalidPriceFactor: `Price factor must be a positive finite number at most 1/${MINIMUM_FACTOR_DEVIATION} or at least ${MINIMUM_FACTOR_DEVIATION}.`,
 	mismatchedPriceFactor:
 		'A reverse split needs a price factor above 1; a split or share distribution, below 1.',
 	invalidSchemaVersion: 'Schema version must be 1.',
@@ -75,7 +85,12 @@ function checkIfUrlIsHttps(value: string): boolean {
 }
 
 function checkIfPriceFactorIsUsable(value: number): boolean {
-	return Number.isFinite(value) && value > 0 && value !== 1;
+	if (!Number.isFinite(value) || value <= 0) {
+		return false;
+	}
+
+	const deviationFromNoStep = Math.max(value, 1 / value);
+	return deviationFromNoStep >= MINIMUM_FACTOR_DEVIATION;
 }
 
 function checkIfPriceFactorMatchesKind(action: { kind: string; priceFactor: number }): boolean {

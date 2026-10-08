@@ -125,7 +125,7 @@ An issuer's decision, such as a split, a reverse split or a share distribution, 
 _Avoid_: Split when referring to every kind, adjustment when referring to the issuer's decision
 
 **Large One-Session Move**:
-A completed Trading Session whose close moved by a configured factor or more from the previous Daily Bar's close, up or down. It is large enough to be an unadjusted Corporate Action; it describes the move's size and does not say what caused it.
+A completed Trading Session whose dollarized close moved by a configured factor or more from the previous dollarized close, up or down. It is large enough to be an unadjusted Corporate Action; it describes the move's size and does not say what caused it.
 _Avoid_: Split detection, anomaly, outlier
 
 **Situation**:

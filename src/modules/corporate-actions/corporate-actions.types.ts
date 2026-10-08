@@ -23,10 +23,12 @@ export type CorporateActionListValidation =
 /**
  * - `applied`: the fetched data still showed the step, and the bars before the ex-date were
  *   rescaled.
- * - `already-adjusted`: the step was absent, so the provider has adjusted the history itself.
+ * - `step-not-observed`: the close ratio across the ex-date is not within the tolerance of the
+ *   factor, so nothing was rescaled. The provider may have adjusted the history, or a real move may
+ *   hide the step; `observedCloseRatio` lets a reader tell which.
  * - `outside-window`: the bars do not straddle the ex-date, so there was nothing to correct.
  */
-export type CorporateActionStatus = 'applied' | 'already-adjusted' | 'outside-window';
+export type CorporateActionStatus = 'applied' | 'step-not-observed' | 'outside-window';
 
 export type CorporateActionOutcome = CorporateAction &
 	Readonly<{

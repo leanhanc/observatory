@@ -244,7 +244,28 @@ describe('createAnalysisRunner', () => {
 		expect(selectLine(result, 'new-stock-byma-ars')).toMatchObject({
 			reason: 'insufficient-liquidity',
 			liquidity: { participation: 124 / 125 },
+			droppedBarSessions: [droppedSession],
 		});
+	});
+
+	test('records the dropped bars of a line they pushed below the participation floor', async () => {
+		// Thirteen dropped sessions leave 112 of 125 traded, below the 90% participation floor.
+		const droppedSessions = sessionDates.slice(-13);
+		const provider = {
+			...createHealthyProvider(),
+			AAPL: ggalPesoBars.map((bar) =>
+				droppedSessions.includes(bar.sessionDate) ? { ...bar, close: 0 } : bar,
+			),
+		};
+		const { result } = await runWithProvider(provider);
+
+		expect(selectLine(result, 'apple-cedear-byma-ars')).toMatchObject({
+			status: 'unavailable',
+			reason: 'insufficient-liquidity',
+			liquidity: { participation: 112 / 125 },
+			droppedBarSessions: droppedSessions,
+		});
+		expect(selectLine(result, 'galicia-stock-byma-ars').status).toBe('available');
 	});
 
 	test('records a line whose kept bars are not a history as unavailable', async () => {
@@ -481,6 +502,8 @@ describe('createAnalysisRunner', () => {
 			message:
 				'The line did not trade regularly or heavily enough over the liquidity window.',
 			liquidity: { participation: 1, medianDailyTradedValueUsd: 20_000 },
+			rangeRepairSessions: [],
+			droppedBarSessions: [],
 		});
 		expect(selectLine(result, 'galicia-stock-byma-ars').status).toBe('available');
 	});
@@ -536,6 +559,8 @@ describe('createAnalysisRunner', () => {
 		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
 
 		expect(apple.rangeRepairSessions).toEqual([repairedSession]);
+		expect(apple.droppedBarSessions).toEqual([]);
+		expect(apple.window.barCount).toBe(ggal.window.barCount);
 		expect(ggal.rangeRepairSessions).toEqual([]);
 		expect(result.ok && result.snapshot.mepRateSource.rangeRepairs).toEqual([
 			{ tradingLineId: 'al30-bond-byma-ars', sessionDate: repairedSession },
@@ -640,7 +665,7 @@ describe('Analysis Run corporate actions and large moves', () => {
 		expect(apple.latestState).toEqual(ggal.latestState);
 	});
 
-	test('skips a listed action whose step the provider already adjusted', async () => {
+	test('does not apply a listed action whose step is not in the history', async () => {
 		const { result } = await runWithProvider(
 			createHealthyProvider(),
 			REQUESTED_THROUGH_SESSION,
@@ -652,12 +677,37 @@ describe('Analysis Run corporate actions and large moves', () => {
 		expect(apple.corporateActions).toEqual([
 			{
 				...shareDistribution,
-				status: 'already-adjusted',
+				status: 'step-not-observed',
 				observedCloseRatio: expect.closeTo(measureFixtureCloseRatio(exDate), 12),
 			},
 		]);
 		expect(apple.events).toEqual(ggal.events);
 		expect(apple.largeMoves).toEqual(ggal.largeMoves);
+	});
+
+	test.each([
+		['a MEP rate source line', 'al30-bond-byma-ars'],
+		['a dollar line', 'galicia-stock-byma-usd-mep'],
+		['a line missing from the catalog', 'missing-stock-byma-ars'],
+	])('rejects a Corporate Action for %s', (_, tradingLineId) => {
+		const storage: AnalysisSnapshotStorage = {
+			write: () => Promise.resolve({ ok: true, locations: [] }),
+		};
+		const createRunner = () =>
+			createAnalysisRunner(storage, {
+				...createRunnerOptions(createHealthyProvider()),
+				corporateActions: [{ ...shareDistribution, tradingLineId }],
+			});
+
+		expect(createRunner).toThrow(tradingLineId);
+	});
+
+	test('accepts the committed Corporate Actions with the committed catalog', () => {
+		const storage: AnalysisSnapshotStorage = {
+			write: () => Promise.resolve({ ok: true, locations: [] }),
+		};
+
+		expect(() => createAnalysisRunner(storage)).not.toThrow();
 	});
 
 	test('applies only the actions listed for the line', async () => {
@@ -829,6 +879,7 @@ function createRunnerOptions(
 		pause: () => Promise.resolve(),
 		getCurrentInstant: () => RAN_AT,
 		catalog,
+		corporateActions: [] as readonly CorporateAction[],
 	};
 }
 

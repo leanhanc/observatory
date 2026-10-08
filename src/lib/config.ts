@@ -43,7 +43,8 @@ export const ANALYSIS_CONFIGURATION = {
 	},
 	// A listed Corporate Action is applied only while the fetched close ratio across its ex-date is
 	// within this factor of the action's price factor, so a history the provider has since adjusted
-	// is not adjusted twice.
+	// is not adjusted twice. A listed price factor must be at least this factor squared away from 1,
+	// so re-adjusting an adjusted history always takes a real move of at least this factor.
 	corporateActions: {
 		maximumStepDeviation: 1.25,
 	},

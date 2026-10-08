@@ -114,11 +114,15 @@ export function createAnalysisRunner(
 ): AnalysisRunner {
 	const adapter = createOpenBymadataAdapter(options.fetchFromProvider ?? fetch);
 	const pause = options.pause ?? Bun.sleep;
+	const catalog = options.catalog ?? instrumentCatalog;
+	const corporateActions = options.corporateActions ?? committedCorporateActions;
+	assertCorporateActionsTargetAnalyzedLines(corporateActions, catalog);
+
 	const dependencies: AnalysisRunDependencies = {
 		acquirer: createOpenBymadataBarHistoryAcquirer(adapter, pause),
 		pause,
-		catalog: options.catalog ?? instrumentCatalog,
-		corporateActions: options.corporateActions ?? committedCorporateActions,
+		catalog,
+		corporateActions,
 		snapshotStorage,
 		getCurrentInstant: options.getCurrentInstant ?? getCurrentUtcInstant,
 		reportProgress: options.reportProgress ?? (() => {}),
@@ -271,6 +275,33 @@ function selectAnalyzedTradingLines(catalog: InstrumentCatalog): readonly Analyz
 				tradingLine: { tradingLineId: tradingLine.id, symbol: tradingLine.symbol },
 			})),
 	);
+}
+
+/**
+ * A Corporate Action for any other line, such as a dollar line or a MEP rate source line, would
+ * never be applied and never be reported, so it is rejected before the run starts.
+ *
+ * @throws {Error} when an action names a Trading Line the run does not analyze.
+ */
+function assertCorporateActionsTargetAnalyzedLines(
+	corporateActions: readonly CorporateAction[],
+	catalog: InstrumentCatalog,
+): void {
+	const analyzedLineIds = new Set(
+		selectAnalyzedTradingLines(catalog).map((line) => line.tradingLine.tradingLineId),
+	);
+	const strayActions = corporateActions.filter(
+		(action) => !analyzedLineIds.has(action.tradingLineId),
+	);
+
+	if (strayActions.length > 0) {
+		const strayLabels = strayActions.map(
+			(action) => `${action.tradingLineId}@${action.exDate}`,
+		);
+		throw new Error(
+			`Corporate Actions must name analyzed Trading Lines; not analyzed: ${strayLabels.join(', ')}.`,
+		);
+	}
 }
 
 function resolveMepRateSourceLines(
@@ -536,6 +567,11 @@ function analyzeTradingLine(
 		};
 	}
 
+	const barRepairs = {
+		rangeRepairSessions: fetchedLine.rangeRepairSessions,
+		droppedBarSessions: fetchedLine.droppedBarSessions,
+	};
+
 	// Every later step reads the corrected peso bars. The MEP Rates are never corrected: a stock's
 	// share count does not change a bond's price.
 	const correction = applyCorporateActions(fetchedLine.bars, lineCorporateActions);
@@ -550,6 +586,7 @@ function analyzeTradingLine(
 			...identity,
 			reason: 'no-dollarized-bars',
 			message: 'No session had both a peso-line bar and a MEP Rate.',
+			...barRepairs,
 		};
 	}
 
@@ -563,6 +600,7 @@ function analyzeTradingLine(
 			message:
 				'The line did not trade regularly or heavily enough over the liquidity window.',
 			liquidity: liquidity.measures,
+			...barRepairs,
 		};
 	}
 
@@ -582,8 +620,7 @@ function analyzeTradingLine(
 			barCount: bars.length,
 		},
 		sessionsWithoutMepRate: dollarizedSeries.sessionsWithoutMepRate,
-		rangeRepairSessions: fetchedLine.rangeRepairSessions,
-		droppedBarSessions: fetchedLine.droppedBarSessions,
+		...barRepairs,
 	};
 }
 

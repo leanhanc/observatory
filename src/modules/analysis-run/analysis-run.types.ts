@@ -31,7 +31,7 @@ export type AnalyzedLineFailureReason =
 	| 'insufficient-liquidity';
 
 export type AnalyzedLine =
-	| Readonly<{
+	| (Readonly<{
 			status: 'available';
 			instrumentId: string;
 			tradingLineId: string;
@@ -47,19 +47,27 @@ export type AnalyzedLine =
 				barCount: number;
 			}>;
 			sessionsWithoutMepRate: readonly string[];
-			/** Peso-line sessions whose range the adapter widened to contain the open and close. */
-			rangeRepairSessions: readonly string[];
-			/** Peso-line sessions whose bar was invalid and was dropped, as if the line had not traded. */
-			droppedBarSessions: readonly string[];
-	  }>
+	  }> &
+			BarRepairs)
 	| Readonly<{
 			status: 'unavailable';
 			instrumentId: string;
 			tradingLineId: string;
-			reason: Exclude<AnalyzedLineFailureReason, 'insufficient-liquidity'>;
+			reason: Extract<
+				AnalyzedLineFailureReason,
+				'fetch-failed' | 'invalid-bars' | 'no-provider-bars'
+			>;
 			message: string;
 	  }>
-	| Readonly<{
+	| (Readonly<{
+			status: 'unavailable';
+			instrumentId: string;
+			tradingLineId: string;
+			reason: 'no-dollarized-bars';
+			message: string;
+	  }> &
+			BarRepairs)
+	| (Readonly<{
 			status: 'unavailable';
 			instrumentId: string;
 			tradingLineId: string;
@@ -67,7 +75,19 @@ export type AnalyzedLine =
 			message: string;
 			/** Both measures over the run's liquidity window, so a reader sees how far it missed. */
 			liquidity: LiquidityMeasures;
-	  }>;
+	  }> &
+			BarRepairs);
+
+/**
+ * What the run changed in a line's provider bars before using them. A dropped session counts as
+ * not traded, so dropped bars can be why a line fails the liquidity gate.
+ */
+type BarRepairs = Readonly<{
+	/** Peso-line sessions whose range the adapter widened to contain the open and close. */
+	rangeRepairSessions: readonly string[];
+	/** Peso-line sessions whose bar was invalid and was dropped, as if the line had not traded. */
+	droppedBarSessions: readonly string[];
+}>;
 
 /** One session of one Trading Line, used to report bars the run accepted with a defect. */
 export type TradingLineSession = Readonly<{

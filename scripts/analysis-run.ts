@@ -17,6 +17,7 @@ import type {
 	AnalysisSnapshotStorage,
 	AnalyzedLine,
 } from '#modules/analysis-run/index.ts';
+import type { CorporateActionStatus } from '#modules/corporate-actions/index.ts';
 
 const PROVIDER_REQUEST_TIMEOUT_MS = 20_000;
 // Railway skips a cron run while the previous one is still running, so a hung request (the
@@ -234,8 +235,8 @@ function logProgress(log: AnalysisRunLog, progress: AnalysisRunProgress): void {
 }
 
 /**
- * A line the liquidity gate excluded is an expected outcome and logs at info; the other unavailable
- * reasons are data problems and log as warnings.
+ * A line the liquidity gate excluded is an expected outcome and logs at info, unless dropped bars
+ * lowered its participation; the other unavailable reasons are data problems and log as warnings.
  */
 function logAnalyzedLine(
 	log: AnalysisRunLog,
@@ -259,11 +260,25 @@ function logAnalyzedLine(
 
 	if (line.reason === 'insufficient-liquidity') {
 		const { participation, medianDailyTradedValueUsd } = line.liquidity;
+		const { droppedBarSessions } = line;
 		const median = formatUsdThousands(medianDailyTradedValueUsd);
-		log.info(
-			{ ...fields, reason: line.reason, participation, medianDailyTradedValueUsd },
-			`${positionLabel} ${tradingLineId}: unavailable: ${line.reason} (participation ${participation.toFixed(2)}, median ${median})`,
-		);
+		const droppedBarSummary = formatDroppedBarSummary(droppedBarSessions);
+		const hasDroppedBars = droppedBarSessions.length > 0;
+		const lineFields = {
+			...fields,
+			reason: line.reason,
+			participation,
+			medianDailyTradedValueUsd,
+			droppedBarSessions,
+		};
+		const message = `${positionLabel} ${tradingLineId}: unavailable: ${line.reason} (participation ${participation.toFixed(2)}, median ${median}${droppedBarSummary})`;
+
+		if (hasDroppedBars) {
+			log.warn(lineFields, message);
+			return;
+		}
+
+		log.info(lineFields, message);
 		return;
 	}
 
@@ -274,8 +289,9 @@ function logAnalyzedLine(
 }
 
 /**
- * Dropped bars are a data problem, and a Corporate Action the provider already adjusted is a stale
- * list entry, so either makes the line log as a warning.
+ * Dropped bars are a data problem; a Large One-Session Move may be an unlisted Corporate Action; and
+ * a listed Corporate Action whose step was not observed is either an entry the provider no longer
+ * needs or a step a real move hid. Each needs a person to look, so each makes the line a warning.
  */
 function logAvailableLine(
 	log: AnalysisRunLog,
@@ -287,28 +303,33 @@ function logAvailableLine(
 	const lastSessionDate = window.lastSessionDate;
 	const eventCount = events.length;
 	const largeMoveCount = largeMoves.length;
-	const droppedBarCount = droppedBarSessions.length;
-	const corporateActions = line.corporateActions.map(({ exDate, status }) => ({
-		exDate,
-		status,
-	}));
-	const corporateActionSummary = corporateActions
-		.map(({ exDate, status }) => `; corporate action ${exDate}: ${status}`)
-		.join('');
-	const droppedBarSummary = droppedBarCount > 0 ? `; ${droppedBarCount} dropped bars` : '';
-	const hasAlreadyAdjustedAction = corporateActions.some(
-		({ status }) => status === 'already-adjusted',
+	const corporateActions = line.corporateActions.map(
+		({ exDate, status, observedCloseRatio }) => ({ exDate, status, observedCloseRatio }),
 	);
-	const shouldWarn = hasAlreadyAdjustedAction || droppedBarCount > 0;
+	const largeMoveSummary = largeMoves
+		.map(
+			({ sessionDate, closeRatio }) =>
+				`; large move ${sessionDate} ×${closeRatio.toFixed(3)}`,
+		)
+		.join('');
+	const corporateActionSummary = corporateActions
+		.map(({ exDate, status, observedCloseRatio }) =>
+			formatCorporateActionSummary(exDate, status, observedCloseRatio),
+		)
+		.join('');
+	const droppedBarSummary = formatDroppedBarSummary(droppedBarSessions);
+	const hasUnobservedStep = corporateActions.some(({ status }) => status === 'step-not-observed');
+	const shouldWarn = hasUnobservedStep || largeMoveCount > 0 || droppedBarSessions.length > 0;
 	const lineFields = {
 		...fields,
 		lastSessionDate,
 		eventCount,
 		largeMoveCount,
+		largeMoves,
 		corporateActions,
 		droppedBarSessions,
 	};
-	const message = `${positionLabel} ${tradingLineId}: available (last session ${lastSessionDate}, ${eventCount} events, ${largeMoveCount} large moves${corporateActionSummary}${droppedBarSummary})`;
+	const message = `${positionLabel} ${tradingLineId}: available (last session ${lastSessionDate}, ${eventCount} events, ${largeMoveCount} large moves${largeMoveSummary}${corporateActionSummary}${droppedBarSummary})`;
 
 	if (shouldWarn) {
 		log.warn(lineFields, message);
@@ -316,6 +337,29 @@ function logAvailableLine(
 	}
 
 	log.info(lineFields, message);
+}
+
+function formatCorporateActionSummary(
+	exDate: string,
+	status: CorporateActionStatus,
+	observedCloseRatio: number | null,
+): string {
+	if (status !== 'step-not-observed' || observedCloseRatio === null) {
+		return `; corporate action ${exDate}: ${status}`;
+	}
+
+	return `; corporate action ${exDate}: ${status} (observed ×${observedCloseRatio.toFixed(3)}; check the history before removing the entry)`;
+}
+
+function formatDroppedBarSummary(droppedBarSessions: readonly string[]): string {
+	const droppedBarCount = droppedBarSessions.length;
+
+	if (droppedBarCount === 0) {
+		return '';
+	}
+
+	const noun = droppedBarCount === 1 ? 'bar' : 'bars';
+	return `; ${droppedBarCount} dropped ${noun}`;
 }
 
 function formatUsdThousands(value: number | null): string {

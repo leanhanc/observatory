@@ -1,7 +1,5 @@
 import { describe, expect, test } from 'bun:test';
 
-import { instrumentCatalog } from '#modules/instrument-catalog/index.ts';
-
 import { applyCorporateActions, validateCorporateActionList } from './corporate-actions.ts';
 import { corporateActions } from './index.ts';
 
@@ -37,12 +35,6 @@ describe('the committed Corporate Action list', () => {
 			sourceUrl: 'https://www.byma.com.ar/newsroom/byma-anuncia-pago-en-acciones',
 		});
 	});
-
-	test('names only Trading Lines of the Instrument Catalog', () => {
-		const tradingLineIds = [...new Set(corporateActions.map((action) => action.tradingLineId))];
-
-		expect(instrumentCatalog.getTradingLinesByIds(tradingLineIds).ok).toBe(true);
-	});
 });
 
 describe('validateCorporateActionList', () => {
@@ -70,6 +62,8 @@ describe('validateCorporateActionList', () => {
 	test.each([
 		['priceFactor', 0],
 		['priceFactor', 1],
+		['priceFactor', 0.65],
+		['priceFactor', 1.56],
 		['priceFactor', -0.5],
 		['priceFactor', Number.POSITIVE_INFINITY],
 		['exDate', '2025-02-30'],
@@ -113,6 +107,19 @@ describe('validateCorporateActionList', () => {
 				.isValid,
 		).toBe(true);
 	});
+
+	test.each([0.64, 1.5625])(
+		'accepts a factor exactly ×1.25 squared away from 1 (%p)',
+		(priceFactor) => {
+			const kind = priceFactor > 1 ? 'reverse-split' : 'split';
+			const validation = validateCorporateActionList({
+				schemaVersion: 1,
+				corporateActions: [{ ...validEntry, kind, priceFactor }],
+			});
+
+			expect(validation.isValid).toBe(true);
+		},
+	);
 
 	test('rejects an extra field', () => {
 		const validation = validateCorporateActionList({
@@ -213,22 +220,46 @@ describe('applyCorporateActions', () => {
 		});
 	});
 
-	test('skips an action the provider already adjusted', () => {
+	test('skips an action whose step the provider already adjusted', () => {
 		const bars = [createBar('2026-01-02', 200, 100), createBar('2026-01-05', 201, 100)];
 
 		const correction = applyCorporateActions(bars, [HALVING]);
 
 		expect(correction.bars).toEqual(bars);
 		expect(correction.outcomes).toEqual([
-			{ ...HALVING, status: 'already-adjusted', observedCloseRatio: 1.005 },
+			{ ...HALVING, status: 'step-not-observed', observedCloseRatio: 1.005 },
+		]);
+	});
+
+	test('does not apply an action whose step a real move on the ex-date hides', () => {
+		const bars = [createBar('2026-01-02', 400, 100), createBar('2026-01-05', 150, 100)];
+
+		const correction = applyCorporateActions(bars, [HALVING]);
+
+		expect(correction.bars).toEqual(bars);
+		expect(correction.outcomes).toEqual([
+			{ ...HALVING, status: 'step-not-observed', observedCloseRatio: 0.375 },
+		]);
+	});
+
+	test('does not apply two actions whose ex-dates have no bar between them', () => {
+		const laterHalving = { ...HALVING, exDate: '2026-01-07' };
+		const bars = [createBar('2026-01-02', 400, 100), createBar('2026-01-08', 100, 400)];
+
+		const correction = applyCorporateActions(bars, [HALVING, laterHalving]);
+
+		expect(correction.bars).toEqual(bars);
+		expect(correction.outcomes.map((outcome) => outcome.status)).toEqual([
+			'step-not-observed',
+			'step-not-observed',
 		]);
 	});
 
 	test.each([
 		['at ×1.25 above the factor', 250, 'applied'],
 		['at ÷1.25 below the factor', 160, 'applied'],
-		['just beyond ×1.25', 250.01, 'already-adjusted'],
-		['just beyond ÷1.25', 159.99, 'already-adjusted'],
+		['just beyond ×1.25', 250.01, 'step-not-observed'],
+		['just beyond ÷1.25', 159.99, 'step-not-observed'],
 	] as const)(
 		'treats a close of 400, then %s (%p), as %s',
 		(_, closeOnExDate, expectedStatus) => {
@@ -242,16 +273,6 @@ describe('applyCorporateActions', () => {
 			expect(outcome!.status).toBe(expectedStatus);
 		},
 	);
-
-	test('does not apply a factor near 1 to a ratio closer to no step', () => {
-		const nearOneFactor = { ...HALVING, priceFactor: 0.85 };
-		const bars = [createBar('2026-01-02', 100, 100), createBar('2026-01-05', 99, 100)];
-
-		const [outcome] = applyCorporateActions(bars, [nearOneFactor]).outcomes;
-
-		expect(measureDeviation(0.99, 0.85)).toBeLessThan(1.25);
-		expect(outcome!.status).toBe('already-adjusted');
-	});
 
 	test.each([
 		['every bar is on or after the ex-date', ['2026-01-05', '2026-01-06']],
@@ -296,8 +317,4 @@ function createBar(sessionDate: string, close: number, volume: number): DailyBar
 		close,
 		volume,
 	};
-}
-
-function measureDeviation(left: number, right: number): number {
-	return Math.max(left / right, right / left);
 }

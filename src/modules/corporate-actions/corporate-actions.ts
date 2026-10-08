@@ -41,10 +41,11 @@ export function validateCorporateActionList(value: unknown): CorporateActionList
  * Puts one line's bars before each ex-date on the post-ex-date scale: prices are multiplied by the
  * price factor and volume, a share count, is divided by it, so traded value is unchanged.
  *
- * An action is applied only when the uncorrected bars still show its step across the ex-date;
- * otherwise the provider has adjusted the history already, and applying it again would create the
- * step it is meant to remove. Expects validated, chronological bars of a single Trading Line and
- * that line's actions only.
+ * An action is applied only when the uncorrected bars still show its step across the ex-date. When
+ * they do not, the provider may have adjusted the history already, and applying it again would
+ * create the step it is meant to remove; but a real move on the ex-date can also hide the step, so
+ * the outcome says only that the step was not observed. Expects validated, chronological bars of a
+ * single Trading Line and that line's actions only.
  */
 export function applyCorporateActions(
 	bars: readonly DailyBar[],
@@ -82,27 +83,15 @@ function evaluateCorporateAction(
 	}
 
 	const observedCloseRatio = firstBarFromExDate.close / lastBarBeforeExDate.close;
-	const hasStep = checkIfStepIsPresent(observedCloseRatio, action.priceFactor);
+	// The list's factors are far enough from 1 that this band never reaches an unstepped ratio.
+	const hasStep =
+		measureDeviation(observedCloseRatio, action.priceFactor) <= maximumStepDeviation;
 
 	return {
 		...action,
-		status: hasStep ? 'applied' : 'already-adjusted',
+		status: hasStep ? 'applied' : 'step-not-observed',
 		observedCloseRatio,
 	};
-}
-
-/**
- * The step is present when the observed ratio is within the configured deviation of the factor and
- * closer to it than to no step at all. The second condition matters for factors near 1, where the
- * deviation band would otherwise include an already-adjusted ratio of about 1.
- */
-function checkIfStepIsPresent(observedCloseRatio: number, priceFactor: number): boolean {
-	const deviationFromFactor = measureDeviation(observedCloseRatio, priceFactor);
-	const deviationFromNoStep = measureDeviation(observedCloseRatio, 1);
-	const isNearFactor = deviationFromFactor <= maximumStepDeviation;
-	const isCloserToFactorThanToNoStep = deviationFromFactor < deviationFromNoStep;
-
-	return isNearFactor && isCloserToFactorThanToNoStep;
 }
 
 /**

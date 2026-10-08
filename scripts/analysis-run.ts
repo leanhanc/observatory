@@ -15,6 +15,7 @@ import type {
 	AnalysisRunnerOptions,
 	AnalysisSnapshot,
 	AnalysisSnapshotStorage,
+	AnalyzedLine,
 } from '#modules/analysis-run/index.ts';
 
 const PROVIDER_REQUEST_TIMEOUT_MS = 20_000;
@@ -252,12 +253,7 @@ function logAnalyzedLine(
 	};
 
 	if (line.status === 'available') {
-		const lastSessionDate = line.window.lastSessionDate;
-		const eventCount = line.events.length;
-		log.info(
-			{ ...fields, lastSessionDate, eventCount },
-			`${positionLabel} ${tradingLineId}: available (last session ${lastSessionDate}, ${eventCount} events)`,
-		);
+		logAvailableLine(log, line, fields, positionLabel);
 		return;
 	}
 
@@ -275,6 +271,47 @@ function logAnalyzedLine(
 		{ ...fields, reason: line.reason },
 		`${positionLabel} ${tradingLineId}: unavailable: ${line.reason} (${line.message})`,
 	);
+}
+
+/**
+ * A Corporate Action the provider already adjusted is a stale list entry, so its line logs as a
+ * warning.
+ */
+function logAvailableLine(
+	log: AnalysisRunLog,
+	line: Extract<AnalyzedLine, { status: 'available' }>,
+	fields: object,
+	positionLabel: string,
+): void {
+	const { tradingLineId, window, events, largeMoves } = line;
+	const lastSessionDate = window.lastSessionDate;
+	const eventCount = events.length;
+	const largeMoveCount = largeMoves.length;
+	const corporateActions = line.corporateActions.map(({ exDate, status }) => ({
+		exDate,
+		status,
+	}));
+	const corporateActionSummary = corporateActions
+		.map(({ exDate, status }) => `; corporate action ${exDate}: ${status}`)
+		.join('');
+	const hasAlreadyAdjustedAction = corporateActions.some(
+		({ status }) => status === 'already-adjusted',
+	);
+	const lineFields = {
+		...fields,
+		lastSessionDate,
+		eventCount,
+		largeMoveCount,
+		corporateActions,
+	};
+	const message = `${positionLabel} ${tradingLineId}: available (last session ${lastSessionDate}, ${eventCount} events, ${largeMoveCount} large moves${corporateActionSummary})`;
+
+	if (hasAlreadyAdjustedAction) {
+		log.warn(lineFields, message);
+		return;
+	}
+
+	log.info(lineFields, message);
 }
 
 function formatUsdThousands(value: number | null): string {

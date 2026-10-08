@@ -7,6 +7,10 @@ import {
 	validateDailyBars,
 } from '#modules/bar-history/index.ts';
 import {
+	applyCorporateActions,
+	corporateActions as committedCorporateActions,
+} from '#modules/corporate-actions/index.ts';
+import {
 	MEP_RATE_SOURCE,
 	calculateMepRates,
 	dollarizeBarHistory,
@@ -19,6 +23,7 @@ import {
 	selectLiquidityWindow,
 } from '#modules/liquidity-eligibility/index.ts';
 import {
+	detectLargeOneSessionMoves,
 	detectRegimeTransitionEvents,
 	detectStructureBreakEvents,
 	detectVolatilityExpansionEvents,
@@ -31,9 +36,11 @@ import type {
 	DailyBar,
 	OpenBymadataTradingLineDescriptor,
 } from '#modules/bar-history/index.ts';
+import type { CorporateAction } from '#modules/corporate-actions/index.ts';
 import type { MepRateSession } from '#modules/dollarized-series/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type { LiquidityWindow } from '#modules/liquidity-eligibility/index.ts';
+import type { LargeOneSessionMove } from '#modules/technical-analysis/index.ts';
 import type {
 	AnalysisEvent,
 	AnalysisRunProgress,
@@ -80,6 +87,7 @@ type AnalysisRunDependencies = Readonly<{
 	acquirer: BarHistoryAcquirer;
 	pause: BarHistoryPause;
 	catalog: InstrumentCatalog;
+	corporateActions: readonly CorporateAction[];
 	snapshotStorage: AnalysisSnapshotStorage;
 	getCurrentInstant: () => string;
 	reportProgress: (progress: AnalysisRunProgress) => void;
@@ -90,8 +98,8 @@ const MARKET_TIME_ZONE = 'America/Argentina/Buenos_Aires';
 
 /**
  * Creates the Analysis Run: a fresh provider fetch of the MEP rate source and every analyzed
- * Trading Line, dollarization, a liquidity-eligibility gate, analysis, and one persisted Analysis
- * Snapshot.
+ * Trading Line, correction of confirmed Corporate Actions, dollarization, a liquidity-eligibility
+ * gate, analysis with Large One-Session Move flags, and one persisted Analysis Snapshot.
  *
  * Stored Bar Histories are neither read nor written; a single fetch keeps every bar on the
  * provider's current price scale. A line that cannot be analyzed, including one that is not
@@ -108,6 +116,7 @@ export function createAnalysisRunner(
 		acquirer: createOpenBymadataBarHistoryAcquirer(adapter, pause),
 		pause,
 		catalog: options.catalog ?? instrumentCatalog,
+		corporateActions: options.corporateActions ?? committedCorporateActions,
 		snapshotStorage,
 		getCurrentInstant: options.getCurrentInstant ?? getCurrentUtcInstant,
 		reportProgress: options.reportProgress ?? (() => {}),
@@ -201,7 +210,7 @@ async function runAnalysis(
 	}
 
 	const snapshot = {
-		schemaVersion: 2,
+		schemaVersion: 3,
 		ranAt,
 		requestedThroughSession,
 		analysisConfigurationVersion: ANALYSIS_CONFIGURATION.version,
@@ -402,7 +411,7 @@ async function analyzeTradingLines(
 	mepRates: readonly MepRateSession[],
 	liquidityWindow: LiquidityWindow,
 ): Promise<readonly AnalyzedLine[]> {
-	const { acquirer, pause, reportProgress } = dependencies;
+	const { acquirer, pause, corporateActions, reportProgress } = dependencies;
 	const analyzedLines: AnalyzedLine[] = [];
 
 	for (const [index, line] of lines.entries()) {
@@ -416,9 +425,13 @@ async function analyzeTradingLines(
 			requestedThroughSession,
 			false,
 		);
+		const lineCorporateActions = corporateActions.filter(
+			(action) => action.tradingLineId === tradingLineId,
+		);
 		const analyzedLine = analyzeTradingLine(
 			line,
 			getRequiredFetchedLine(fetchedLines, tradingLineId),
+			lineCorporateActions,
 			mepRates,
 			liquidityWindow,
 		);
@@ -438,6 +451,7 @@ async function analyzeTradingLines(
 function analyzeTradingLine(
 	line: AnalyzedTradingLine,
 	fetchedLine: FetchedLine,
+	lineCorporateActions: readonly CorporateAction[],
 	mepRates: readonly MepRateSession[],
 	liquidityWindow: LiquidityWindow,
 ): AnalyzedLine {
@@ -464,7 +478,10 @@ function analyzeTradingLine(
 		};
 	}
 
-	const dollarizedSeries = dollarizeBarHistory(fetchedLine.bars, mepRates);
+	// Every later step reads the corrected peso bars. The MEP Rates are never corrected: a stock's
+	// share count does not change a bond's price.
+	const correction = applyCorporateActions(fetchedLine.bars, lineCorporateActions);
+	const dollarizedSeries = dollarizeBarHistory(correction.bars, mepRates);
 	const { bars } = dollarizedSeries;
 	const firstBar = bars[0];
 	const lastBar = bars.at(-1);
@@ -478,7 +495,7 @@ function analyzeTradingLine(
 		};
 	}
 
-	const liquidity = evaluateLiquidityEligibility(fetchedLine.bars, liquidityWindow);
+	const liquidity = evaluateLiquidityEligibility(correction.bars, liquidityWindow);
 
 	if (!liquidity.isEligible) {
 		return {
@@ -492,12 +509,15 @@ function analyzeTradingLine(
 	}
 
 	const states = calculateInstrumentStates(bars);
+	const largeMoves = detectLargeOneSessionMoves(bars);
 
 	return {
 		status: 'available',
 		...identity,
 		latestState: states.at(-1)!,
-		events: collectEvents(bars),
+		events: collectEvents(bars, largeMoves),
+		largeMoves,
+		corporateActions: correction.outcomes,
 		window: {
 			firstSessionDate: firstBar.sessionDate,
 			lastSessionDate: lastBar.sessionDate,
@@ -508,8 +528,15 @@ function analyzeTradingLine(
 	};
 }
 
-/** Orders Events by session; within a session, the sort is stable and keeps detector order. */
-function collectEvents(bars: readonly DailyBar[]): readonly AnalysisSnapshotEvent[] {
+/**
+ * Orders Events by session; within a session, the sort is stable and keeps detector order. Each
+ * Event is marked when its session is a Large One-Session Move.
+ */
+function collectEvents(
+	bars: readonly DailyBar[],
+	largeMoves: readonly LargeOneSessionMove[],
+): readonly AnalysisSnapshotEvent[] {
+	const largeMoveSessions = new Set(largeMoves.map((move) => move.sessionDate));
 	const eventSessions: readonly Readonly<{ sessionDate: string; event: AnalysisEvent | null }>[] =
 		[
 			...detectRegimeTransitionEvents(bars),
@@ -517,7 +544,9 @@ function collectEvents(bars: readonly DailyBar[]): readonly AnalysisSnapshotEven
 			...detectVolatilityExpansionEvents(bars),
 		];
 	const events = eventSessions.flatMap(({ sessionDate, event }) =>
-		event ? [{ sessionDate, event }] : [],
+		event
+			? [{ sessionDate, event, coincidesWithLargeMove: largeMoveSessions.has(sessionDate) }]
+			: [],
 	);
 
 	return events.toSorted((left, right) => left.sessionDate.localeCompare(right.sessionDate));

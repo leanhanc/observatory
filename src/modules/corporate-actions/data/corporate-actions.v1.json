@@ -1,0 +1,19 @@
+{
+	"schemaVersion": 1,
+	"corporateActions": [
+		{
+			"tradingLineId": "byma-stock-byma-ars",
+			"exDate": "2025-05-26",
+			"priceFactor": 0.5,
+			"kind": "share-distribution",
+			"sourceUrl": "https://www.byma.com.ar/newsroom/byma-anuncia-pago-en-acciones"
+		},
+		{
+			"tradingLineId": "etha-cedear-byma-ars",
+			"exDate": "2026-10-06",
+			"priceFactor": 3,
+			"kind": "reverse-split",
+			"sourceUrl": "https://www.sec.gov/Archives/edgar/data/0002000638/000143774926025654/etha20260803_8k.htm"
+		}
+	]
+}

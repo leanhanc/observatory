@@ -1,8 +1,10 @@
 import type { BarHistoryPause } from '#modules/bar-history/index.ts';
+import type { CorporateAction, CorporateActionOutcome } from '#modules/corporate-actions/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type { InstrumentState } from '#modules/instrument-state/index.ts';
 import type { LiquidityMeasures } from '#modules/liquidity-eligibility/index.ts';
 import type {
+	LargeOneSessionMove,
 	RegimeTransitionEvent,
 	StructureBreakEvent,
 	VolatilityExpansionEvent,
@@ -10,10 +12,15 @@ import type {
 
 export type AnalysisEvent = RegimeTransitionEvent | StructureBreakEvent | VolatilityExpansionEvent;
 
-/** One Event and the session on which it was detected. `event.type` is the Event kind. */
+/**
+ * One Event and the session on which it was detected. `event.type` is the Event kind.
+ * `coincidesWithLargeMove` says the session is a Large One-Session Move, which may be a corporate
+ * action rather than market behavior; it is not a claim that it is one.
+ */
 export type AnalysisSnapshotEvent = Readonly<{
 	sessionDate: string;
 	event: AnalysisEvent;
+	coincidesWithLargeMove: boolean;
 }>;
 
 export type AnalyzedLineFailureReason =
@@ -30,6 +37,10 @@ export type AnalyzedLine =
 			tradingLineId: string;
 			latestState: InstrumentState;
 			events: readonly AnalysisSnapshotEvent[];
+			/** Large One-Session Moves of the corrected Dollarized Series, in session order. */
+			largeMoves: readonly LargeOneSessionMove[];
+			/** The line's listed Corporate Actions and whether each was applied to its bars. */
+			corporateActions: readonly CorporateActionOutcome[];
 			window: Readonly<{
 				firstSessionDate: string;
 				lastSessionDate: string;
@@ -63,7 +74,7 @@ export type TradingLineSession = Readonly<{
 }>;
 
 export type AnalysisSnapshot = Readonly<{
-	schemaVersion: 2;
+	schemaVersion: 3;
 	ranAt: string;
 	requestedThroughSession: string;
 	analysisConfigurationVersion: number;
@@ -139,6 +150,8 @@ export type AnalysisRunnerOptions = Readonly<{
 	pause?: BarHistoryPause;
 	getCurrentInstant?: () => string;
 	catalog?: InstrumentCatalog;
+	/** The confirmed Corporate Actions to correct; the committed list by default. */
+	corporateActions?: readonly CorporateAction[];
 	reportProgress?: (progress: AnalysisRunProgress) => void;
 }>;
 

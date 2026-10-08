@@ -120,6 +120,14 @@ _Avoid_: Current price, unconfirmed turning point
 A direction-neutral Event in which a completed Trading Session's movement magnitude, including overnight gaps, is unusually large relative to recent volatility known before that session. Each qualifying session is a separate historical fact.
 _Avoid_: Bullish or bearish signal, continuation, reversal, opportunity, price target
 
+**Corporate Action**:
+An issuer's decision, such as a split, a reverse split or a share distribution, that changes the number of shares or CEDEARs and moves the price in inverse proportion, without changing what a holding is worth. A price step it causes is bookkeeping, not market behavior.
+_Avoid_: Split when referring to every kind, adjustment when referring to the issuer's decision
+
+**Large One-Session Move**:
+A completed Trading Session whose close moved by a configured factor or more from the previous Daily Bar's close, up or down. It is large enough to be an unadjusted Corporate Action; it describes the move's size and does not say what caused it.
+_Avoid_: Split detection, anomaly, outlier
+
 **Situation**:
 A named combination of Features and Instrument State that Observatory recognizes as worth describing.
 _Avoid_: Signal, prediction, opportunity

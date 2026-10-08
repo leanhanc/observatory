@@ -1,0 +1,13 @@
+---
+status: accepted
+---
+
+# Correct confirmed corporate actions the provider did not adjust
+
+Observatory follows the provider's adjusted prices ([ADR 0007](./0007-follow-provider-adjusted-prices.md)), with one exception: a corporate action that a primary source confirms and that the provider is observed not to adjust is corrected from a committed, sourced list. The run rescales the peso bars before each listed ex-date, multiplying prices by the action's price factor and dividing volume by it, before liquidity eligibility, dollarization, State and Events. Every other large one-session move is flagged, never corrected or hidden.
+
+The provider adjusts unevenly. Open BYMADATA back-adjusts cash dividends, but more than 16 months after BYMA's 1:1 share distribution of 2025-05-26 it still serves the earlier prices at twice the later scale ([research](../research/large-one-session-moves.md)). It did not adjust ETHA's 1-for-3 reverse split of 2026-10-06 either, which the CEDEAR follows from its underlying ETF. CEDEAR ratio changes look different again: ServiceNow's 5-for-1 split leaves no step in NOW's peso price, but its volume rises about thirtyfold, so the price looks adjusted and the volume does not. Left alone, BYMA's step reads as a Volatility Expansion and a halved price. Detecting such steps automatically is not possible yet: in two years over 173 lines, BYMA's ×0.52 looks the same by close ratio, factor proximity and ATR multiple as MRNA's ×2.74 and LAC's ×1.97, which were real news.
+
+This refines [ADR 0005](./0005-analyze-dollarized-local-series.md), which left corporate actions as a separate decision. A list keeps every correction traceable to a source and limited to what the provider got wrong. Each entry is applied only while the fetched data still shows its step, so a provider that adjusts the history later does not get it adjusted twice. The step is checked against a fixed tolerance, and a stale entry is reported rather than applied. The cost is maintenance: an unlisted action is not corrected, and is flagged only when it is large enough.
+
+A new ADR was preferred to amending ADR 0007, because ADR 0007 still holds for everything the provider does adjust. The exception has its own evidence and its own failure mode: a wrong entry, not a wrong detection.

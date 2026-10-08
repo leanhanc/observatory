@@ -9,6 +9,7 @@ import { loadGgalFixture } from '#modules/technical-analysis/tests/support/index
 import { createAnalysisRunner } from './analysis-run.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
+import type { CorporateAction } from '#modules/corporate-actions/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type {
 	AnalysisRunProgress,
@@ -140,7 +141,7 @@ describe('createAnalysisRunner', () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 
 		expect(result.ok && result.snapshot).toMatchObject({
-			schemaVersion: 2,
+			schemaVersion: 3,
 			ranAt: RAN_AT,
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			analysisConfigurationVersion: ANALYSIS_CONFIGURATION.version,
@@ -499,6 +500,115 @@ describe('createAnalysisRunner', () => {
 	});
 });
 
+describe('Analysis Run corporate actions and large moves', () => {
+	// A session in the middle of a single MEP Rate period on which GGAL has no Event.
+	const exDate = '2025-06-02';
+	const shareDistribution: CorporateAction = {
+		tradingLineId: 'apple-cedear-byma-ars',
+		exDate,
+		priceFactor: 0.5,
+		kind: 'share-distribution',
+		sourceUrl: 'https://example.com/notice',
+	};
+	// The provider leaves a 1:1 share distribution unadjusted: prices before the ex-date are twice
+	// the post-distribution scale, and volume is half the post-distribution share count.
+	const unadjustedPesoBars = ggalPesoBars.map((bar) =>
+		bar.sessionDate < exDate ? { ...scaleBarPrices(bar, 2), volume: bar.volume / 2 } : bar,
+	);
+
+	test('flags an unadjusted share distribution and marks the Events on it', async () => {
+		const provider = { ...createHealthyProvider(), AAPL: unadjustedPesoBars };
+		const { result } = await runWithProvider(provider);
+		const apple = selectAvailableLine(result, 'apple-cedear-byma-ars');
+		const exDateEvents = apple.events.filter((entry) => entry.sessionDate === exDate);
+		const otherEvents = apple.events.filter((entry) => entry.sessionDate !== exDate);
+
+		expect(apple.largeMoves.map((move) => move.sessionDate)).toContain(exDate);
+		expect(exDateEvents.map(({ event }) => event.type)).toContain('volatility-expansion');
+		expect(exDateEvents.every((entry) => entry.coincidesWithLargeMove)).toBe(true);
+		expect(otherEvents.some((entry) => entry.coincidesWithLargeMove)).toBe(false);
+		expect(apple.corporateActions).toEqual([]);
+	});
+
+	test('corrects a listed share distribution the provider did not adjust', async () => {
+		const provider = { ...createHealthyProvider(), AAPL: unadjustedPesoBars };
+		const { result } = await runWithProvider(provider, REQUESTED_THROUGH_SESSION, [
+			shareDistribution,
+		]);
+		const apple = selectAvailableLine(result, 'apple-cedear-byma-ars');
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const exDateEventTypes = apple.events
+			.filter((entry) => entry.sessionDate === exDate)
+			.map(({ event }) => event.type);
+
+		expect(apple.corporateActions).toEqual([
+			{
+				...shareDistribution,
+				status: 'applied',
+				observedCloseRatio: expect.closeTo(0.5 * measureFixtureCloseRatio(exDate), 12),
+			},
+		]);
+		expect(exDateEventTypes).not.toContain('structure-break');
+		expect(exDateEventTypes).not.toContain('volatility-expansion');
+		expect(apple.largeMoves).toEqual(ggal.largeMoves);
+		expect(apple.largeMoves.map((move) => move.sessionDate)).not.toContain(exDate);
+		expect(apple.events).toEqual(ggal.events);
+		expect(apple.latestState).toEqual(ggal.latestState);
+	});
+
+	test('skips a listed action whose step the provider already adjusted', async () => {
+		const { result } = await runWithProvider(
+			createHealthyProvider(),
+			REQUESTED_THROUGH_SESSION,
+			[shareDistribution],
+		);
+		const apple = selectAvailableLine(result, 'apple-cedear-byma-ars');
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+
+		expect(apple.corporateActions).toEqual([
+			{
+				...shareDistribution,
+				status: 'already-adjusted',
+				observedCloseRatio: expect.closeTo(measureFixtureCloseRatio(exDate), 12),
+			},
+		]);
+		expect(apple.events).toEqual(ggal.events);
+		expect(apple.largeMoves).toEqual(ggal.largeMoves);
+	});
+
+	test('applies only the actions listed for the line', async () => {
+		const provider = { ...createHealthyProvider(), AAPL: unadjustedPesoBars };
+		const { result } = await runWithProvider(provider, REQUESTED_THROUGH_SESSION, [
+			shareDistribution,
+		]);
+
+		expect(selectAvailableLine(result, 'galicia-stock-byma-ars').corporateActions).toEqual([]);
+	});
+
+	test('flags a move made by the MEP Rate alone, using each session own rate', async () => {
+		const halvedRateSession = '2025-06-03';
+		const halvedRate = selectMepRate(halvedRateSession) / 2;
+		const provider = {
+			...createHealthyProvider(),
+			AL30: replaceBar(al30Bars, halvedRateSession, {
+				open: halvedRate,
+				high: halvedRate,
+				low: halvedRate,
+				close: halvedRate,
+			}),
+		};
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const expectedCloseRatio = 2 * measureFixtureCloseRatio(halvedRateSession);
+
+		expect(expectedCloseRatio).toBeGreaterThanOrEqual(1.8);
+		expect(ggal.largeMoves).toContainEqual({
+			sessionDate: halvedRateSession,
+			closeRatio: expect.closeTo(expectedCloseRatio, 12),
+		});
+	});
+});
+
 describe('Analysis Run progress', () => {
 	test('reports each analyzed line once, in order, as soon as it is analyzed', async () => {
 		const provider = { ...createHealthyProvider(), AAPL: 'http-error' as const };
@@ -596,6 +706,7 @@ function createHealthyProvider(): FakeProvider {
 async function runWithProvider(
 	provider: FakeProvider,
 	requestedThroughSession = REQUESTED_THROUGH_SESSION,
+	corporateActions: readonly CorporateAction[] = [],
 ): Promise<
 	Readonly<{
 		result: AnalysisRunResult;
@@ -611,10 +722,10 @@ async function runWithProvider(
 			return Promise.resolve({ ok: true, locations: ['memory'] });
 		},
 	};
-	const runner = createAnalysisRunner(
-		storage,
-		createRunnerOptions(provider, (symbol) => requestedSymbols.push(symbol)),
-	);
+	const runner = createAnalysisRunner(storage, {
+		...createRunnerOptions(provider, (symbol) => requestedSymbols.push(symbol)),
+		corporateActions,
+	});
 	const result = await runner.run({ requestedThroughSession });
 
 	return { result, writes, requestedSymbols };
@@ -743,6 +854,12 @@ function selectMepRate(sessionDate: string): number {
 	}
 
 	return 4096;
+}
+
+/** The fixture's dollar close ratio from the previous session to `sessionDate`. */
+function measureFixtureCloseRatio(sessionDate: string): number {
+	const index = ggalDollarBars.findIndex((bar) => bar.sessionDate === sessionDate);
+	return ggalDollarBars[index]!.close / ggalDollarBars[index - 1]!.close;
 }
 
 function convertDollarBarsToPeso(bars: readonly DailyBar[]): readonly DailyBar[] {

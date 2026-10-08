@@ -7,7 +7,7 @@
  * Expansion's baseline and the Instrument State's distance unit are separate conventions.
  */
 export const ANALYSIS_CONFIGURATION = {
-	version: 2,
+	version: 3,
 	regime: {
 		fastEmaPeriod: 50,
 		slowEmaPeriod: 200,
@@ -34,5 +34,17 @@ export const ANALYSIS_CONFIGURATION = {
 		windowSessions: 125,
 		minimumParticipation: 0.9,
 		minimumMedianTradedValueUsd: 50_000,
+	},
+	// A session whose dollarized close moved by this factor or more from the previous bar, up or
+	// down, is a Large One-Session Move: large enough to be a split or a CEDEAR ratio change. See
+	// docs/research/large-one-session-moves.md.
+	largeMove: {
+		minimumCloseRatio: 1.8,
+	},
+	// A listed Corporate Action is applied only while the fetched close ratio across its ex-date is
+	// within this factor of the action's price factor, so a history the provider has since adjusted
+	// is not adjusted twice.
+	corporateActions: {
+		maximumStepDeviation: 1.25,
 	},
 } as const;

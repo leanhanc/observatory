@@ -7,7 +7,7 @@ type AnalysisSnapshotS3Client = Readonly<{
 
 // The prefix follows the snapshot's `schemaVersion`, so a reader of one schema never finds
 // another schema's object under the keys it reads.
-const SNAPSHOT_PREFIX = 'analysis-snapshots/v2';
+const SNAPSHOT_PREFIX = 'analysis-snapshots/v3';
 const JSON_CONTENT_TYPE = 'application/json';
 
 export const LATEST_ANALYSIS_SNAPSHOT_KEY = `${SNAPSHOT_PREFIX}/latest.json`;

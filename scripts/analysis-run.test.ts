@@ -10,6 +10,7 @@ import { loadGgalFixture } from '#modules/technical-analysis/tests/support/index
 import { resolveAnalysisRunInvocation, runAnalysisCommand } from './analysis-run.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
+import type { CorporateAction } from '#modules/corporate-actions/index.ts';
 import type { AnalysisRunCommandOutcome, AnalysisRunLog } from './analysis-run.ts';
 
 const DRY_RUN_ARGS = ['--output', 'snapshot.json'];
@@ -148,7 +149,7 @@ describe('Analysis Run command logging', () => {
 			`info Analysis Run through 2026-09-30: 3 lines, configuration v${ANALYSIS_CONFIGURATION.version}.`,
 			'info MEP rate source fetched; latest rate session 2026-09-30.',
 			expect.stringMatching(
-				/^info \[1\/3\] galicia-stock-byma-ars: available \(last session 2026-09-29, \d+ events\)$/,
+				/^info \[1\/3\] galicia-stock-byma-ars: available \(last session 2026-09-29, \d+ events, \d+ large moves\)$/,
 			),
 			expect.stringMatching(
 				/^info \[2\/3\] thin-stock-byma-ars: unavailable: insufficient-liquidity \(participation 1\.00, median USD \d+k\)$/,
@@ -184,6 +185,30 @@ describe('Analysis Run command logging', () => {
 		expect(entries[1]).toMatchObject({
 			level: 'warn',
 			message: 'No MEP Rate session on 2026-10-01; analyzing through 2026-09-30.',
+		});
+	});
+
+	test('warns about a listed Corporate Action the provider already adjusted', async () => {
+		const corporateAction = {
+			tradingLineId: 'galicia-stock-byma-ars',
+			exDate: '2025-06-02',
+			priceFactor: 0.5,
+			kind: 'share-distribution' as const,
+			sourceUrl: 'https://example.com/notice',
+		};
+		const { entries } = await runCommandWithProvider(
+			{ GGAL: ggalPesoBars, THIN: thinlyTradedPesoBars },
+			{ corporateActions: [corporateAction] },
+		);
+
+		expect(entries[2]).toMatchObject({
+			level: 'warn',
+			message: expect.stringMatching(
+				/^\[1\/3\] galicia-stock-byma-ars: available \(.+; corporate action 2025-06-02: already-adjusted\)$/,
+			),
+			fields: {
+				corporateActions: [{ exDate: '2025-06-02', status: 'already-adjusted' }],
+			},
 		});
 	});
 
@@ -255,6 +280,7 @@ type CommandOverrides = Readonly<{
 	currentInstant?: string;
 	deadlineMs?: number;
 	fetchFromProvider?: (input: string | URL | Request) => Promise<Response>;
+	corporateActions?: readonly CorporateAction[];
 }>;
 
 /** Symbols missing from the provider answer with an HTTP error; `null` forces one. */
@@ -268,6 +294,7 @@ async function runCommandWithProvider(
 		currentInstant = RAN_AT,
 		deadlineMs = 60_000,
 		fetchFromProvider = createFakeProvider(provider),
+		corporateActions = [],
 	} = overrides;
 	const entries: LogEntry[] = [];
 	const recordAt =
@@ -290,6 +317,7 @@ async function runCommandWithProvider(
 			fetchFromProvider,
 			pause: () => Promise.resolve(),
 			catalog: createTestCatalog(),
+			corporateActions,
 		},
 	});
 

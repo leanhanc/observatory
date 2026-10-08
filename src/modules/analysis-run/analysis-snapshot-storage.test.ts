@@ -5,7 +5,7 @@ import { createAnalysisSnapshotStorageFromS3Client } from './analysis-snapshot-s
 import type { AnalysisSnapshot } from './analysis-run.types.ts';
 
 const snapshot: AnalysisSnapshot = {
-	schemaVersion: 2,
+	schemaVersion: 3,
 	ranAt: '2026-10-04T15:00:00.000Z',
 	requestedThroughSession: '2026-10-02',
 	analysisConfigurationVersion: 1,
@@ -18,8 +18,8 @@ const snapshot: AnalysisSnapshot = {
 	},
 	analyzedLines: [],
 };
-const DATED_KEY = 'analysis-snapshots/v2/2026-10-02/2026-10-04T15:00:00.000Z.json';
-const LATEST_KEY = 'analysis-snapshots/v2/latest.json';
+const DATED_KEY = 'analysis-snapshots/v3/2026-10-02/2026-10-04T15:00:00.000Z.json';
+const LATEST_KEY = 'analysis-snapshots/v3/latest.json';
 
 describe('createAnalysisSnapshotStorageFromS3Client', () => {
 	test('writes the dated snapshot before latest', async () => {

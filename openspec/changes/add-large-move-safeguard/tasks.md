@@ -1,0 +1,13 @@
+- [x] Read the large-move research, ADRs 0005, 0007 and 0008, decision 4 of `handle-provider-adjusted-history`, and the affected specs and modules.
+- [x] Draft the proposal and the `corporate-actions`, `technical-analysis` and `analysis-run` deltas.
+- [x] Add `largeMove` and `corporateActions` to `ANALYSIS_CONFIGURATION` and bump its version to 3.
+- [x] Add `src/modules/corporate-actions`: the validated list with BYMA's entry, and `applyCorporateActions` with the double-adjustment guard.
+- [x] Add `detectLargeOneSessionMoves` to `technical-analysis`.
+- [x] Correct lines before liquidity and dollarization in the Analysis Run, record `corporateActions`, `largeMoves` and `coincidesWithLargeMove`, and bump the snapshot to schema and prefix `v3`.
+- [x] Log Large One-Session Move counts and Corporate Action statuses in the `analyze` command, warning on `already-adjusted`.
+- [x] Test threshold boundaries, per-session MEP Rates, Event marking, an applied and a skipped correction, ordering, list validation and causality.
+- [x] Write ADR 0009, update decision 4 of `handle-provider-adjusted-history`, and add the glossary entries.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation and an Analysis Run dry run.
+- [ ] Review.
+- [ ] At archive, add a Purpose to the new `corporate-actions` spec, and edit the `analysis-run` and `technical-analysis` Purposes to mention corrections and the large-move flag.
+- [ ] Archive.

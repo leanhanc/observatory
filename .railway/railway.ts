@@ -13,7 +13,8 @@ export default defineRailway(() => {
 	// A failed run is not restarted, so it stays visible; the next run fetches the full window anyway.
 	const analysisRun = service('analysis-run', {
 		source: github('leanhanc/observatory', { branch: 'main' }),
-		start: 'bun run analyze',
+		// Runs the script directly: `bun run` would add its own stderr lines, which Railway shows as errors.
+		start: 'bun scripts/analysis-run.ts',
 		deploy: {
 			cronSchedule: '0 9 * * 2-6',
 			restartPolicyType: 'NEVER',
@@ -24,7 +25,8 @@ export default defineRailway(() => {
 			OBSERVATORY_STORAGE_BUCKET: ref(historyBars, 'BUCKET'),
 			OBSERVATORY_STORAGE_ENDPOINT: ref(historyBars, 'ENDPOINT'),
 			OBSERVATORY_STORAGE_REGION: ref(historyBars, 'REGION'),
-			OBSERVATORY_STORAGE_VIRTUAL_HOSTED_STYLE: 'true',
+			// Bun's S3 client fails against this endpoint with virtual-hosted URLs; path style works.
+			OBSERVATORY_STORAGE_VIRTUAL_HOSTED_STYLE: 'false',
 			// Selects the logger's JSON output.
 			NODE_ENV: 'production',
 		},

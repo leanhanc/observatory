@@ -9,6 +9,6 @@
 - [x] Log progress, failures and completion from the command through the Observatory logger.
 - [x] Test progress order and outcomes, failure reporting and that credentials never reach the log.
 - [x] Address the adversarial review: test request pacing, warn when the requested session has no MEP Rate and count late lines, add a run deadline, test the holiday run, redact storage credential field names, move the Railway config out of the repository root (later replaced by `.railway/railway.ts`).
-- [ ] Review `railway config plan`, run `railway config apply`, confirm the build and cron, and trigger one run (after Lean approves each step).
-- [ ] At archive, reconcile the analysis-run spec Purpose by hand: replace "does not schedule itself" with the `analyze` command defaulting to the previous Buenos Aires date and being run by a Railway cron.
-- [ ] Review, then archive.
+- [x] Review `railway config plan`, run `railway config apply`, confirm the build and cron, and trigger one run (after Lean approves each step).
+- [x] At archive, reconcile the analysis-run spec Purpose by hand: replace "does not schedule itself" with the `analyze` command defaulting to the previous Buenos Aires date and being run by a Railway cron.
+- [x] Review, then archive.

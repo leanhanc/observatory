@@ -1,4 +1,5 @@
 import type { BarHistoryPause } from '#modules/bar-history/index.ts';
+import type { CorporateActionWatch } from '#modules/corporate-action-watch/index.ts';
 import type { CorporateAction, CorporateActionOutcome } from '#modules/corporate-actions/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type { InstrumentState } from '#modules/instrument-state/index.ts';
@@ -96,7 +97,7 @@ export type TradingLineSession = Readonly<{
 }>;
 
 export type AnalysisSnapshot = Readonly<{
-	schemaVersion: 3;
+	schemaVersion: 4;
 	ranAt: string;
 	requestedThroughSession: string;
 	analysisConfigurationVersion: number;
@@ -110,6 +111,8 @@ export type AnalysisSnapshot = Readonly<{
 		rangeRepairs: readonly TradingLineSession[];
 	}>;
 	analyzedLines: readonly AnalyzedLine[];
+	/** Notices that may announce a Corporate Action for an analyzed line; never applied. */
+	corporateActionWatch: CorporateActionWatch;
 }>;
 
 export type AnalysisSnapshotWriteResult =
@@ -172,6 +175,11 @@ export type AnalysisRunProgress =
 			/** The retry cut-off was reached; these lines keep their main-pass failure. */
 			type: 'fetch-retry-stopped';
 			tradingLineIds: readonly string[];
+	  }>
+	| Readonly<{
+			/** The relevant-facts feed was fetched and matched, after every line was analyzed. */
+			type: 'corporate-action-watch-checked';
+			watch: CorporateActionWatch;
 	  }>
 	| Readonly<{
 			type: 'line-analyzed';

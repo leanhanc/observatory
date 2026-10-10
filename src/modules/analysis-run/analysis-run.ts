@@ -6,6 +6,7 @@ import {
 	createOpenBymadataBarHistoryAcquirer,
 	validateDailyBars,
 } from '#modules/bar-history/index.ts';
+import { watchCorporateActions, watchRules } from '#modules/corporate-action-watch/index.ts';
 import {
 	applyCorporateActions,
 	corporateActions as committedCorporateActions,
@@ -37,6 +38,10 @@ import type {
 	OpenBymadataTradingLineDescriptor,
 	ValidationIssue,
 } from '#modules/bar-history/index.ts';
+import type {
+	CorporateActionWatch,
+	RelevantFactsFetch,
+} from '#modules/corporate-action-watch/index.ts';
 import type { CorporateAction } from '#modules/corporate-actions/index.ts';
 import type { MepRateSession } from '#modules/dollarized-series/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
@@ -58,6 +63,7 @@ import type {
 
 type AnalyzedTradingLine = Readonly<{
 	instrumentId: string;
+	instrumentType: 'stock' | 'cedear';
 	tradingLine: OpenBymadataTradingLineDescriptor;
 }>;
 
@@ -107,6 +113,7 @@ type MepRatesResult =
 	| Readonly<{ ok: false; message: string }>;
 
 type AnalysisRunDependencies = Readonly<{
+	fetchFromProvider: RelevantFactsFetch;
 	acquirer: BarHistoryAcquirer;
 	pause: BarHistoryPause;
 	catalog: InstrumentCatalog;
@@ -117,7 +124,6 @@ type AnalysisRunDependencies = Readonly<{
 	retryCutoffMs: number;
 }>;
 
-const ANALYZED_INSTRUMENT_TYPES = new Set(['stock', 'cedear']);
 const MARKET_TIME_ZONE = 'America/Argentina/Buenos_Aires';
 
 // Retry policy: the MEP rate source and the analyzed lines each get one retry. Provider failures
@@ -130,7 +136,8 @@ const ANALYZED_LINE_RETRY_COOL_DOWN_MS = 30_000;
 /**
  * Creates the Analysis Run: a fresh provider fetch of the MEP rate source and every analyzed
  * Trading Line, correction of confirmed Corporate Actions, dollarization, a liquidity-eligibility
- * gate, analysis with Large One-Session Move flags, and one persisted Analysis Snapshot.
+ * gate, analysis with Large One-Session Move flags, a watch for Corporate Action Notices, and one
+ * persisted Analysis Snapshot.
  *
  * Stored Bar Histories are neither read nor written; a single fetch keeps every bar on the
  * provider's current price scale. A line that cannot be analyzed, including one that is not
@@ -141,13 +148,15 @@ export function createAnalysisRunner(
 	snapshotStorage: AnalysisSnapshotStorage,
 	options: AnalysisRunnerOptions = {},
 ): AnalysisRunner {
-	const adapter = createOpenBymadataAdapter(options.fetchFromProvider ?? fetch);
+	const fetchFromProvider = options.fetchFromProvider ?? fetch;
+	const adapter = createOpenBymadataAdapter(fetchFromProvider);
 	const pause = options.pause ?? Bun.sleep;
 	const catalog = options.catalog ?? instrumentCatalog;
 	const corporateActions = options.corporateActions ?? committedCorporateActions;
 	assertCorporateActionsTargetAnalyzedLines(corporateActions, catalog);
 
 	const dependencies: AnalysisRunDependencies = {
+		fetchFromProvider,
 		acquirer: createOpenBymadataBarHistoryAcquirer(adapter, pause),
 		pause,
 		catalog,
@@ -244,8 +253,14 @@ async function runAnalysis(
 		);
 	}
 
+	const corporateActionWatch = await watchAnalyzedLines(
+		dependencies,
+		analyzedLines,
+		requestedThroughSession,
+	);
+
 	const snapshot = {
-		schemaVersion: 3,
+		schemaVersion: 4,
 		ranAt,
 		requestedThroughSession,
 		analysisConfigurationVersion: ANALYSIS_CONFIGURATION.version,
@@ -257,6 +272,7 @@ async function runAnalysis(
 			rangeRepairs: mepRates.rangeRepairs,
 		},
 		analyzedLines: analyzedLineResults,
+		corporateActionWatch,
 	} as const;
 	const writeResult = await snapshotStorage.write(snapshot);
 
@@ -292,7 +308,9 @@ function convertInstantToMarketDate(instant: string): string {
 function selectAnalyzedTradingLines(catalog: InstrumentCatalog): readonly AnalyzedTradingLine[] {
 	const analyzedInstruments = catalog
 		.getInstruments()
-		.filter((instrument) => ANALYZED_INSTRUMENT_TYPES.has(instrument.type));
+		.flatMap((instrument) =>
+			instrument.type === 'stock' || instrument.type === 'cedear' ? [instrument] : [],
+		);
 
 	return analyzedInstruments.flatMap((instrument) =>
 		instrument.tradingLines
@@ -301,6 +319,7 @@ function selectAnalyzedTradingLines(catalog: InstrumentCatalog): readonly Analyz
 			)
 			.map((tradingLine) => ({
 				instrumentId: instrument.id,
+				instrumentType: instrument.type,
 				tradingLine: { tradingLineId: tradingLine.id, symbol: tradingLine.symbol },
 			})),
 	);
@@ -853,6 +872,35 @@ function collectEvents(
 	);
 
 	return events.toSorted((left, right) => left.sessionDate.localeCompare(right.sessionDate));
+}
+
+/**
+ * Looks for Corporate Action Notices about every analyzed line, whatever its outcome, after the
+ * lines are analyzed so the feed cannot delay them. It is one request with the usual pause before
+ * it, not retried: an unavailable watch is recorded, never a run failure.
+ */
+async function watchAnalyzedLines(
+	dependencies: AnalysisRunDependencies,
+	analyzedLines: readonly AnalyzedTradingLine[],
+	requestedThroughSession: string,
+): Promise<CorporateActionWatch> {
+	const { fetchFromProvider, pause, corporateActions, reportProgress } = dependencies;
+	const tradingLines = analyzedLines.map(({ instrumentType, tradingLine }) => ({
+		...tradingLine,
+		instrumentType,
+	}));
+
+	await pause(HISTORICAL_REQUEST_PAUSE_MS);
+	const watch = await watchCorporateActions({
+		fetchFromProvider,
+		requestedThroughSession,
+		tradingLines,
+		corporateActions,
+		rules: watchRules,
+	});
+
+	reportProgress({ type: 'corporate-action-watch-checked', watch });
+	return watch;
 }
 
 function getRequiredFetchedLine(

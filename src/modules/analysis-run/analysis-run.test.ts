@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
+import { RELEVANT_FACTS_URL } from '#modules/corporate-action-watch/index.ts';
 import { dollarizeBarHistory } from '#modules/dollarized-series/index.ts';
 import { createInstrumentCatalog } from '#modules/instrument-catalog/instrument-catalog.ts';
 import { calculateInstrumentStates } from '#modules/instrument-state/index.ts';
@@ -142,7 +143,7 @@ describe('createAnalysisRunner', () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 
 		expect(result.ok && result.snapshot).toMatchObject({
-			schemaVersion: 3,
+			schemaVersion: 4,
 			ranAt: RAN_AT,
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			analysisConfigurationVersion: ANALYSIS_CONFIGURATION.version,
@@ -745,6 +746,98 @@ describe('Analysis Run corporate actions and large moves', () => {
 	});
 });
 
+describe('Analysis Run corporate-action watch', () => {
+	// NOW's split notice (483240) with the test catalog's CEDEAR ticker.
+	const appleSplitNotice: RelevantFactsRow = {
+		especie: 'BCOM',
+		fecha: '2026-09-28 13:27:09.0',
+		tipoArchivo: 'pdf',
+		descarga: 483240,
+		referencia: 'Hecho Relevante de Cedear - AAPL - APPLE INC. - Anuncia Stock Split',
+		emisor: 'BANCO COMAFI S.A.',
+	};
+	const appleSplit: CorporateAction = {
+		tradingLineId: 'apple-cedear-byma-ars',
+		exDate: '2026-10-05',
+		priceFactor: 0.25,
+		kind: 'split',
+		sourceUrl: 'https://example.com/notice',
+	};
+
+	test('records the notices for analyzed lines over the week through the session', async () => {
+		const { result } = await runWithProvider(
+			createHealthyProvider(),
+			REQUESTED_THROUGH_SESSION,
+			[],
+			[appleSplitNotice],
+		);
+
+		expect(result.ok && result.snapshot.corporateActionWatch).toEqual({
+			status: 'available',
+			publishedFrom: '2026-09-24',
+			publishedThrough: '2026-09-30',
+			candidates: [
+				{
+					tradingLineId: 'apple-cedear-byma-ars',
+					isListed: false,
+					notices: [
+						{
+							documentId: 483240,
+							publishedAt: '2026-09-28T13:27:09',
+							title: appleSplitNotice.referencia,
+							pdfUrl: 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/483240',
+						},
+					],
+				},
+			],
+		});
+	});
+
+	test("marks a candidate listed from the run's Corporate Action list", async () => {
+		const { result } = await runWithProvider(
+			createHealthyProvider(),
+			REQUESTED_THROUGH_SESSION,
+			[appleSplit],
+			[appleSplitNotice],
+		);
+		const watch = result.ok ? result.snapshot.corporateActionWatch : null;
+
+		expect(watch?.status === 'available' && watch.candidates[0]!.isListed).toBe(true);
+	});
+
+	test('writes the snapshot unchanged otherwise when the feed fails', async () => {
+		const healthyRun = await runWithProvider(createHealthyProvider());
+		const failedFeedRun = await runWithProvider(
+			createHealthyProvider(),
+			REQUESTED_THROUGH_SESSION,
+			[],
+			'http-error',
+		);
+
+		expect(failedFeedRun.writes).toHaveLength(1);
+		expect(failedFeedRun.result.ok && failedFeedRun.result.snapshot).toMatchObject({
+			analyzedLines: healthyRun.result.ok ? healthyRun.result.snapshot.analyzedLines : [],
+			corporateActionWatch: {
+				status: 'unavailable',
+				message: 'The relevant-facts feed returned HTTP 500.',
+			},
+		});
+	});
+
+	test('does not request the feed when no snapshot can be written', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			GGAL: 'no-data' as const,
+			AAPL: 'no-data' as const,
+			NEW: 'no-data' as const,
+		};
+		const { result, requestedSymbols } = await runWithProvider(provider);
+
+		expect(result).toMatchObject({ ok: false, reason: 'no-analyzed-lines' });
+		expect(requestedSymbols).not.toContain('relevant-facts');
+	});
+});
+
 describe('Analysis Run progress', () => {
 	test('reports each analyzed line once, in order, as soon as it is analyzed', async () => {
 		const provider = { ...createHealthyProvider(), AAPL: 'http-not-found' as const };
@@ -767,6 +860,9 @@ describe('Analysis Run progress', () => {
 			'pause 2000',
 			'request NEW',
 			'line 3/3 new-stock-byma-ars available',
+			'pause 2000',
+			'request relevant-facts',
+			'corporate-action-watch available: ',
 		]);
 	});
 
@@ -804,6 +900,7 @@ describe('Analysis Run fetch retries', () => {
 		'mep-rate-source-fetched 2026-09-30',
 	];
 	const newPesoBars = convertDollarBarsToPeso(shortHistoryDollarBars);
+	const WATCH = ['pause 2000', 'request relevant-facts', 'corporate-action-watch available: '];
 
 	test('analyzes a line that fails transiently once and succeeds on retry', async () => {
 		const provider = {
@@ -865,7 +962,14 @@ describe('Analysis Run fetch retries', () => {
 			status: 'unavailable',
 			reason,
 		});
-		expect(requestedSymbols).toEqual(['AL30', 'AL30D', 'GGAL', 'AAPL', 'NEW']);
+		expect(requestedSymbols).toEqual([
+			'AL30',
+			'AL30D',
+			'GGAL',
+			'AAPL',
+			'NEW',
+			'relevant-facts',
+		]);
 	});
 
 	test('never retries a line whose bars fail validation', async () => {
@@ -878,7 +982,14 @@ describe('Analysis Run fetch retries', () => {
 		expect(selectLine(result, 'apple-cedear-byma-ars')).toMatchObject({
 			reason: 'invalid-bars',
 		});
-		expect(requestedSymbols).toEqual(['AL30', 'AL30D', 'GGAL', 'AAPL', 'NEW']);
+		expect(requestedSymbols).toEqual([
+			'AL30',
+			'AL30D',
+			'GGAL',
+			'AAPL',
+			'NEW',
+			'relevant-facts',
+		]);
 	});
 
 	test('retries after the main pass, in Catalog order, reporting each line once', async () => {
@@ -906,6 +1017,7 @@ describe('Analysis Run fetch retries', () => {
 			'pause 2000',
 			'request NEW',
 			'line 3/3 new-stock-byma-ars available',
+			...WATCH,
 		]);
 	});
 
@@ -1019,11 +1131,12 @@ describe('Analysis Run fetch retries', () => {
 				events.includes('request NEW') ? '2026-10-01T15:24:30Z' : RAN_AT,
 		});
 
-		expect(timeline.slice(-4)).toEqual([
+		expect(timeline.slice(-7)).toEqual([
 			'request NEW',
 			'line 3/3 new-stock-byma-ars available',
 			'retry stopped: apple-cedear-byma-ars',
 			'line 2/3 apple-cedear-byma-ars unavailable fetch-failed',
+			...WATCH,
 		]);
 		expect(timeline.filter((event) => event === 'request AAPL')).toHaveLength(1);
 	});
@@ -1040,9 +1153,10 @@ describe('Analysis Run fetch retries', () => {
 				events.includes('request NEW') ? '2026-10-01T15:24:29Z' : RAN_AT,
 		});
 
-		expect(timeline.slice(-2)).toEqual([
+		expect(timeline.slice(-5)).toEqual([
 			'request AAPL',
 			'line 2/3 apple-cedear-byma-ars available',
+			...WATCH,
 		]);
 	});
 
@@ -1061,12 +1175,13 @@ describe('Analysis Run fetch retries', () => {
 			},
 		});
 
-		expect(timeline.slice(-5)).toEqual([
+		expect(timeline.slice(-8)).toEqual([
 			'pause 30000',
 			'request GGAL',
 			'line 1/3 galicia-stock-byma-ars available',
 			'retry stopped: apple-cedear-byma-ars',
 			'line 2/3 apple-cedear-byma-ars unavailable fetch-failed',
+			...WATCH,
 		]);
 		expect(timeline.filter((event) => event === 'request AAPL')).toHaveLength(1);
 	});
@@ -1128,6 +1243,15 @@ function describeProgress(progress: AnalysisRunProgress): string {
 		return `retry stopped: ${progress.tradingLineIds.join(', ')}`;
 	}
 
+	if (progress.type === 'corporate-action-watch-checked') {
+		const { watch } = progress;
+		const candidateLineIds =
+			watch.status === 'available'
+				? watch.candidates.map((candidate) => candidate.tradingLineId)
+				: [];
+		return `corporate-action-watch ${watch.status}: ${candidateLineIds.join(', ')}`;
+	}
+
 	const { line, position, analyzedLineCount } = progress;
 	const outcome = line.status === 'available' ? 'available' : `unavailable ${line.reason}`;
 	return `line ${position}/${analyzedLineCount} ${line.tradingLineId} ${outcome}`;
@@ -1144,6 +1268,15 @@ type ProviderResponse =
 /** Answers each request for a symbol with the next response; the last one repeats. */
 type ProviderSequence = Readonly<{ sequence: readonly ProviderResponse[] }>;
 type FakeProvider = Readonly<Record<string, ProviderResponse | ProviderSequence>>;
+type RelevantFactsRow = Readonly<{
+	especie: string;
+	fecha: string;
+	tipoArchivo: 'pdf';
+	descarga: number;
+	referencia: string;
+	emisor: string;
+}>;
+type FakeRelevantFacts = readonly RelevantFactsRow[] | 'http-error';
 
 function createHealthyProvider(): FakeProvider {
 	return {
@@ -1159,6 +1292,7 @@ async function runWithProvider(
 	provider: FakeProvider,
 	requestedThroughSession = REQUESTED_THROUGH_SESSION,
 	corporateActions: readonly CorporateAction[] = [],
+	relevantFacts: FakeRelevantFacts = [],
 ): Promise<
 	Readonly<{
 		result: AnalysisRunResult;
@@ -1175,7 +1309,7 @@ async function runWithProvider(
 		},
 	};
 	const runner = createAnalysisRunner(storage, {
-		...createRunnerOptions(provider, (symbol) => requestedSymbols.push(symbol)),
+		...createRunnerOptions(provider, (symbol) => requestedSymbols.push(symbol), relevantFacts),
 		corporateActions,
 	});
 	const result = await runner.run({ requestedThroughSession });
@@ -1186,12 +1320,19 @@ async function runWithProvider(
 function createRunnerOptions(
 	provider: FakeProvider,
 	recordRequest: (symbol: string) => void = () => {},
+	relevantFacts: FakeRelevantFacts = [],
 ) {
 	const requestCounts = new Map<string, number>();
 
 	return {
 		fetchFromProvider: (input: string | URL | Request) => {
 			const url = new URL(input instanceof Request ? input.url : input);
+
+			if (url.href === RELEVANT_FACTS_URL) {
+				recordRequest('relevant-facts');
+				return Promise.resolve(createRelevantFactsResponse(relevantFacts));
+			}
+
 			const symbol = url.searchParams.get('symbol')!.replace(' 24HS', '');
 			const requestIndex = requestCounts.get(symbol) ?? 0;
 			requestCounts.set(symbol, requestIndex + 1);
@@ -1205,6 +1346,17 @@ function createRunnerOptions(
 		catalog,
 		corporateActions: [] as readonly CorporateAction[],
 	};
+}
+
+function createRelevantFactsResponse(relevantFacts: FakeRelevantFacts): Response {
+	if (relevantFacts === 'http-error') {
+		return new Response(null, { status: 500 });
+	}
+
+	return Response.json({
+		content: { total_elements_count: relevantFacts.length },
+		data: relevantFacts,
+	});
 }
 
 function selectProviderResponse(

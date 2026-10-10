@@ -1,0 +1,11 @@
+- [x] Verify the issuer codes of series-suffixed stock symbols.
+- [x] Draft the proposal, the `corporate-action-watch` spec and the `analysis-run` delta.
+- [x] Add the committed, validated matching rules.
+- [x] Match notices to analyzed lines, filter by event phrase, group by line and mark candidates listed or unlisted.
+- [x] Fetch the relevant-facts feed once per run and record an unavailable watch on any failure.
+- [x] Record `corporateActionWatch` in the snapshot, move it to `schemaVersion: 4` and the `v4` prefix, report it as progress and log it.
+- [x] Add the Corporate Action Notice glossary entry.
+- [x] Test ETHA, NOW, SPY, HUT, TECO2, BMA, the excluded cash-distribution prefix, words containing phrase fragments, grouping, the listing window, the feed's failures and the request and pause sequence.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation and an Analysis Run dry run.
+- [ ] Review.
+- [ ] Archive after review.

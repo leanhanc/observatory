@@ -17,6 +17,10 @@ import type {
 	AnalysisSnapshotStorage,
 	AnalyzedLine,
 } from '#modules/analysis-run/index.ts';
+import type {
+	CorporateActionCandidate,
+	CorporateActionWatch,
+} from '#modules/corporate-action-watch/index.ts';
 import type { CorporateActionStatus } from '#modules/corporate-actions/index.ts';
 
 const PROVIDER_REQUEST_TIMEOUT_MS = 20_000;
@@ -255,7 +259,66 @@ function logProgress(log: AnalysisRunLog, progress: AnalysisRunProgress): void {
 		return;
 	}
 
+	if (progress.type === 'corporate-action-watch-checked') {
+		logCorporateActionWatch(log, progress.watch);
+		return;
+	}
+
 	logAnalyzedLine(log, progress);
+}
+
+/**
+ * An unlisted candidate needs a person to read its notice and decide whether the committed list
+ * needs an entry, so it is a warning; a listed one is already handled.
+ */
+function logCorporateActionWatch(log: AnalysisRunLog, watch: CorporateActionWatch): void {
+	const { publishedFrom, publishedThrough } = watch;
+	const fields = { event: 'corporate-action-watch-checked', publishedFrom, publishedThrough };
+
+	if (watch.status === 'unavailable') {
+		log.warn(
+			{ ...fields, status: watch.status, message: watch.message },
+			`Corporate-action watch unavailable: ${watch.message}`,
+		);
+		return;
+	}
+
+	if (watch.candidates.length === 0) {
+		log.info(
+			{ ...fields, status: watch.status, candidateCount: 0 },
+			`Corporate-action watch: no notices for analyzed lines published ${publishedFrom} to ${publishedThrough}.`,
+		);
+		return;
+	}
+
+	for (const candidate of watch.candidates) {
+		logCorporateActionCandidate(log, fields, candidate);
+	}
+}
+
+function logCorporateActionCandidate(
+	log: AnalysisRunLog,
+	fields: object,
+	candidate: CorporateActionCandidate,
+): void {
+	const { tradingLineId, isListed, notices } = candidate;
+	const noticeSummary = notices
+		.map(({ publishedAt, title, pdfUrl }) => `${publishedAt.slice(0, 10)} ${title} <${pdfUrl}>`)
+		.join('; ');
+	const candidateFields = { ...fields, tradingLineId, isListed, notices };
+
+	if (isListed) {
+		log.info(
+			candidateFields,
+			`Listed corporate-action notice for ${tradingLineId}: ${noticeSummary}`,
+		);
+		return;
+	}
+
+	log.warn(
+		candidateFields,
+		`Unlisted corporate-action notice for ${tradingLineId}; read it before adding a list entry: ${noticeSummary}`,
+	);
 }
 
 function logFetchRetry(

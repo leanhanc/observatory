@@ -128,6 +128,10 @@ _Avoid_: Split when referring to every kind, adjustment when referring to the is
 A completed Trading Session whose dollarized close moved by a configured factor or more from the previous dollarized close, up or down. It is large enough to be an unadjusted Corporate Action; it describes the move's size and does not say what caused it.
 _Avoid_: Split detection, anomaly, outlier
 
+**Corporate Action Notice**:
+A published notice, from an issuer or a CEDEAR program issuer, whose title announces an event that may be a Corporate Action for an analyzed Trading Line. It is a prompt for a person to read the notice, not a confirmed Corporate Action: only the notice's document gives the ex-date and the factor, and only a confirmed action is corrected.
+_Avoid_: Corporate Action when nothing has been confirmed, signal, alert
+
 **Situation**:
 A named combination of Features and Instrument State that Observatory recognizes as worth describing.
 _Avoid_: Signal, prediction, opportunity

@@ -1,0 +1,24 @@
+{
+	"schemaVersion": 1,
+	"cedearProgramIssuers": ["BANCO COMAFI S.A.", "Caja de Valores S.A.", "BANCO MACRO S.A."],
+	"stockIssuerCodes": {
+		"SUPV": "GSUP",
+		"TECO2": "TECO",
+		"TGNO4": "TGNO",
+		"TGSU2": "TGSU"
+	},
+	"cedearNameAliases": {
+		"HUT 8 CORP.": "HUT"
+	},
+	"eventPhrases": [
+		"stock split",
+		"reverse stock split",
+		"cambio de ratio",
+		"dividendo en acciones",
+		"dividendos en acciones",
+		"capitalizaciones",
+		"stock dividend",
+		"dividendo opcional"
+	],
+	"excludedTitlePrefixes": ["Aviso de pago de servicios o renta de Cedear"]
+}

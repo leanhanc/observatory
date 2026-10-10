@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
+import { RELEVANT_FACTS_URL } from '#modules/corporate-action-watch/index.ts';
 import { createInstrumentCatalog } from '#modules/instrument-catalog/instrument-catalog.ts';
 import { loadGgalFixture } from '#modules/technical-analysis/tests/support/index.ts';
 
@@ -171,6 +172,7 @@ describe('Analysis Run command logging', () => {
 			expect.stringMatching(
 				/^warn \[3\/3\] missing-stock-byma-ars: unavailable: fetch-failed \(.+\)$/,
 			),
+			'info Corporate-action watch: no notices for analyzed lines published 2026-09-24 to 2026-09-30.',
 			expect.stringMatching(
 				/^info Analysis Run through 2026-09-30 completed in \d+ s: 1 available \(1 ending before 2026-09-30\), 2 unavailable; written to .+\.json\.$/,
 			),
@@ -321,13 +323,84 @@ describe('Analysis Run command logging', () => {
 		const { entries, outcome } = await runCommandWithMainPassEndingAt('2026-10-01T15:25:00Z');
 
 		expect(outcome).toBe('snapshot-written');
-		expect(entries.map(({ level, message }) => `${level} ${message}`).slice(-3, -1)).toEqual([
+		expect(entries.map(({ level, message }) => `${level} ${message}`).slice(-4, -2)).toEqual([
 			'warn Retry cut-off reached; 1 line not retried: missing-stock-byma-ars.',
 			'warn [3/3] missing-stock-byma-ars: unavailable: fetch-failed (Open BYMADATA returned HTTP 500.)',
 		]);
-		expect(entries.at(-3)!.fields).toMatchObject({
+		expect(entries.at(-4)!.fields).toMatchObject({
 			event: 'fetch-retry-stopped',
 			tradingLineIds: ['missing-stock-byma-ars'],
+		});
+	});
+
+	describe('corporate-action watch', () => {
+		// Galicia's notice in the shape of SEMI's stock-dividend payment notice (479966).
+		const galiciaStockDividend = {
+			especie: 'GGAL',
+			fecha: '2026-09-28 10:59:51.0',
+			tipoArchivo: 'pdf',
+			descarga: 479966,
+			referencia:
+				'Aviso de pago de Capitalizaciones / Dividendo en acciones - Pago de dividendo en acciones',
+			emisor: 'GRUPO FINANCIERO GALICIA S.A.',
+		};
+		const pdfUrl =
+			'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/479966';
+
+		test('warns about an unlisted candidate in one line with its PDF link', async () => {
+			const { entries } = await runCommandWithProvider(
+				{ GGAL: ggalPesoBars, THIN: thinlyTradedPesoBars },
+				{ relevantFacts: [galiciaStockDividend] },
+			);
+			const watchEntries = entries.filter(
+				(entry) =>
+					'event' in entry.fields &&
+					entry.fields.event === 'corporate-action-watch-checked',
+			);
+
+			expect(watchEntries.map(({ level, message }) => `${level} ${message}`)).toEqual([
+				`warn Unlisted corporate-action notice for galicia-stock-byma-ars; read it before adding a list entry: 2026-09-28 ${galiciaStockDividend.referencia} <${pdfUrl}>`,
+			]);
+			expect(watchEntries[0]!.fields).toMatchObject({
+				tradingLineId: 'galicia-stock-byma-ars',
+				isListed: false,
+				notices: [{ documentId: 479966, pdfUrl }],
+			});
+		});
+
+		test('logs a listed candidate at info', async () => {
+			const { entries } = await runCommandWithProvider(
+				{ GGAL: ggalPesoBars, THIN: thinlyTradedPesoBars },
+				{
+					relevantFacts: [galiciaStockDividend],
+					corporateActions: [{ ...GGAL_SHARE_DISTRIBUTION, exDate: '2026-10-05' }],
+				},
+			);
+
+			expect(entries).toContainEqual(
+				expect.objectContaining({
+					level: 'info',
+					message: expect.stringMatching(
+						/^Listed corporate-action notice for galicia-stock-byma-ars: 2026-09-28 /,
+					),
+				}),
+			);
+		});
+
+		test('warns when the feed fails and still writes the snapshot', async () => {
+			const { entries, outcome } = await runCommandWithProvider(
+				{ GGAL: ggalPesoBars, THIN: thinlyTradedPesoBars },
+				{ relevantFacts: 'http-error' },
+			);
+
+			expect(outcome).toBe('snapshot-written');
+			expect(entries).toContainEqual(
+				expect.objectContaining({
+					level: 'warn',
+					message:
+						'Corporate-action watch unavailable: The relevant-facts feed returned HTTP 500.',
+				}),
+			);
 		});
 	});
 
@@ -401,7 +474,10 @@ type CommandOverrides = Readonly<{
 	deadlineMs?: number;
 	fetchFromProvider?: (input: string | URL | Request) => Promise<Response>;
 	corporateActions?: readonly CorporateAction[];
+	relevantFacts?: FakeRelevantFacts;
 }>;
+
+type FakeRelevantFacts = readonly Readonly<Record<string, string | number>>[] | 'http-error';
 
 /** Symbols missing from the provider answer with an HTTP error; `null` forces one. */
 async function runCommandWithProvider(
@@ -414,7 +490,8 @@ async function runCommandWithProvider(
 		currentInstant = RAN_AT,
 		getCurrentInstant = () => currentInstant,
 		deadlineMs = 30 * 60_000,
-		fetchFromProvider = createFakeProvider(provider),
+		relevantFacts = [],
+		fetchFromProvider = createFakeProvider(provider, relevantFacts),
 		corporateActions = [],
 	} = overrides;
 	const entries: LogEntry[] = [];
@@ -479,6 +556,7 @@ async function runCommandWithMainPassEndingAt(
 
 function createFakeProvider(
 	provider: Readonly<Record<string, readonly DailyBar[] | null>>,
+	relevantFacts: FakeRelevantFacts = [],
 ): (input: string | URL | Request) => Promise<Response> {
 	const bars: Readonly<Record<string, readonly DailyBar[] | null>> = {
 		AL30: al30Bars,
@@ -488,6 +566,11 @@ function createFakeProvider(
 
 	return (input) => {
 		const url = new URL(input instanceof Request ? input.url : input);
+
+		if (url.href === RELEVANT_FACTS_URL) {
+			return Promise.resolve(createRelevantFactsResponse(relevantFacts));
+		}
+
 		const symbol = url.searchParams.get('symbol')!.replace(' 24HS', '');
 		return Promise.resolve(createProviderResponse(bars[symbol] ?? null));
 	};
@@ -506,6 +589,17 @@ function createProviderResponse(bars: readonly DailyBar[] | null): Response {
 		l: bars.map((bar) => bar.low),
 		c: bars.map((bar) => bar.close),
 		v: bars.map((bar) => bar.volume),
+	});
+}
+
+function createRelevantFactsResponse(relevantFacts: FakeRelevantFacts): Response {
+	if (relevantFacts === 'http-error') {
+		return new Response(null, { status: 500 });
+	}
+
+	return Response.json({
+		content: { total_elements_count: relevantFacts.length },
+		data: relevantFacts,
 	});
 }
 

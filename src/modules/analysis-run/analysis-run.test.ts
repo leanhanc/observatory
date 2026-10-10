@@ -22,6 +22,7 @@ import type {
 const REQUESTED_THROUGH_SESSION = '2026-09-30';
 // Noon in Buenos Aires on 2026-10-01, so 2026-09-30 is the latest completed session.
 const RAN_AT = '2026-10-01T15:00:00Z';
+const RETRY_CUTOFF_MS = 25 * 60_000;
 
 // The fixture is read as dollar prices. The MEP Rate steps through powers of two, so peso prices
 // (dollar × rate) dollarize back to the fixture exactly, while the peso series carries currency
@@ -329,7 +330,8 @@ describe('createAnalysisRunner', () => {
 			message: 'al30-bond-byma-usd-mep: Open BYMADATA returned HTTP 500.',
 		});
 		expect(writes).toEqual([]);
-		expect(requestedSymbols).toEqual(['AL30', 'AL30D']);
+		// An HTTP 500 is an outage, so AL30D is retried once; no analyzed line is fetched.
+		expect(requestedSymbols).toEqual(['AL30', 'AL30D', 'AL30D']);
 	});
 
 	test('accepts a zero open on a MEP rate source bar and records it', async () => {
@@ -745,7 +747,7 @@ describe('Analysis Run corporate actions and large moves', () => {
 
 describe('Analysis Run progress', () => {
 	test('reports each analyzed line once, in order, as soon as it is analyzed', async () => {
-		const provider = { ...createHealthyProvider(), AAPL: 'http-error' as const };
+		const provider = { ...createHealthyProvider(), AAPL: 'http-not-found' as const };
 		const timeline = await recordRunTimeline(provider);
 
 		// Exactly one historical request pause separates every pair of provider requests, including
@@ -777,21 +779,316 @@ describe('Analysis Run progress', () => {
 			'request AL30',
 			'pause 2000',
 			'request AL30D',
+			'retry mep-rate-source 1/1 cool-down 30000: al30-bond-byma-usd-mep',
+			'pause 30000',
+			'request AL30D',
 		]);
 	});
 
 	test('reports nothing for an invalid request', async () => {
-		const timeline = await recordRunTimeline(createHealthyProvider(), '2026-10-01');
+		const timeline = await recordRunTimeline(createHealthyProvider(), {
+			requestedThroughSession: '2026-10-01',
+		});
 
 		expect(timeline).toEqual([]);
 	});
 });
 
-/** Provider requests, pauses and progress reports, interleaved in the order they happened. */
+describe('Analysis Run fetch retries', () => {
+	const RUN_STARTED =
+		'run-started 2026-09-30 lines=3 configuration=' + ANALYSIS_CONFIGURATION.version;
+	const MEP_RATE_SOURCE_FETCH = [
+		'request AL30',
+		'pause 2000',
+		'request AL30D',
+		'mep-rate-source-fetched 2026-09-30',
+	];
+	const newPesoBars = convertDollarBarsToPeso(shortHistoryDollarBars);
+
+	test('analyzes a line that fails transiently once and succeeds on retry', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AAPL: { sequence: ['http-error', ggalPesoBars] as const },
+		};
+		const { result, requestedSymbols } = await runWithProvider(provider);
+		const apple = selectAvailableLine(result, 'apple-cedear-byma-ars');
+		const galicia = selectAvailableLine(result, 'galicia-stock-byma-ars');
+
+		// Both lines served the same bars, so the retried line's analysis matches the other's.
+		expect(apple.latestState).toEqual(galicia.latestState);
+		expect(apple.events).toEqual(galicia.events);
+		expect(requestedSymbols.filter((symbol) => symbol === 'AAPL')).toHaveLength(2);
+	});
+
+	test('records a line that fails transiently twice as fetch-failed', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AAPL: { sequence: ['http-error', 'http-error', ggalPesoBars] as const },
+		};
+		const { result, requestedSymbols } = await runWithProvider(provider);
+
+		expect(selectLine(result, 'apple-cedear-byma-ars')).toMatchObject({
+			status: 'unavailable',
+			reason: 'fetch-failed',
+			message: 'Open BYMADATA returned HTTP 500.',
+		});
+		expect(requestedSymbols.filter((symbol) => symbol === 'AAPL')).toHaveLength(2);
+	});
+
+	test('takes the retry outcome when the retry gets a different answer', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AAPL: { sequence: ['http-error', 'no-data'] as const },
+		};
+		const { result } = await runWithProvider(provider);
+
+		expect(selectLine(result, 'apple-cedear-byma-ars')).toMatchObject({
+			status: 'unavailable',
+			reason: 'no-provider-bars',
+		});
+	});
+
+	test.each([
+		['no data', 'no-data', 'no-provider-bars'],
+		['an HTTP 404', 'http-not-found', 'fetch-failed'],
+		['a body that is not JSON', 'not-json', 'fetch-failed'],
+		['a provider error status', 'provider-error', 'fetch-failed'],
+		['a malformed history', 'malformed-history', 'fetch-failed'],
+	] as const)('never retries %s', async (_label, response, reason) => {
+		const provider = {
+			...createHealthyProvider(),
+			AAPL: { sequence: [response, ggalPesoBars] },
+		};
+		const { result, requestedSymbols } = await runWithProvider(provider);
+
+		expect(selectLine(result, 'apple-cedear-byma-ars')).toMatchObject({
+			status: 'unavailable',
+			reason,
+		});
+		expect(requestedSymbols).toEqual(['AL30', 'AL30D', 'GGAL', 'AAPL', 'NEW']);
+	});
+
+	test('never retries a line whose bars fail validation', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AAPL: { sequence: [[...ggalPesoBars, ggalPesoBars.at(-1)!], ggalPesoBars] },
+		};
+		const { result, requestedSymbols } = await runWithProvider(provider);
+
+		expect(selectLine(result, 'apple-cedear-byma-ars')).toMatchObject({
+			reason: 'invalid-bars',
+		});
+		expect(requestedSymbols).toEqual(['AL30', 'AL30D', 'GGAL', 'AAPL', 'NEW']);
+	});
+
+	test('retries after the main pass, in Catalog order, reporting each line once', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			GGAL: { sequence: ['http-error', ggalPesoBars] as const },
+			NEW: { sequence: ['http-error', newPesoBars] as const },
+		};
+		const timeline = await recordRunTimeline(provider);
+
+		expect(timeline).toEqual([
+			RUN_STARTED,
+			...MEP_RATE_SOURCE_FETCH,
+			'pause 2000',
+			'request GGAL',
+			'pause 2000',
+			'request AAPL',
+			'line 2/3 apple-cedear-byma-ars available',
+			'pause 2000',
+			'request NEW',
+			'retry analyzed-lines 1/1 cool-down 30000: galicia-stock-byma-ars, new-stock-byma-ars',
+			'pause 30000',
+			'request GGAL',
+			'line 1/3 galicia-stock-byma-ars available',
+			'pause 2000',
+			'request NEW',
+			'line 3/3 new-stock-byma-ars available',
+		]);
+	});
+
+	test('keeps the snapshot in Catalog order after a retry', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			GGAL: { sequence: ['http-error', ggalPesoBars] as const },
+		};
+		const { result } = await runWithProvider(provider);
+
+		expect(
+			result.ok && result.snapshot.analyzedLines.map((line) => line.tradingLineId),
+		).toEqual(['galicia-stock-byma-ars', 'apple-cedear-byma-ars', 'new-stock-byma-ars']);
+	});
+
+	test('retries the MEP rate source and succeeds when it recovers', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AL30D: { sequence: ['http-error', al30dBars] as const },
+		};
+		const timeline = await recordRunTimeline(provider);
+		const { result, writes } = await runWithProvider(provider);
+
+		expect(timeline.slice(0, 8)).toEqual([
+			RUN_STARTED,
+			'request AL30',
+			'pause 2000',
+			'request AL30D',
+			'retry mep-rate-source 1/1 cool-down 30000: al30-bond-byma-usd-mep',
+			'pause 30000',
+			'request AL30D',
+			'mep-rate-source-fetched 2026-09-30',
+		]);
+		expect(result.ok).toBe(true);
+		expect(writes).toHaveLength(1);
+	});
+
+	test('retries both MEP rate source legs with the usual pause between them', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AL30: { sequence: ['http-error', al30Bars] as const },
+			AL30D: { sequence: ['http-error', al30dBars] as const },
+		};
+		const timeline = await recordRunTimeline(provider);
+
+		expect(timeline.slice(0, 10)).toEqual([
+			RUN_STARTED,
+			'request AL30',
+			'pause 2000',
+			'request AL30D',
+			'retry mep-rate-source 1/1 cool-down 30000: al30-bond-byma-ars, al30-bond-byma-usd-mep',
+			'pause 30000',
+			'request AL30',
+			'pause 2000',
+			'request AL30D',
+			'mep-rate-source-fetched 2026-09-30',
+		]);
+	});
+
+	test('never retries a MEP rate source leg that fails finally', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AL30D: { sequence: ['provider-error', al30dBars] as const },
+		};
+		const { result, writes, requestedSymbols } = await runWithProvider(provider);
+
+		expect(result).toEqual({
+			ok: false,
+			reason: 'mep-rate-source-unavailable',
+			message: 'al30-bond-byma-usd-mep: Open BYMADATA rejected the history request.',
+		});
+		expect(writes).toEqual([]);
+		expect(requestedSymbols).toEqual(['AL30', 'AL30D']);
+	});
+
+	test('does not retry the other leg when one fails finally, and names the final failure', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AL30: 'http-error' as const,
+			AL30D: replaceBar(al30dBars, '2026-09-29', { low: 2, high: 0.5 }),
+		};
+		const { result, writes, requestedSymbols } = await runWithProvider(provider);
+
+		expect(result).toMatchObject({
+			ok: false,
+			reason: 'mep-rate-source-unavailable',
+			message: expect.stringMatching(/^al30-bond-byma-usd-mep: /),
+		});
+		expect(writes).toEqual([]);
+		expect(requestedSymbols).toEqual(['AL30', 'AL30D']);
+	});
+
+	test('does not retry the MEP rate source when the other leg has no bars', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AL30: 'no-data' as const,
+			AL30D: { sequence: ['http-error', al30dBars] as const },
+		};
+		const { result, requestedSymbols } = await runWithProvider(provider);
+
+		expect(result).toMatchObject({ ok: false, reason: 'mep-rate-source-unavailable' });
+		expect(requestedSymbols).toEqual(['AL30', 'AL30D']);
+	});
+
+	test('does not start a retry pass whose cool-down would reach the cut-off', async () => {
+		const provider = { ...createHealthyProvider(), AAPL: 'http-error' as const };
+		// The main pass ends at 24:30 of run time; the 30 s cool-down would end at the cut-off.
+		const timeline = await recordRunTimeline(provider, {
+			retryCutoffMs: RETRY_CUTOFF_MS,
+			readClock: (events) =>
+				events.includes('request NEW') ? '2026-10-01T15:24:30Z' : RAN_AT,
+		});
+
+		expect(timeline.slice(-4)).toEqual([
+			'request NEW',
+			'line 3/3 new-stock-byma-ars available',
+			'retry stopped: apple-cedear-byma-ars',
+			'line 2/3 apple-cedear-byma-ars unavailable fetch-failed',
+		]);
+		expect(timeline.filter((event) => event === 'request AAPL')).toHaveLength(1);
+	});
+
+	test('retries just before the cut-off', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AAPL: { sequence: ['http-error', ggalPesoBars] as const },
+		};
+		// The 30 s cool-down ends one second before the cut-off.
+		const timeline = await recordRunTimeline(provider, {
+			retryCutoffMs: RETRY_CUTOFF_MS,
+			readClock: (events) =>
+				events.includes('request NEW') ? '2026-10-01T15:24:29Z' : RAN_AT,
+		});
+
+		expect(timeline.slice(-2)).toEqual([
+			'request AAPL',
+			'line 2/3 apple-cedear-byma-ars available',
+		]);
+	});
+
+	test('stops a retry pass at the cut-off and keeps the rest failed', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			GGAL: { sequence: ['http-error', ggalPesoBars] as const },
+			AAPL: { sequence: ['http-error', ggalPesoBars] as const },
+		};
+		// GGAL's retry ends at 24:58 of run time; the 2 s pause before AAPL would end at the cut-off.
+		const timeline = await recordRunTimeline(provider, {
+			retryCutoffMs: RETRY_CUTOFF_MS,
+			readClock: (events) => {
+				const ggalRequestCount = events.filter((event) => event === 'request GGAL').length;
+				return ggalRequestCount === 2 ? '2026-10-01T15:24:58Z' : RAN_AT;
+			},
+		});
+
+		expect(timeline.slice(-5)).toEqual([
+			'pause 30000',
+			'request GGAL',
+			'line 1/3 galicia-stock-byma-ars available',
+			'retry stopped: apple-cedear-byma-ars',
+			'line 2/3 apple-cedear-byma-ars unavailable fetch-failed',
+		]);
+		expect(timeline.filter((event) => event === 'request AAPL')).toHaveLength(1);
+	});
+});
+
+/**
+ * Provider requests, pauses and progress reports, interleaved in the order they happened. The run's
+ * clock can be derived from that timeline, to place a step at a given run time.
+ */
 async function recordRunTimeline(
 	provider: FakeProvider,
-	requestedThroughSession = REQUESTED_THROUGH_SESSION,
+	options: Readonly<{
+		requestedThroughSession?: string;
+		retryCutoffMs?: number;
+		readClock?: (timeline: readonly string[]) => string;
+	}> = {},
 ): Promise<readonly string[]> {
+	const {
+		requestedThroughSession = REQUESTED_THROUGH_SESSION,
+		retryCutoffMs = Number.POSITIVE_INFINITY,
+		readClock = () => RAN_AT,
+	} = options;
 	const timeline: string[] = [];
 	const storage: AnalysisSnapshotStorage = {
 		write: () => Promise.resolve({ ok: true, locations: ['memory'] }),
@@ -802,6 +1099,8 @@ async function recordRunTimeline(
 			timeline.push(`pause ${milliseconds}`);
 			return Promise.resolve();
 		},
+		getCurrentInstant: () => readClock(timeline),
+		retryCutoffMs,
 		reportProgress: (progress) => timeline.push(describeProgress(progress)),
 	});
 
@@ -819,13 +1118,32 @@ function describeProgress(progress: AnalysisRunProgress): string {
 		return `mep-rate-source-fetched ${progress.latestRateSessionDate}`;
 	}
 
+	if (progress.type === 'fetch-retry-started') {
+		const { scope, retry, retryCount, coolDownMs, failures } = progress;
+		const lineIds = failures.map((failure) => failure.tradingLineId).join(', ');
+		return `retry ${scope} ${retry}/${retryCount} cool-down ${coolDownMs}: ${lineIds}`;
+	}
+
+	if (progress.type === 'fetch-retry-stopped') {
+		return `retry stopped: ${progress.tradingLineIds.join(', ')}`;
+	}
+
 	const { line, position, analyzedLineCount } = progress;
 	const outcome = line.status === 'available' ? 'available' : `unavailable ${line.reason}`;
 	return `line ${position}/${analyzedLineCount} ${line.tradingLineId} ${outcome}`;
 }
 
-type ProviderResponse = readonly DailyBar[] | 'http-error' | 'no-data';
-type FakeProvider = Readonly<Record<string, ProviderResponse>>;
+type ProviderResponse =
+	| readonly DailyBar[]
+	| 'http-error'
+	| 'http-not-found'
+	| 'not-json'
+	| 'provider-error'
+	| 'malformed-history'
+	| 'no-data';
+/** Answers each request for a symbol with the next response; the last one repeats. */
+type ProviderSequence = Readonly<{ sequence: readonly ProviderResponse[] }>;
+type FakeProvider = Readonly<Record<string, ProviderResponse | ProviderSequence>>;
 
 function createHealthyProvider(): FakeProvider {
 	return {
@@ -869,12 +1187,18 @@ function createRunnerOptions(
 	provider: FakeProvider,
 	recordRequest: (symbol: string) => void = () => {},
 ) {
+	const requestCounts = new Map<string, number>();
+
 	return {
 		fetchFromProvider: (input: string | URL | Request) => {
 			const url = new URL(input instanceof Request ? input.url : input);
 			const symbol = url.searchParams.get('symbol')!.replace(' 24HS', '');
+			const requestIndex = requestCounts.get(symbol) ?? 0;
+			requestCounts.set(symbol, requestIndex + 1);
 			recordRequest(symbol);
-			return Promise.resolve(createProviderResponse(provider[symbol]));
+			return Promise.resolve(
+				createProviderResponse(selectProviderResponse(provider[symbol], requestIndex)),
+			);
 		},
 		pause: () => Promise.resolve(),
 		getCurrentInstant: () => RAN_AT,
@@ -883,9 +1207,39 @@ function createRunnerOptions(
 	};
 }
 
+function selectProviderResponse(
+	entry: ProviderResponse | ProviderSequence | undefined,
+	requestIndex: number,
+): ProviderResponse | undefined {
+	const isSequence = typeof entry === 'object' && 'sequence' in entry;
+
+	if (!isSequence) {
+		return entry;
+	}
+
+	const lastIndex = entry.sequence.length - 1;
+	return entry.sequence[Math.min(requestIndex, lastIndex)];
+}
+
 function createProviderResponse(response: ProviderResponse | undefined): Response {
 	if (!response || response === 'http-error') {
 		return new Response(null, { status: 500 });
+	}
+
+	if (response === 'http-not-found') {
+		return new Response(null, { status: 404 });
+	}
+
+	if (response === 'not-json') {
+		return new Response('<html>maintenance</html>');
+	}
+
+	if (response === 'provider-error') {
+		return Response.json({ s: 'error', t: [], o: [], h: [], l: [], c: [], v: [] });
+	}
+
+	if (response === 'malformed-history') {
+		return Response.json({ s: 'ok', t: [1_788_404_400] });
 	}
 
 	if (response === 'no-data') {

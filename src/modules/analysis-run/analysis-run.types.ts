@@ -160,6 +160,20 @@ export type AnalysisRunProgress =
 			latestRateSessionDate: string;
 	  }>
 	| Readonly<{
+			type: 'fetch-retry-started';
+			scope: 'mep-rate-source' | 'analyzed-lines';
+			/** 1-based number of this retry among the `retryCount` the scope allows. */
+			retry: number;
+			retryCount: number;
+			coolDownMs: number;
+			failures: readonly Readonly<{ tradingLineId: string; message: string }>[];
+	  }>
+	| Readonly<{
+			/** The retry cut-off was reached; these lines keep their main-pass failure. */
+			type: 'fetch-retry-stopped';
+			tradingLineIds: readonly string[];
+	  }>
+	| Readonly<{
 			type: 'line-analyzed';
 			/** 1-based position of the line among the analyzed Trading Lines. */
 			position: number;
@@ -175,6 +189,11 @@ export type AnalysisRunnerOptions = Readonly<{
 	/** The confirmed Corporate Actions to correct; the committed list by default. */
 	corporateActions?: readonly CorporateAction[];
 	reportProgress?: (progress: AnalysisRunProgress) => void;
+	/**
+	 * Run time after which no analyzed line is retried, so that retries cannot push the run past
+	 * its caller's deadline. No cut-off by default.
+	 */
+	retryCutoffMs?: number;
 }>;
 
 export type AnalysisRunner = Readonly<{

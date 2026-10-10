@@ -17,6 +17,8 @@ const SETTLEMENT = '24HS';
 // Largest relative distance an open or close may sit outside the high-low range and still be
 // treated as a provider adjustment artifact. The observed GGAL case was 0.26%.
 const RANGE_REPAIR_TOLERANCE = 0.01;
+// Request timeout, rate limit; 5xx statuses are transient too.
+const TRANSIENT_HTTP_STATUSES = new Set([408, 429]);
 
 const finiteNumberSchema = v.pipe(v.number(), v.finite());
 const finiteNumberArraySchema = v.array(finiteNumberSchema);
@@ -167,25 +169,42 @@ function createHistoryUrl(symbol: string, request: OpenBymadataHistoryRequest): 
 	return url;
 }
 
+/**
+ * `request-failed` means the provider may answer if asked again: the request did not complete, or
+ * the provider reported an outage or a rate limit. Every other failure is the provider's answer.
+ */
 async function fetchJson(
 	fetchFromProvider: OpenBymadataFetch,
 	input: string | URL,
 	init?: RequestInit,
 ): Promise<Readonly<{ ok: true; value: unknown }> | OpenBymadataFailure> {
-	try {
-		const response = await fetchFromProvider(input, init);
+	let response: Response;
 
-		if (!response.ok) {
+	try {
+		response = await fetchFromProvider(input, init);
+	} catch {
+		return createFailure('request-failed', 'Open BYMADATA could not be reached.');
+	}
+
+	if (!response.ok) {
+		const isTransientStatus =
+			response.status >= 500 || TRANSIENT_HTTP_STATUSES.has(response.status);
+		const reason = isTransientStatus ? 'request-failed' : 'request-rejected';
+		return createFailure(reason, `Open BYMADATA returned HTTP ${response.status}.`);
+	}
+
+	try {
+		const value: unknown = await response.json();
+		return { ok: true, value };
+	} catch (error) {
+		if (error instanceof SyntaxError) {
 			return createFailure(
-				'request-failed',
-				`Open BYMADATA returned HTTP ${response.status}.`,
+				'invalid-response',
+				'Open BYMADATA returned a body that is not JSON.',
 			);
 		}
 
-		const value: unknown = await response.json();
-		return { ok: true, value };
-	} catch {
-		return createFailure('request-failed', 'Open BYMADATA could not be reached or read.');
+		return createFailure('request-failed', 'Open BYMADATA could not be read.');
 	}
 }
 

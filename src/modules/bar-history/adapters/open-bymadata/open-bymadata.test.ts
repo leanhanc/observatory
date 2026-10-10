@@ -253,10 +253,27 @@ describe('Open BYMADATA adapter', () => {
 				throw new Error('connection unavailable');
 			},
 		],
-		['unreadable JSON', async () => new Response('{')],
-		['HTTP failure', async () => new Response('', { status: 503 })],
+		[
+			'timed-out fetch',
+			async () => {
+				throw new DOMException('The operation timed out.', 'TimeoutError');
+			},
+		],
+		[
+			'body that breaks while read',
+			async () =>
+				new Response(
+					new ReadableStream({
+						start: (controller) => controller.error(new Error('connection reset')),
+					}),
+				),
+		],
+		['HTTP 503', async () => new Response('', { status: 503 })],
+		['HTTP 500', async () => new Response('', { status: 500 })],
+		['HTTP 429', async () => new Response('', { status: 429 })],
+		['HTTP 408', async () => new Response('', { status: 408 })],
 	] satisfies readonly (readonly [string, OpenBymadataFetch])[])(
-		'reports %s as a request failure',
+		'reports a %s as a request failure, which may succeed if asked again',
 		async (_label, fetchFromProvider) => {
 			const adapter = createOpenBymadataAdapter(fetchFromProvider);
 			const result = await adapter.fetchHistory({
@@ -266,6 +283,25 @@ describe('Open BYMADATA adapter', () => {
 				requestedThroughSession: '2026-09-03',
 			});
 			expect(result).toMatchObject({ ok: false, reason: 'request-failed' });
+		},
+	);
+
+	test.each([
+		['HTTP 404', async () => new Response('', { status: 404 }), 'request-rejected'],
+		['HTTP 403', async () => new Response('', { status: 403 }), 'request-rejected'],
+		['HTTP 400', async () => new Response('', { status: 400 }), 'request-rejected'],
+		['body that is not JSON', async () => new Response('{'), 'invalid-response'],
+	] satisfies readonly (readonly [string, OpenBymadataFetch, string])[])(
+		'reports a %s as an answer, not a request failure',
+		async (_label, fetchFromProvider, reason) => {
+			const adapter = createOpenBymadataAdapter(fetchFromProvider);
+			const result = await adapter.fetchHistory({
+				tradingLine: AAPL,
+				fromEpochSeconds: 1,
+				toEpochSeconds: 2,
+				requestedThroughSession: '2026-09-03',
+			});
+			expect(result).toMatchObject({ ok: false, reason });
 		},
 	);
 

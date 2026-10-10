@@ -166,6 +166,8 @@ describe('Analysis Run command logging', () => {
 			expect.stringMatching(
 				/^info \[2\/3\] thin-stock-byma-ars: unavailable: insufficient-liquidity \(participation 1\.00, median USD \d+k\)$/,
 			),
+			// The provider answers HTTP 500 for the missing line, an outage worth one retry.
+			'info Retrying 1 analyzed line in 30 s after transient fetch failures: missing-stock-byma-ars (Open BYMADATA returned HTTP 500.).',
 			expect.stringMatching(
 				/^warn \[3\/3\] missing-stock-byma-ars: unavailable: fetch-failed \(.+\)$/,
 			),
@@ -299,11 +301,48 @@ describe('Analysis Run command logging', () => {
 		});
 
 		expect(outcome).toBe('failed');
-		expect(entries.map(({ level }) => level)).toEqual(['info', 'error']);
-		expect(entries[1]!.message).toStartWith(
-			'Analysis Run failed: mep-rate-source-unavailable: ',
+		expect(entries.map(({ level, message }) => `${level} ${message}`)).toEqual([
+			`info Analysis Run through 2026-09-30: 3 lines, configuration v${ANALYSIS_CONFIGURATION.version}.`,
+			'info Retrying the MEP rate source (retry 1 of 1) in 30 s after transient fetch failures: al30-bond-byma-usd-mep (Open BYMADATA returned HTTP 500.).',
+			expect.stringMatching(/^error Analysis Run failed: mep-rate-source-unavailable: /),
+		]);
+		expect(entries[1]!.fields).toMatchObject({
+			event: 'fetch-retry-started',
+			scope: 'mep-rate-source',
+			retry: 1,
+			retryCount: 1,
+			coolDownMs: 30_000,
+			lineCount: 1,
+		});
+		expect(entries[2]!.fields).toMatchObject({ reason: 'mep-rate-source-unavailable' });
+	});
+
+	test('warns about lines left unretried at the cut-off, five minutes before the deadline', async () => {
+		const { entries, outcome } = await runCommandWithMainPassEndingAt('2026-10-01T15:25:00Z');
+
+		expect(outcome).toBe('snapshot-written');
+		expect(entries.map(({ level, message }) => `${level} ${message}`).slice(-3, -1)).toEqual([
+			'warn Retry cut-off reached; 1 line not retried: missing-stock-byma-ars.',
+			'warn [3/3] missing-stock-byma-ars: unavailable: fetch-failed (Open BYMADATA returned HTTP 500.)',
+		]);
+		expect(entries.at(-3)!.fields).toMatchObject({
+			event: 'fetch-retry-stopped',
+			tradingLineIds: ['missing-stock-byma-ars'],
+		});
+	});
+
+	test('derives the retry cut-off from the deadline', async () => {
+		// With a 40-minute deadline, 25 minutes of run time still leaves room for a retry.
+		const { entries } = await runCommandWithMainPassEndingAt(
+			'2026-10-01T15:25:00Z',
+			40 * 60_000,
 		);
-		expect(entries[1]!.fields).toMatchObject({ reason: 'mep-rate-source-unavailable' });
+		const messages = entries.map(({ message }) => message);
+
+		expect(messages).toContain(
+			'Retrying 1 analyzed line in 30 s after transient fetch failures: missing-stock-byma-ars (Open BYMADATA returned HTTP 500.).',
+		);
+		expect(messages.some((message) => message.startsWith('Retry cut-off reached'))).toBe(false);
 	});
 
 	test('logs an invalid invocation as one error', async () => {
@@ -358,6 +397,7 @@ type CommandOverrides = Readonly<{
 	args?: readonly string[];
 	environment?: Readonly<Record<string, string>>;
 	currentInstant?: string;
+	getCurrentInstant?: () => string;
 	deadlineMs?: number;
 	fetchFromProvider?: (input: string | URL | Request) => Promise<Response>;
 	corporateActions?: readonly CorporateAction[];
@@ -372,7 +412,8 @@ async function runCommandWithProvider(
 		args = ['--through-session', '2026-09-30', '--output', SNAPSHOT_PATH],
 		environment = {},
 		currentInstant = RAN_AT,
-		deadlineMs = 60_000,
+		getCurrentInstant = () => currentInstant,
+		deadlineMs = 30 * 60_000,
 		fetchFromProvider = createFakeProvider(provider),
 		corporateActions = [],
 	} = overrides;
@@ -391,7 +432,7 @@ async function runCommandWithProvider(
 		args,
 		environment,
 		log,
-		getCurrentInstant: () => currentInstant,
+		getCurrentInstant,
 		deadlineMs,
 		runnerOptions: {
 			fetchFromProvider,
@@ -402,6 +443,38 @@ async function runCommandWithProvider(
 	});
 
 	return { entries, outcome };
+}
+
+/**
+ * Runs with the missing line failing transiently; the clock reads `mainPassEndInstant` from its
+ * request on, so the main pass ends at that run time.
+ */
+async function runCommandWithMainPassEndingAt(
+	mainPassEndInstant: string,
+	deadlineMs?: number,
+): Promise<Readonly<{ entries: readonly LogEntry[]; outcome: AnalysisRunCommandOutcome }>> {
+	const fetchFromProvider = createFakeProvider({
+		GGAL: ggalPesoBars,
+		THIN: thinlyTradedPesoBars,
+	});
+	let currentInstant = RAN_AT;
+
+	return runCommandWithProvider(
+		{},
+		{
+			...(deadlineMs === undefined ? {} : { deadlineMs }),
+			getCurrentInstant: () => currentInstant,
+			fetchFromProvider: (input) => {
+				const url = new URL(input instanceof Request ? input.url : input);
+
+				if (url.searchParams.get('symbol') === 'MISSING 24HS') {
+					currentInstant = mainPassEndInstant;
+				}
+
+				return fetchFromProvider(input);
+			},
+		},
+	);
 }
 
 function createFakeProvider(

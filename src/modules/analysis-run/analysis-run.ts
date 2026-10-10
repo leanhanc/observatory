@@ -69,11 +69,32 @@ type FetchedLine =
 			rangeRepairSessions: readonly string[];
 			droppedBarSessions: readonly string[];
 	  }>
-	| Readonly<{
-			ok: false;
-			reason: Extract<AnalyzedLineFailureReason, 'fetch-failed' | 'invalid-bars'>;
-			message: string;
-	  }>;
+	| FetchFailure;
+
+type FetchFailure = Readonly<{
+	ok: false;
+	reason: Extract<AnalyzedLineFailureReason, 'fetch-failed' | 'invalid-bars'>;
+	message: string;
+	/** The provider may answer if asked again. Only an incomplete request or an outage is. */
+	isTransient: boolean;
+}>;
+
+type PositionedLine = Readonly<{ position: number; analyzedLine: AnalyzedLine }>;
+
+/** An analyzed line whose main-pass fetch failed transiently, waiting for the retry pass. */
+type PendingLine = Readonly<{
+	position: number;
+	line: AnalyzedTradingLine;
+	failure: FetchFailure;
+}>;
+
+type LineAnalysisContext = Readonly<{
+	requestedThroughSession: string;
+	ranAt: string;
+	analyzedLineCount: number;
+	mepRates: readonly MepRateSession[];
+	liquidityWindow: LiquidityWindow;
+}>;
 
 type MepRatesResult =
 	| Readonly<{
@@ -93,10 +114,18 @@ type AnalysisRunDependencies = Readonly<{
 	snapshotStorage: AnalysisSnapshotStorage;
 	getCurrentInstant: () => string;
 	reportProgress: (progress: AnalysisRunProgress) => void;
+	retryCutoffMs: number;
 }>;
 
 const ANALYZED_INSTRUMENT_TYPES = new Set(['stock', 'cedear']);
 const MARKET_TIME_ZONE = 'America/Argentina/Buenos_Aires';
+
+// Retry policy: the MEP rate source and the analyzed lines each get one retry. Provider failures
+// come in clusters, so a retry first waits for the provider to recover. Between retried requests
+// the usual HISTORICAL_REQUEST_PAUSE_MS still applies. The cut-off for analyzed lines comes from
+// the runner options, because it depends on the caller's deadline.
+const MEP_RATE_SOURCE_RETRY_COOL_DOWN_MS = 30_000;
+const ANALYZED_LINE_RETRY_COOL_DOWN_MS = 30_000;
 
 /**
  * Creates the Analysis Run: a fresh provider fetch of the MEP rate source and every analyzed
@@ -126,6 +155,7 @@ export function createAnalysisRunner(
 		snapshotStorage,
 		getCurrentInstant: options.getCurrentInstant ?? getCurrentUtcInstant,
 		reportProgress: options.reportProgress ?? (() => {}),
+		retryCutoffMs: options.retryCutoffMs ?? Number.POSITIVE_INFINITY,
 	};
 
 	return {
@@ -137,7 +167,7 @@ async function runAnalysis(
 	dependencies: AnalysisRunDependencies,
 	request: AnalysisRunRequest,
 ): Promise<AnalysisRunResult> {
-	const { acquirer, catalog, snapshotStorage, getCurrentInstant, reportProgress } = dependencies;
+	const { catalog, snapshotStorage, getCurrentInstant, reportProgress } = dependencies;
 	const { requestedThroughSession } = request;
 	const ranAt = getCurrentInstant();
 
@@ -167,11 +197,10 @@ async function runAnalysis(
 	});
 
 	const mepRateSourceLines = resolveMepRateSourceLines(catalog);
-	const mepRateSourceFetch = await fetchTradingLines(
-		acquirer,
+	const mepRateSourceFetch = await fetchMepRateSource(
+		dependencies,
 		mepRateSourceLines,
 		requestedThroughSession,
-		true,
 	);
 	const mepRates = calculateRunMepRates(mepRateSourceFetch);
 
@@ -199,13 +228,13 @@ async function runAnalysis(
 		);
 	}
 
-	const analyzedLineResults = await analyzeTradingLines(
-		dependencies,
-		analyzedLines,
+	const analyzedLineResults = await analyzeTradingLines(dependencies, analyzedLines, {
 		requestedThroughSession,
-		mepRates.rates,
-		liquidityWindowSelection.window,
-	);
+		ranAt,
+		analyzedLineCount: analyzedLines.length,
+		mepRates: mepRates.rates,
+		liquidityWindow: liquidityWindowSelection.window,
+	});
 	const hasAvailableLine = analyzedLineResults.some((line) => line.status === 'available');
 
 	if (!hasAvailableLine) {
@@ -356,6 +385,61 @@ async function fetchTradingLines(
 	);
 }
 
+/**
+ * Fetches both legs, then, after a cool-down, fetches the legs that failed transiently once more.
+ * There is no retry when it could not yield MEP Rates: when a leg failed finally, or when a leg
+ * answered with no bars.
+ */
+async function fetchMepRateSource(
+	dependencies: AnalysisRunDependencies,
+	tradingLines: readonly OpenBymadataTradingLineDescriptor[],
+	requestedThroughSession: string,
+): Promise<ReadonlyMap<string, FetchedLine>> {
+	const { acquirer, pause, reportProgress } = dependencies;
+	const fetchedLines = await fetchTradingLines(
+		acquirer,
+		tradingLines,
+		requestedThroughSession,
+		true,
+	);
+	const legs = tradingLines.map((tradingLine) => ({
+		tradingLine,
+		fetchedLine: getRequiredFetchedLine(fetchedLines, tradingLine.tradingLineId),
+	}));
+	const failedLegs = legs.flatMap(({ tradingLine, fetchedLine }) =>
+		fetchedLine.ok ? [] : [{ tradingLine, failure: fetchedLine }],
+	);
+	const hasFinalFailure = failedLegs.some(({ failure }) => !failure.isTransient);
+	const hasLegWithoutBars = legs.some(
+		({ fetchedLine }) => fetchedLine.ok && fetchedLine.bars.length === 0,
+	);
+
+	if (failedLegs.length === 0 || hasFinalFailure || hasLegWithoutBars) {
+		return fetchedLines;
+	}
+
+	reportProgress({
+		type: 'fetch-retry-started',
+		scope: 'mep-rate-source',
+		retry: 1,
+		retryCount: 1,
+		coolDownMs: MEP_RATE_SOURCE_RETRY_COOL_DOWN_MS,
+		failures: failedLegs.map(({ tradingLine, failure }) => ({
+			tradingLineId: tradingLine.tradingLineId,
+			message: failure.message,
+		})),
+	});
+	await pause(MEP_RATE_SOURCE_RETRY_COOL_DOWN_MS);
+	const retriedLines = await fetchTradingLines(
+		acquirer,
+		failedLegs.map(({ tradingLine }) => tradingLine),
+		requestedThroughSession,
+		true,
+	);
+
+	return new Map([...fetchedLines, ...retriedLines]);
+}
+
 function validateAcquiredLine(
 	result: BarHistoryAcquisitionLineResult,
 	isMepRateSource: boolean,
@@ -365,7 +449,8 @@ function validateAcquiredLine(
 	}
 
 	if (result.status === 'failed') {
-		return { ok: false, reason: 'fetch-failed', message: result.message };
+		const isTransient = result.reason === 'request-failed';
+		return { ok: false, reason: 'fetch-failed', message: result.message, isTransient };
 	}
 
 	const rangeRepairSessions = result.repairs.map((repair) => repair.sessionDate);
@@ -414,6 +499,7 @@ function validateAnalyzedLine(
 			ok: false,
 			reason: 'invalid-bars',
 			message: `All ${bars.length} Daily Bars are invalid.`,
+			isTransient: false,
 		};
 	}
 
@@ -440,7 +526,7 @@ function checkIfBarIsValid(bar: DailyBar): boolean {
 function createInvalidBarsFailure(issues: readonly ValidationIssue[]): FetchedLine {
 	const firstIssue = issues[0];
 	const message = `${issues.length} invalid Daily Bar issue(s); first: ${firstIssue?.path}: ${firstIssue?.message}`;
-	return { ok: false, reason: 'invalid-bars', message };
+	return { ok: false, reason: 'invalid-bars', message, isTransient: false };
 }
 
 function calculateRunMepRates(fetchedLines: ReadonlyMap<string, FetchedLine>): MepRatesResult {
@@ -448,12 +534,20 @@ function calculateRunMepRates(fetchedLines: ReadonlyMap<string, FetchedLine>): M
 	const pesoBond = getRequiredFetchedLine(fetchedLines, pesoBondTradingLineId);
 	const dollarBond = getRequiredFetchedLine(fetchedLines, dollarBondTradingLineId);
 
-	if (!pesoBond.ok) {
-		return { ok: false, message: `${pesoBondTradingLineId}: ${pesoBond.message}` };
-	}
-
-	if (!dollarBond.ok) {
-		return { ok: false, message: `${dollarBondTradingLineId}: ${dollarBond.message}` };
+	if (!pesoBond.ok || !dollarBond.ok) {
+		const failedLegs = [
+			{ tradingLineId: pesoBondTradingLineId, fetchedLine: pesoBond },
+			{ tradingLineId: dollarBondTradingLineId, fetchedLine: dollarBond },
+		].flatMap(({ tradingLineId, fetchedLine }) =>
+			fetchedLine.ok ? [] : [{ tradingLineId, failure: fetchedLine }],
+		);
+		// A final failure is what prevented a retry, so it is named before a transient one.
+		const reportedLeg =
+			failedLegs.find(({ failure }) => !failure.isTransient) ?? failedLegs[0]!;
+		return {
+			ok: false,
+			message: `${reportedLeg.tradingLineId}: ${reportedLeg.failure.message}`,
+		};
 	}
 
 	const rates = calculateMepRates(pesoBond.bars, dollarBond.bars);
@@ -489,52 +583,165 @@ function labelSessions(
 }
 
 /**
- * Fetches and analyzes the lines one at a time, reporting each as soon as it is analyzed. The
- * acquirer paces requests only within one acquisition, so the pause keeps that pace between these
- * single-line acquisitions and after the MEP rate source's.
+ * Fetches and analyzes the lines one at a time, reporting each as soon as it is analyzed. A line
+ * that fails transiently is held back and fetched once more after the main pass, so that it is
+ * reported once, with its final outcome. The acquirer paces requests only within one acquisition,
+ * so the pause keeps that pace between these single-line acquisitions and after the MEP rate
+ * source's.
  */
 async function analyzeTradingLines(
 	dependencies: AnalysisRunDependencies,
 	lines: readonly AnalyzedTradingLine[],
-	requestedThroughSession: string,
-	mepRates: readonly MepRateSession[],
-	liquidityWindow: LiquidityWindow,
+	context: LineAnalysisContext,
 ): Promise<readonly AnalyzedLine[]> {
-	const { acquirer, pause, corporateActions, reportProgress } = dependencies;
-	const analyzedLines: AnalyzedLine[] = [];
+	const { acquirer, pause } = dependencies;
+	const mainPassLines: PositionedLine[] = [];
+	const pendingLines: PendingLine[] = [];
 
 	for (const [index, line] of lines.entries()) {
+		const position = index + 1;
 		// oxlint-disable-next-line no-await-in-loop -- Provider requests are paced, one at a time.
 		await pause(HISTORICAL_REQUEST_PAUSE_MS);
-		const { tradingLineId } = line.tradingLine;
 		// oxlint-disable-next-line no-await-in-loop -- Provider requests are paced, one at a time.
-		const fetchedLines = await fetchTradingLines(
-			acquirer,
-			[line.tradingLine],
-			requestedThroughSession,
-			false,
-		);
-		const lineCorporateActions = corporateActions.filter(
-			(action) => action.tradingLineId === tradingLineId,
-		);
-		const analyzedLine = analyzeTradingLine(
-			line,
-			getRequiredFetchedLine(fetchedLines, tradingLineId),
-			lineCorporateActions,
-			mepRates,
-			liquidityWindow,
-		);
+		const fetchedLine = await fetchAnalyzedLine(acquirer, line, context);
 
-		analyzedLines.push(analyzedLine);
-		reportProgress({
-			type: 'line-analyzed',
-			position: index + 1,
-			analyzedLineCount: lines.length,
-			line: analyzedLine,
-		});
+		if (!fetchedLine.ok && fetchedLine.isTransient) {
+			pendingLines.push({ position, line, failure: fetchedLine });
+			continue;
+		}
+
+		mainPassLines.push(completeLine(dependencies, context, position, line, fetchedLine));
 	}
 
-	return analyzedLines;
+	const retriedLines = await retryPendingLines(dependencies, pendingLines, context);
+	const catalogOrderLines = [...mainPassLines, ...retriedLines].toSorted(
+		(left, right) => left.position - right.position,
+	);
+
+	return catalogOrderLines.map(({ analyzedLine }) => analyzedLine);
+}
+
+/**
+ * Waits one cool-down, then fetches each pending line once more, in Catalog order and with the
+ * usual pause between requests. A retry whose pause would end at or after the retry cut-off is not
+ * made: that line and the ones after it keep their main-pass failure.
+ */
+async function retryPendingLines(
+	dependencies: AnalysisRunDependencies,
+	pendingLines: readonly PendingLine[],
+	context: LineAnalysisContext,
+): Promise<readonly PositionedLine[]> {
+	const { acquirer, pause, reportProgress } = dependencies;
+	const retriedLines: PositionedLine[] = [];
+
+	if (pendingLines.length === 0) {
+		return retriedLines;
+	}
+
+	if (checkIfPauseReachesRetryCutoff(dependencies, context, ANALYZED_LINE_RETRY_COOL_DOWN_MS)) {
+		return stopRetries(dependencies, context, pendingLines);
+	}
+
+	reportProgress({
+		type: 'fetch-retry-started',
+		scope: 'analyzed-lines',
+		retry: 1,
+		retryCount: 1,
+		coolDownMs: ANALYZED_LINE_RETRY_COOL_DOWN_MS,
+		failures: pendingLines.map(({ line, failure }) => ({
+			tradingLineId: line.tradingLine.tradingLineId,
+			message: failure.message,
+		})),
+	});
+
+	for (const [retryIndex, pendingLine] of pendingLines.entries()) {
+		const { position, line } = pendingLine;
+		const pauseMs =
+			retryIndex === 0 ? ANALYZED_LINE_RETRY_COOL_DOWN_MS : HISTORICAL_REQUEST_PAUSE_MS;
+
+		if (checkIfPauseReachesRetryCutoff(dependencies, context, pauseMs)) {
+			const unretriedLines = pendingLines.slice(retryIndex);
+			return [...retriedLines, ...stopRetries(dependencies, context, unretriedLines)];
+		}
+
+		// oxlint-disable-next-line no-await-in-loop -- Provider requests are paced, one at a time.
+		await pause(pauseMs);
+		// oxlint-disable-next-line no-await-in-loop -- Provider requests are paced, one at a time.
+		const fetchedLine = await fetchAnalyzedLine(acquirer, line, context);
+		retriedLines.push(completeLine(dependencies, context, position, line, fetchedLine));
+	}
+
+	return retriedLines;
+}
+
+/** Reports the lines left at the retry cut-off, then records each with its main-pass failure. */
+function stopRetries(
+	dependencies: AnalysisRunDependencies,
+	context: LineAnalysisContext,
+	unretriedLines: readonly PendingLine[],
+): readonly PositionedLine[] {
+	dependencies.reportProgress({
+		type: 'fetch-retry-stopped',
+		tradingLineIds: unretriedLines.map(({ line }) => line.tradingLine.tradingLineId),
+	});
+
+	return unretriedLines.map(({ position, line, failure }) =>
+		completeLine(dependencies, context, position, line, failure),
+	);
+}
+
+function checkIfPauseReachesRetryCutoff(
+	dependencies: AnalysisRunDependencies,
+	context: LineAnalysisContext,
+	pauseMs: number,
+): boolean {
+	const now = Temporal.Instant.from(dependencies.getCurrentInstant());
+	const elapsedMs = now.since(Temporal.Instant.from(context.ranAt)).total('milliseconds');
+	return elapsedMs + pauseMs >= dependencies.retryCutoffMs;
+}
+
+async function fetchAnalyzedLine(
+	acquirer: BarHistoryAcquirer,
+	line: AnalyzedTradingLine,
+	context: LineAnalysisContext,
+): Promise<FetchedLine> {
+	const { tradingLineId } = line.tradingLine;
+	const fetchedLines = await fetchTradingLines(
+		acquirer,
+		[line.tradingLine],
+		context.requestedThroughSession,
+		false,
+	);
+	return getRequiredFetchedLine(fetchedLines, tradingLineId);
+}
+
+/** Analyzes a line from its final fetch and reports it. */
+function completeLine(
+	dependencies: AnalysisRunDependencies,
+	context: LineAnalysisContext,
+	position: number,
+	line: AnalyzedTradingLine,
+	fetchedLine: FetchedLine,
+): PositionedLine {
+	const { corporateActions, reportProgress } = dependencies;
+	const lineCorporateActions = corporateActions.filter(
+		(action) => action.tradingLineId === line.tradingLine.tradingLineId,
+	);
+	const analyzedLine = analyzeTradingLine(
+		line,
+		fetchedLine,
+		lineCorporateActions,
+		context.mepRates,
+		context.liquidityWindow,
+	);
+
+	reportProgress({
+		type: 'line-analyzed',
+		position,
+		analyzedLineCount: context.analyzedLineCount,
+		line: analyzedLine,
+	});
+	return { position, analyzedLine };
 }
 
 function analyzeTradingLine(

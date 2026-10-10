@@ -23,6 +23,10 @@ const PROVIDER_REQUEST_TIMEOUT_MS = 20_000;
 // Railway skips a cron run while the previous one is still running, so a hung request (the
 // snapshot write has no timeout) must not outlive the next schedule. A full run takes minutes.
 const RUN_DEADLINE_MS = 30 * 60_000;
+// No analyzed line is retried later than this before the deadline. The last retry, bounded by the
+// request timeout, then ends well inside it: missing the deadline would discard the whole snapshot
+// to save one line.
+const RETRY_DEADLINE_MARGIN_MS = 5 * 60_000;
 
 type AnalysisRunInvocation = Readonly<{
 	requestedThroughSession: string;
@@ -42,7 +46,10 @@ export type AnalysisRunCommand = Readonly<{
 	log: AnalysisRunLog;
 	getCurrentInstant: () => string;
 	/** Provider, pacing and Catalog overrides; the defaults fetch Open BYMADATA. */
-	runnerOptions?: Omit<AnalysisRunnerOptions, 'getCurrentInstant' | 'reportProgress'>;
+	runnerOptions?: Omit<
+		AnalysisRunnerOptions,
+		'getCurrentInstant' | 'reportProgress' | 'retryCutoffMs'
+	>;
 	/** How long the run may take before it is logged as failed; 30 minutes by default. */
 	deadlineMs?: number;
 }>;
@@ -154,6 +161,7 @@ async function runAndLogAnalysis(
 	measureDurationSeconds: () => number,
 ): Promise<Exclude<AnalysisRunCommandOutcome, 'deadline-exceeded'>> {
 	const { args, environment, log, getCurrentInstant, runnerOptions } = command;
+	const { deadlineMs = RUN_DEADLINE_MS } = command;
 
 	try {
 		const invocation = resolveAnalysisRunInvocation(args, environment, getCurrentInstant());
@@ -162,6 +170,7 @@ async function runAndLogAnalysis(
 			...runnerOptions,
 			getCurrentInstant,
 			reportProgress: (progress) => logProgress(log, progress),
+			retryCutoffMs: Math.max(deadlineMs - RETRY_DEADLINE_MARGIN_MS, 0),
 		});
 		const result = await runner.run({
 			requestedThroughSession: invocation.requestedThroughSession,
@@ -231,7 +240,56 @@ function logProgress(log: AnalysisRunLog, progress: AnalysisRunProgress): void {
 		return;
 	}
 
+	if (progress.type === 'fetch-retry-started') {
+		logFetchRetry(log, progress);
+		return;
+	}
+
+	if (progress.type === 'fetch-retry-stopped') {
+		const { tradingLineIds } = progress;
+		const lineNoun = tradingLineIds.length === 1 ? 'line' : 'lines';
+		log.warn(
+			{ event: progress.type, tradingLineIds },
+			`Retry cut-off reached; ${tradingLineIds.length} ${lineNoun} not retried: ${tradingLineIds.join(', ')}.`,
+		);
+		return;
+	}
+
 	logAnalyzedLine(log, progress);
+}
+
+function logFetchRetry(
+	log: AnalysisRunLog,
+	progress: Extract<AnalysisRunProgress, { type: 'fetch-retry-started' }>,
+): void {
+	const { scope, retry, retryCount, coolDownMs, failures } = progress;
+	const coolDownSeconds = coolDownMs / 1_000;
+	const failureSummary = failures
+		.map(({ tradingLineId, message }) => `${tradingLineId} (${message})`)
+		.join('; ');
+	const fields = {
+		event: progress.type,
+		scope,
+		retry,
+		retryCount,
+		coolDownMs,
+		lineCount: failures.length,
+		failures,
+	};
+
+	if (scope === 'mep-rate-source') {
+		log.info(
+			fields,
+			`Retrying the MEP rate source (retry ${retry} of ${retryCount}) in ${coolDownSeconds} s after transient fetch failures: ${failureSummary}.`,
+		);
+		return;
+	}
+
+	const lineNoun = failures.length === 1 ? 'line' : 'lines';
+	log.info(
+		fields,
+		`Retrying ${failures.length} analyzed ${lineNoun} in ${coolDownSeconds} s after transient fetch failures: ${failureSummary}.`,
+	);
 }
 
 /**

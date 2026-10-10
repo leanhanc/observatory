@@ -23,7 +23,7 @@ export type OpenBymadataHistorySeries = Readonly<{
 
 export type OpenBymadataFailure = Readonly<{
 	ok: false;
-	reason: 'invalid-response' | 'provider-error' | 'request-failed';
+	reason: 'invalid-response' | 'provider-error' | 'request-failed' | 'request-rejected';
 	message: string;
 }>;
 

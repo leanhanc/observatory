@@ -1,0 +1,9 @@
+- [x] Draft the proposal and the `analysis-run` and `bar-history` deltas.
+- [x] Split the adapter's `request-failed` into `request-failed`, `request-rejected` and `invalid-response`.
+- [x] Retry transiently failed MEP rate source legs once, after a 30 s cool-down.
+- [x] Retry transiently failed analyzed lines once after the main pass, with a 30 s cool-down, the usual pacing and a cut-off the command derives from its deadline.
+- [x] Report and log each retry attempt, and lines left unretried at the cut-off.
+- [x] Test the adapter's classification, retry success and failure, no retry of final failures, the request and pause sequence, single reporting, retry order and the cut-off.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation and an Analysis Run dry run.
+- [x] Review: one MEP retry; derive the cut-off from the command's deadline and check it before each pause; skip a MEP retry that cannot succeed and name a final failure first; test provider-error, malformed history, final MEP failures and the cut-off warning; correct the worst case.
+- [x] Archive after review.

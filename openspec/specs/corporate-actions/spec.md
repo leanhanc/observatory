@@ -18,7 +18,7 @@ The corporate-actions module SHALL load `src/modules/corporate-actions/data/corp
 
 Two entries SHALL NOT share a `tradingLineId` and `exDate`. Validation SHALL report every invalid field with its path; duplicates SHALL be reported, at both entries, once every entry is valid. Each entry SHALL be a Corporate Action that the provider was observed not to adjust; the list SHALL NOT be used for actions the provider adjusts.
 
-The list SHALL contain BYMA's 1:1 share distribution: `byma-stock-byma-ars`, ex-date `2025-05-26`, price factor `0.5`, kind `share-distribution`, source `https://www.byma.com.ar/newsroom/byma-anuncia-pago-en-acciones`. The list SHALL also contain ETHA's 1-for-3 reverse split, which the CEDEAR follows from its underlying ETF: `etha-cedear-byma-ars`, ex-date `2026-10-06`, price factor `3`, kind `reverse-split`, source `https://www.sec.gov/Archives/edgar/data/0002000638/000143774926025654/etha20260803_8k.htm`.
+The list SHALL contain BYMA's 1:1 share distribution: `byma-stock-byma-ars`, ex-date `2025-05-26`, price factor `0.5`, kind `share-distribution`, source `https://www.byma.com.ar/newsroom/byma-anuncia-pago-en-acciones`. The list SHALL also contain ETHA's 1-for-3 reverse split, which the CEDEAR follows from its underlying ETF: `etha-cedear-byma-ars`, ex-date `2026-10-06`, price factor `3`, kind `reverse-split`, source `https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/501592`.
 
 #### Scenario: the BYMA and ETHA entries are loaded
 

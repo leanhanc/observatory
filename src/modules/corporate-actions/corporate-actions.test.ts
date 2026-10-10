@@ -22,7 +22,7 @@ describe('the committed Corporate Action list', () => {
 			priceFactor: 3,
 			kind: 'reverse-split',
 			sourceUrl:
-				'https://www.sec.gov/Archives/edgar/data/0002000638/000143774926025654/etha20260803_8k.htm',
+				'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/501592',
 		});
 	});
 

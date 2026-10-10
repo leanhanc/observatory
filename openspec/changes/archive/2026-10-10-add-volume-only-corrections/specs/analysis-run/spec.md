@@ -135,7 +135,7 @@ A `volume` correction changes only volume, which only the liquidity gate reads, 
 
 #### Scenario: a volume-only correction reaches the liquidity gate
 
-- **WHEN** the provider serves a line whose prices are adjusted for a share factor of 25 but whose volume before the ex-date is still in the old unit, and the list has a `volume` entry for it
+- **WHEN** the provider serves a line whose prices are adjusted for a share factor of 3 but whose volume before the ex-date is still in the old unit, and the list has a `volume` entry for it
 - **THEN** the line's `corporateActions` lists the entry as `applied`
 - **AND** its `liquidity` measures, or its eligibility, are those of the same line served with volume on the new unit
 - **AND** its Events, Large One-Session Moves and latest State equal those of a run without the entry
@@ -166,3 +166,24 @@ A `volume` correction changes only volume, which only the liquidity gate reads, 
 - **WHEN** a corrected line is dollarized
 - **THEN** each corrected session's dollarized close is the corrected peso close divided by that session's own MEP Rate
 - **AND** the MEP Rates equal those of a run without the entry
+
+### Requirement: snapshots are persisted as a dated object and as latest
+
+A successful run SHALL write the snapshot as JSON to the S3-compatible bucket used for Bar History under two keys:
+
+- dated: `analysis-snapshots/v5/<requestedThroughSession>/<ranAt>.json`
+- latest: `analysis-snapshots/v5/latest.json`
+
+The `v5` in the key prefix SHALL equal the snapshot's `schemaVersion`, so a reader of one schema never finds another schema's object under the keys it reads. Objects written under an earlier prefix SHALL be left in place.
+
+The dated object SHALL be written first. `latest` SHALL be written only after the dated object was written. A failed write SHALL fail the run with reason `snapshot-write-failed`. Each successful run SHALL replace `latest`.
+
+#### Scenario: dated and latest objects
+
+- **WHEN** a run for 2026-10-02 completes at 2026-10-04T15:00:00.000Z
+- **THEN** the snapshot is written to `analysis-snapshots/v5/2026-10-02/2026-10-04T15:00:00.000Z.json` and to `analysis-snapshots/v5/latest.json`
+
+#### Scenario: dated write fails
+
+- **WHEN** writing the dated object fails
+- **THEN** `latest` is not written and the run fails with reason `snapshot-write-failed`

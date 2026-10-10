@@ -18,46 +18,6 @@
 			"sourceUrl": "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/501592"
 		},
 		{
-			"tradingLineId": "nflx-cedear-byma-ars",
-			"exDate": "2025-11-17",
-			"correction": "volume",
-			"kind": "split",
-			"shareFactor": 10,
-			"sourceUrl": "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/480285"
-		},
-		{
-			"tradingLineId": "xlk-cedear-byma-ars",
-			"exDate": "2025-12-05",
-			"correction": "volume",
-			"kind": "split",
-			"shareFactor": 2,
-			"sourceUrl": "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/482245"
-		},
-		{
-			"tradingLineId": "xle-cedear-byma-ars",
-			"exDate": "2025-12-05",
-			"correction": "volume",
-			"kind": "split",
-			"shareFactor": 2,
-			"sourceUrl": "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/483021"
-		},
-		{
-			"tradingLineId": "xlu-cedear-byma-ars",
-			"exDate": "2025-12-05",
-			"correction": "volume",
-			"kind": "split",
-			"shareFactor": 2,
-			"sourceUrl": "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/483022"
-		},
-		{
-			"tradingLineId": "now-cedear-byma-ars",
-			"exDate": "2025-12-18",
-			"correction": "volume",
-			"kind": "split",
-			"shareFactor": 5,
-			"sourceUrl": "https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/483240"
-		},
-		{
 			"tradingLineId": "spy-cedear-byma-ars",
 			"exDate": "2026-05-29",
 			"correction": "volume",

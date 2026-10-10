@@ -430,7 +430,7 @@ The same pattern holds in all seven:
   side, not effects of the events.
 
 So the ADR 0009 pattern described for NOW, "the price looks adjusted and the volume does not",
-holds for all seven: four underlying splits followed by the CEDEAR (NFLX, XLK, XLE, XLU, plus NOW)
+holds for all seven: five underlying splits followed by the CEDEAR (NFLX, XLK, XLE, XLU, NOW)
 and two CEDEAR ratio changes (SPY, HUT). Volume is used by no module except the liquidity gate (and
 the bar-history adjustment detector, which only compares stored with fetched bars), so the gate is
 where the unadjusted volume matters.
@@ -497,7 +497,9 @@ USD 50,000 on and after its ex-date for as long as about half the window precede
 
 ### Fix options
 
-These are inferences for review, not a decision.
+These are inferences for review, not a decision. Option (a) was chosen, with the inverted guard and
+a divisibility check that skips the entry; see
+[ADR 0010](../adr/0010-correct-volume-the-provider-left-unadjusted.md).
 
 - **(a) A volume-only kind in the committed list.** Each entry would multiply volume before the
   ex-date by `F` and leave prices as served. It reuses the list's sourcing and review.
@@ -534,6 +536,9 @@ These are inferences for review, not a decision.
   near the threshold and with the factor.
 
 ### Contradictions with ADR 0009
+
+[ADR 0010](../adr/0010-correct-volume-the-provider-left-unadjusted.md) resolves these, and ADR 0009's
+NOW sentence has been corrected.
 
 - ADR 0009 says "CEDEAR ratio changes look different again: ServiceNow's 5-for-1 split leaves no
   step". NOW's notice describes an underlying split with the ratio unchanged, as recorded above.

@@ -462,9 +462,14 @@ function logAvailableLine(
 	log.info(lineFields, message);
 }
 
+type CorporateActionLogFields = Pick<
+	CorporateActionOutcome,
+	'exDate' | 'status' | 'observedCloseRatio'
+>;
+
 /** Every status but `applied` and `outside-window` is a guard that skipped an entry. */
 function reportCorporateActions(outcomes: readonly CorporateActionOutcome[]): Readonly<{
-	fields: readonly object[];
+	fields: readonly CorporateActionLogFields[];
 	summary: string;
 	needsReview: boolean;
 }> {
@@ -484,21 +489,24 @@ function reportCorporateActions(outcomes: readonly CorporateActionOutcome[]): Re
 function formatCorporateActionSummary(outcome: CorporateActionOutcome): string {
 	const { exDate, status, observedCloseRatio } = outcome;
 	const label = `; corporate action ${exDate}: ${status}`;
-	const observedRatio = `observed ×${observedCloseRatio?.toFixed(3)}`;
+	const isSkippedByGuard = status !== 'applied' && status !== 'outside-window';
 
-	if (status === 'step-not-observed') {
+	// A guard reads the observed ratio before skipping, so a skipped entry always has one.
+	if (!isSkippedByGuard || observedCloseRatio === null) {
+		return label;
+	}
+
+	const observedRatio = `observed ×${observedCloseRatio.toFixed(3)}`;
+
+	if (outcome.correction === 'prices-and-volume') {
 		return `${label} (${observedRatio}; check the history before removing the entry)`;
 	}
 
-	if (status === 'price-step-observed') {
+	if (outcome.status === 'price-step-observed') {
 		return `${label} (${observedRatio}; check whether the provider adjusted the price, or the entry needs prices-and-volume)`;
 	}
 
-	if (status === 'volume-rescale-suspected' && outcome.correction === 'volume') {
-		return `${label} (every earlier volume read is a multiple of ${outcome.shareFactor}; the provider may already have rescaled the volume, check the history before removing the entry)`;
-	}
-
-	return label;
+	return `${label} (every earlier volume read is a multiple of ${outcome.shareFactor}; the provider may already have rescaled the volume, check the history before removing the entry)`;
 }
 
 function formatDroppedBarSummary(droppedBarSessions: readonly string[]): string {

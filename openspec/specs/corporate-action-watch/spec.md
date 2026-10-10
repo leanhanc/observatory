@@ -128,12 +128,17 @@ A kept notice SHALL match a CEDEAR line only when its `emisor` is a program issu
 
 Each candidate SHALL be one analyzed Trading Line with at least one matched notice, whatever the line's analysis outcome, carrying `tradingLineId` and `notices`. Every matched notice of that line in the fetched window SHALL be in the same candidate, in publication order, so that the announcement of one event and its follow-ups are one candidate. Each notice SHALL carry `documentId` (the feed's `descarga`), `publishedAt` (the feed's local Buenos Aires wall-clock `fecha` as `YYYY-MM-DDTHH:MM:SS`), `title` (the feed's `referencia`), `pdfUrl`, `https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/<descarga>`, and `isListed`.
 
-Each notice SHALL be listed on its own: `isListed` SHALL be true when the Corporate Action list has an entry for the notice's line whose `exDate` is from 10 calendar days before to 70 calendar days after the notice's publication date. Announcements and follow-ups can come about two months before the ex-date, and a late notice a few days after it. Candidates SHALL be in the analyzed lines' order.
+Each notice SHALL be listed on its own: `isListed` SHALL be true when the Corporate Action list has an entry for the notice's line, whatever its `correction`, whose `exDate` is from 10 calendar days before to 70 calendar days after the notice's publication date. Announcements and follow-ups can come about two months before the ex-date, and a late notice a few days after it. Candidates SHALL be in the analyzed lines' order.
 
 #### Scenario: a listed action
 
 - **WHEN** ETHA's notice of 2026-10-06 matches and the list has ETHA's entry with ex-date 2026-10-06
 - **THEN** the ETHA notice is listed
+
+#### Scenario: a listed volume-only action
+
+- **WHEN** SPY's notice published on 2026-05-27 matches and the list has SPY's `volume` entry with ex-date 2026-05-29
+- **THEN** the SPY notice is listed
 
 #### Scenario: an unlisted action
 

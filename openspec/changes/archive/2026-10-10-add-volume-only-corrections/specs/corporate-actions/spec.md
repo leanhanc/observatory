@@ -26,17 +26,14 @@ The list SHALL contain these `prices-and-volume` entries:
 
 The list SHALL contain these `volume` entries, each sourced at `https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/<notice>`:
 
-| Trading Line           | Ex-date    | Share factor | Kind           | Notice |
-| ---------------------- | ---------- | ------------ | -------------- | ------ |
-| `nflx-cedear-byma-ars` | 2025-11-17 | 10           | `split`        | 480285 |
-| `xlk-cedear-byma-ars`  | 2025-12-05 | 2            | `split`        | 482245 |
-| `xle-cedear-byma-ars`  | 2025-12-05 | 2            | `split`        | 483021 |
-| `xlu-cedear-byma-ars`  | 2025-12-05 | 2            | `split`        | 483022 |
-| `now-cedear-byma-ars`  | 2025-12-18 | 5            | `split`        | 483240 |
-| `spy-cedear-byma-ars`  | 2026-05-29 | 3            | `ratio-change` | 493877 |
-| `hut-cedear-byma-ars`  | 2026-05-29 | 25           | `ratio-change` | 493878 |
+| Trading Line          | Ex-date    | Share factor | Kind           | Notice |
+| --------------------- | ---------- | ------------ | -------------- | ------ |
+| `spy-cedear-byma-ars` | 2026-05-29 | 3            | `ratio-change` | 493877 |
+| `hut-cedear-byma-ars` | 2026-05-29 | 25           | `ratio-change` | 493878 |
 
 SPY's and HUT's notices give a record date of 2026-05-29 and a change date of 2026-06-01 but no ex-date. Their ex-date is the record date: with T+1 settlement a trade on the record date carries no entitlement, and both lines' volume steps begin on 2026-05-29.
+
+The list SHALL NOT contain the five older volume-only events the research found, NFLX, XLK, XLE, XLU and NOW: their ex-dates, from 2025-11-17 to 2025-12-18, are outside the liquidity window, so an entry would change no result. ADR 0010 records them.
 
 #### Scenario: the BYMA and ETHA entries are loaded
 

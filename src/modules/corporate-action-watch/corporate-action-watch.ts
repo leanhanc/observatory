@@ -21,12 +21,21 @@ import type { PublicationWindow } from './relevant-facts-feed.ts';
 // The run looks back over a week ending on the Requested-Through Session, so a notice published on
 // a non-trading day, or after one run's cut-off, is still seen by the next run.
 const WATCHED_CALENDAR_DAYS = 7;
-// A notice can precede the ex-date by a week or more, or come on it, so an entry this close to any
-// of a line's notices is taken to be the same event.
-const LISTED_EX_DATE_DISTANCE_DAYS = 10;
+// A notice is listed when an entry for its line has an ex-date in this range around its publication.
+// Announcements and their follow-ups can come up to about two months before the ex-date; a late
+// notice can come days after it.
+const LISTED_EX_DATE_DAYS_BEFORE_NOTICE = 10;
+const LISTED_EX_DATE_DAYS_AFTER_NOTICE = 70;
 // Publishers separate a title's ticker, name and event with " - ", a colon or parentheses.
 const TITLE_SEPARATOR_PATTERN = / - |:|\(|\)/;
 const CEDEAR_TITLE_PATTERN = /cedear/i;
+
+type MatchContext = Readonly<{
+	rules: WatchRules;
+	eventPatterns: readonly RegExp[];
+	/** The analyzed CEDEAR symbols and the title names aliased to them. */
+	cedearTitleNames: ReadonlySet<string>;
+}>;
 
 export type WatchCorporateActionsRequest = Readonly<{
 	fetchFromProvider: RelevantFactsFetch;
@@ -51,9 +60,46 @@ export function validateWatchRules(value: unknown): WatchRulesValidation {
 }
 
 /**
+ * Rules that name a line the run does not analyze would never match, and two stocks sharing an
+ * issuer code would report every notice twice, so both are rejected before the run starts.
+ *
+ * @throws {Error} when a stock issuer code is keyed by a symbol that is not an analyzed stock, an
+ * alias targets a symbol that is not an analyzed CEDEAR, or two stocks share an issuer code.
+ */
+export function assertWatchRulesMatchTradingLines(
+	rules: WatchRules,
+	tradingLines: readonly WatchedTradingLine[],
+): void {
+	const stockSymbols = new Set(selectSymbols(tradingLines, 'stock'));
+	const cedearSymbols = new Set(selectSymbols(tradingLines, 'cedear'));
+	const strayStockSymbols = Object.keys(rules.stockIssuerCodes).filter(
+		(symbol) => !stockSymbols.has(symbol),
+	);
+	const strayAliasTargets = Object.values(rules.cedearNameAliases).filter(
+		(symbol) => !cedearSymbols.has(symbol),
+	);
+	const issuerCodes = [...stockSymbols].map((symbol) => resolveIssuerCode(symbol, rules));
+	const sharedIssuerCodes = issuerCodes.filter(
+		(code, index) => issuerCodes.indexOf(code) !== index,
+	);
+	const problems = [
+		...strayStockSymbols.map((symbol) => `issuer code for non-analyzed stock ${symbol}`),
+		...strayAliasTargets.map((symbol) => `alias for non-analyzed CEDEAR ${symbol}`),
+		...sharedIssuerCodes.map((code) => `issuer code ${code} shared by two stocks`),
+	];
+
+	if (problems.length > 0) {
+		throw new Error(
+			`The corporate-action watch rules do not fit the analyzed lines: ${problems.join('; ')}.`,
+		);
+	}
+}
+
+/**
  * Fetches the week of relevant facts ending on the Requested-Through Session and finds the
- * Corporate Action Notices for the given lines. A feed failure is returned as an unavailable watch,
- * never thrown. Notice documents are never downloaded.
+ * Corporate Action Notices for the given lines. Any failure, of the feed or unexpected, is returned
+ * as an unavailable watch, never thrown, so the watch can never discard a finished run. Notice
+ * documents are never downloaded.
  */
 export async function watchCorporateActions(
 	request: WatchCorporateActionsRequest,
@@ -61,19 +107,25 @@ export async function watchCorporateActions(
 	const { fetchFromProvider, requestedThroughSession, tradingLines, corporateActions, rules } =
 		request;
 	const window = resolvePublicationWindow(requestedThroughSession);
-	const feed = await fetchRelevantFacts(fetchFromProvider, window);
 
-	if (!feed.ok) {
-		return { status: 'unavailable', ...window, message: feed.message };
+	try {
+		const feed = await fetchRelevantFacts(fetchFromProvider, window);
+
+		if (!feed.ok) {
+			return { status: 'unavailable', ...window, message: feed.message };
+		}
+
+		const candidates = findCorporateActionCandidates(
+			feed.facts,
+			tradingLines,
+			corporateActions,
+			rules,
+		);
+		return { status: 'available', ...window, candidates };
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+		return { status: 'unavailable', ...window, message: `The watch failed: ${reason}` };
 	}
-
-	const candidates = findCorporateActionCandidates(
-		feed.facts,
-		tradingLines,
-		corporateActions,
-		rules,
-	);
-	return { status: 'available', ...window, candidates };
 }
 
 /**
@@ -86,26 +138,54 @@ export function findCorporateActionCandidates(
 	corporateActions: readonly CorporateAction[],
 	rules: WatchRules,
 ): readonly CorporateActionCandidate[] {
-	const eventPatterns = rules.eventPhrases.map(createWholeWordsPattern);
-	const eventFacts = facts.filter((fact) =>
-		checkIfTitleAnnouncesEvent(fact, eventPatterns, rules),
-	);
+	const context = createMatchContext(tradingLines, rules);
+	const eventFacts = facts.filter((fact) => checkIfTitleAnnouncesEvent(fact, context));
 
 	return tradingLines.flatMap((line) => {
-		const lineFacts = eventFacts.filter((fact) => checkIfFactConcernsLine(fact, line, rules));
+		const lineFacts = eventFacts.filter((fact) => checkIfFactConcernsLine(fact, line, context));
 
 		if (lineFacts.length === 0) {
 			return [];
 		}
 
-		const notices = lineFacts.toSorted(compareFactsByPublication).map(createNotice);
 		const lineActions = corporateActions.filter(
 			(action) => action.tradingLineId === line.tradingLineId,
 		);
-		const isListed = lineActions.some((action) => checkIfActionIsNear(action, notices));
+		const notices = lineFacts
+			.toSorted(compareFactsByPublication)
+			.map((fact) => createNotice(fact, lineActions));
 
-		return [{ tradingLineId: line.tradingLineId, isListed, notices }];
+		return [{ tradingLineId: line.tradingLineId, notices }];
 	});
+}
+
+function createMatchContext(
+	tradingLines: readonly WatchedTradingLine[],
+	rules: WatchRules,
+): MatchContext {
+	const cedearSymbols = new Set(selectSymbols(tradingLines, 'cedear'));
+	const aliasedNames = Object.entries(rules.cedearNameAliases).flatMap(([name, symbol]) =>
+		cedearSymbols.has(symbol) ? [name] : [],
+	);
+
+	return {
+		rules,
+		eventPatterns: rules.eventPhrases.map(createWholeWordsPattern),
+		cedearTitleNames: new Set([...cedearSymbols, ...aliasedNames]),
+	};
+}
+
+function selectSymbols(
+	tradingLines: readonly WatchedTradingLine[],
+	instrumentType: WatchedTradingLine['instrumentType'],
+): readonly string[] {
+	return tradingLines
+		.filter((line) => line.instrumentType === instrumentType)
+		.map((line) => line.symbol);
+}
+
+function resolveIssuerCode(symbol: string, rules: WatchRules): string {
+	return rules.stockIssuerCodes[symbol] ?? symbol;
 }
 
 function resolvePublicationWindow(requestedThroughSession: string): PublicationWindow {
@@ -115,11 +195,8 @@ function resolvePublicationWindow(requestedThroughSession: string): PublicationW
 	return { publishedFrom, publishedThrough: requestedThroughSession };
 }
 
-function checkIfTitleAnnouncesEvent(
-	fact: RelevantFact,
-	eventPatterns: readonly RegExp[],
-	rules: WatchRules,
-): boolean {
+function checkIfTitleAnnouncesEvent(fact: RelevantFact, context: MatchContext): boolean {
+	const { rules, eventPatterns } = context;
 	const normalizedTitle = fact.title.trim().toLowerCase();
 	// CEDEAR cash distributions are the feed's largest category; a broader phrase must never let
 	// them in.
@@ -146,19 +223,29 @@ function createWholeWordsPattern(phrase: string): RegExp {
 function checkIfFactConcernsLine(
 	fact: RelevantFact,
 	line: WatchedTradingLine,
-	rules: WatchRules,
+	context: MatchContext,
 ): boolean {
+	const { rules, cedearTitleNames } = context;
 	const isFromProgramIssuer = checkIfFactIsFromProgramIssuer(fact, rules);
+	const titlePieces = splitTitle(fact.title);
 
 	if (line.instrumentType === 'cedear') {
-		return isFromProgramIssuer && checkIfTitleNamesCedear(fact.title, line.symbol, rules);
+		return isFromProgramIssuer && checkIfTitleNamesCedear(titlePieces, line.symbol, rules);
 	}
 
-	// Banco Macro publishes CEDEAR notices under `BMA`, which is also its own stock's symbol.
-	const isCedearProgramNotice = isFromProgramIssuer && CEDEAR_TITLE_PATTERN.test(fact.title);
-	const issuerCode = rules.stockIssuerCodes[line.symbol] ?? line.symbol;
+	// Banco Macro publishes CEDEAR notices under `BMA`, which is also its own stock's symbol. A
+	// program issuer's notice is about a CEDEAR when its title says so or names an analyzed one.
+	const isCedearProgramNotice =
+		isFromProgramIssuer &&
+		(CEDEAR_TITLE_PATTERN.test(fact.title) ||
+			titlePieces.some((piece) => cedearTitleNames.has(piece)));
+	const issuerCode = resolveIssuerCode(line.symbol, rules);
 
 	return !isCedearProgramNotice && fact.especie.trim() === issuerCode;
+}
+
+function splitTitle(title: string): readonly string[] {
+	return title.split(TITLE_SEPARATOR_PATTERN).map((piece) => piece.trim());
 }
 
 function checkIfFactIsFromProgramIssuer(fact: RelevantFact, rules: WatchRules): boolean {
@@ -170,9 +257,11 @@ function checkIfFactIsFromProgramIssuer(fact: RelevantFact, rules: WatchRules): 
  * The CEDEAR ticker is never in `especie`, which names the program issuer; it is one of the title's
  * pieces, or a company name used instead of it.
  */
-function checkIfTitleNamesCedear(title: string, symbol: string, rules: WatchRules): boolean {
-	const titlePieces = title.split(TITLE_SEPARATOR_PATTERN).map((piece) => piece.trim());
-
+function checkIfTitleNamesCedear(
+	titlePieces: readonly string[],
+	symbol: string,
+	rules: WatchRules,
+): boolean {
 	return titlePieces.some((piece) => {
 		const aliasedSymbol = rules.cedearNameAliases[piece];
 		return piece === symbol || aliasedSymbol === symbol;
@@ -183,24 +272,25 @@ function compareFactsByPublication(left: RelevantFact, right: RelevantFact): num
 	return left.publishedAt.localeCompare(right.publishedAt) || left.documentId - right.documentId;
 }
 
-function createNotice(fact: RelevantFact): CorporateActionNotice {
+/** Each notice is listed on its own, so a listed event never hides another in the same window. */
+function createNotice(
+	fact: RelevantFact,
+	lineActions: readonly CorporateAction[],
+): CorporateActionNotice {
+	const publicationDate = Temporal.PlainDate.from(fact.publishedAt.slice(0, 10));
+	const isListed = lineActions.some((action) => {
+		const daysFromNoticeToExDate = publicationDate.until(action.exDate).days;
+		return (
+			daysFromNoticeToExDate >= -LISTED_EX_DATE_DAYS_BEFORE_NOTICE &&
+			daysFromNoticeToExDate <= LISTED_EX_DATE_DAYS_AFTER_NOTICE
+		);
+	});
+
 	return {
 		documentId: fact.documentId,
 		publishedAt: fact.publishedAt,
 		title: fact.title,
 		pdfUrl: buildDocumentDownloadUrl(fact.documentId),
+		isListed,
 	};
-}
-
-function checkIfActionIsNear(
-	action: CorporateAction,
-	notices: readonly CorporateActionNotice[],
-): boolean {
-	const exDate = Temporal.PlainDate.from(action.exDate);
-
-	return notices.some((notice) => {
-		const publicationDate = Temporal.PlainDate.from(notice.publishedAt.slice(0, 10));
-		const distanceDays = Math.abs(publicationDate.until(exDate).days);
-		return distanceDays <= LISTED_EX_DATE_DISTANCE_DAYS;
-	});
 }

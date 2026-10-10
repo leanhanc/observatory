@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
-import { RELEVANT_FACTS_URL } from '#modules/corporate-action-watch/index.ts';
+import { RELEVANT_FACTS_URL, watchRules } from '#modules/corporate-action-watch/index.ts';
 import { dollarizeBarHistory } from '#modules/dollarized-series/index.ts';
 import { createInstrumentCatalog } from '#modules/instrument-catalog/instrument-catalog.ts';
 import { calculateInstrumentStates } from '#modules/instrument-state/index.ts';
@@ -48,6 +48,8 @@ const shortHistoryDollarBars = sessionDates.slice(-120).map((sessionDate, index)
 }));
 
 const catalog = createTestCatalog();
+// The committed rules name lines the test catalog does not have.
+const testWatchRules = { ...watchRules, stockIssuerCodes: {}, cedearNameAliases: {} };
 
 describe('createAnalysisRunner', () => {
 	test('records the latest State of the final dollarized session', async () => {
@@ -779,13 +781,13 @@ describe('Analysis Run corporate-action watch', () => {
 			candidates: [
 				{
 					tradingLineId: 'apple-cedear-byma-ars',
-					isListed: false,
 					notices: [
 						{
 							documentId: 483240,
 							publishedAt: '2026-09-28T13:27:09',
 							title: appleSplitNotice.referencia,
 							pdfUrl: 'https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/483240',
+							isListed: false,
 						},
 					],
 				},
@@ -802,7 +804,36 @@ describe('Analysis Run corporate-action watch', () => {
 		);
 		const watch = result.ok ? result.snapshot.corporateActionWatch : null;
 
-		expect(watch?.status === 'available' && watch.candidates[0]!.isListed).toBe(true);
+		expect(watch?.status === 'available' && watch.candidates[0]!.notices[0]!.isListed).toBe(
+			true,
+		);
+	});
+
+	test('watches a line whose analysis is unavailable', async () => {
+		const provider = { ...createHealthyProvider(), AAPL: 'http-not-found' as const };
+		const { result } = await runWithProvider(
+			provider,
+			REQUESTED_THROUGH_SESSION,
+			[],
+			[appleSplitNotice],
+		);
+		const watch = result.ok ? result.snapshot.corporateActionWatch : null;
+
+		expect(selectLine(result, 'apple-cedear-byma-ars').status).toBe('unavailable');
+		expect(watch).toMatchObject({ candidates: [{ tradingLineId: 'apple-cedear-byma-ars' }] });
+	});
+
+	test('rejects watch rules that do not fit the analyzed lines', () => {
+		const storage: AnalysisSnapshotStorage = {
+			write: () => Promise.resolve({ ok: true, locations: [] }),
+		};
+		const createRunner = () =>
+			createAnalysisRunner(storage, {
+				...createRunnerOptions(createHealthyProvider()),
+				watchRules,
+			});
+
+		expect(createRunner).toThrow('TECO2');
 	});
 
 	test('writes the snapshot unchanged otherwise when the feed fails', async () => {
@@ -1345,6 +1376,7 @@ function createRunnerOptions(
 		getCurrentInstant: () => RAN_AT,
 		catalog,
 		corporateActions: [] as readonly CorporateAction[],
+		watchRules: testWatchRules,
 	};
 }
 

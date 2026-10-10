@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
-import { RELEVANT_FACTS_URL } from '#modules/corporate-action-watch/index.ts';
+import { RELEVANT_FACTS_URL, watchRules } from '#modules/corporate-action-watch/index.ts';
 import { createInstrumentCatalog } from '#modules/instrument-catalog/instrument-catalog.ts';
 import { loadGgalFixture } from '#modules/technical-analysis/tests/support/index.ts';
 
@@ -359,12 +359,12 @@ describe('Analysis Run command logging', () => {
 			);
 
 			expect(watchEntries.map(({ level, message }) => `${level} ${message}`)).toEqual([
-				`warn Unlisted corporate-action notice for galicia-stock-byma-ars; read it before adding a list entry: 2026-09-28 ${galiciaStockDividend.referencia} <${pdfUrl}>`,
+				`warn Unlisted corporate-action notices for galicia-stock-byma-ars; read them before adding a list entry: 2026-09-28 (unlisted) ${galiciaStockDividend.referencia} <${pdfUrl}>`,
 			]);
 			expect(watchEntries[0]!.fields).toMatchObject({
 				tradingLineId: 'galicia-stock-byma-ars',
-				isListed: false,
-				notices: [{ documentId: 479966, pdfUrl }],
+				unlistedNoticeCount: 1,
+				notices: [{ documentId: 479966, pdfUrl, isListed: false }],
 			});
 		});
 
@@ -381,7 +381,7 @@ describe('Analysis Run command logging', () => {
 				expect.objectContaining({
 					level: 'info',
 					message: expect.stringMatching(
-						/^Listed corporate-action notice for galicia-stock-byma-ars: 2026-09-28 /,
+						/^Listed corporate-action notices for galicia-stock-byma-ars: 2026-09-28 \(listed\) /,
 					),
 				}),
 			);
@@ -516,6 +516,8 @@ async function runCommandWithProvider(
 			pause: () => Promise.resolve(),
 			catalog: createTestCatalog(),
 			corporateActions,
+			// The committed rules name lines the test catalog does not have.
+			watchRules: { ...watchRules, stockIssuerCodes: {}, cedearNameAliases: {} },
 		},
 	});
 

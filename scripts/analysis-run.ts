@@ -268,8 +268,9 @@ function logProgress(log: AnalysisRunLog, progress: AnalysisRunProgress): void {
 }
 
 /**
- * An unlisted candidate needs a person to read its notice and decide whether the committed list
- * needs an entry, so it is a warning; a listed one is already handled.
+ * An unlisted notice needs a person to read it and decide whether the committed list needs an
+ * entry, so a candidate with one is a warning; a candidate whose notices are all listed is already
+ * handled.
  */
 function logCorporateActionWatch(log: AnalysisRunLog, watch: CorporateActionWatch): void {
 	const { publishedFrom, publishedThrough } = watch;
@@ -301,23 +302,27 @@ function logCorporateActionCandidate(
 	fields: object,
 	candidate: CorporateActionCandidate,
 ): void {
-	const { tradingLineId, isListed, notices } = candidate;
+	const { tradingLineId, notices } = candidate;
+	const unlistedNoticeCount = notices.filter((notice) => !notice.isListed).length;
 	const noticeSummary = notices
-		.map(({ publishedAt, title, pdfUrl }) => `${publishedAt.slice(0, 10)} ${title} <${pdfUrl}>`)
+		.map(({ publishedAt, title, pdfUrl, isListed }) => {
+			const listing = isListed ? 'listed' : 'unlisted';
+			return `${publishedAt.slice(0, 10)} (${listing}) ${title} <${pdfUrl}>`;
+		})
 		.join('; ');
-	const candidateFields = { ...fields, tradingLineId, isListed, notices };
+	const candidateFields = { ...fields, tradingLineId, unlistedNoticeCount, notices };
 
-	if (isListed) {
+	if (unlistedNoticeCount === 0) {
 		log.info(
 			candidateFields,
-			`Listed corporate-action notice for ${tradingLineId}: ${noticeSummary}`,
+			`Listed corporate-action notices for ${tradingLineId}: ${noticeSummary}`,
 		);
 		return;
 	}
 
 	log.warn(
 		candidateFields,
-		`Unlisted corporate-action notice for ${tradingLineId}; read it before adding a list entry: ${noticeSummary}`,
+		`Unlisted corporate-action notices for ${tradingLineId}; read them before adding a list entry: ${noticeSummary}`,
 	);
 }
 

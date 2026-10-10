@@ -249,9 +249,9 @@ Risks:
 - **Series suffixes.** Catalog symbols such as `TECO2`, `TGSU2`, `TGNO4` and `YPFD` differ from the
   issuer code used in `especie`, which is `TECO` in the crawl. The rule needs a per-instrument issuer
   code, or a prefix match that is reviewed by hand.
-- **One issuer, many products.** `VALO` matched a trust notice, "Primera capitalización de intereses
-    - Megabono Crédito 326", because Banco de Valores is the trust's fiduciary. `BMA` is both a catalog
-      stock and a CEDEAR publisher.
+- **One issuer, many products.** `VALO` matched a trust notice,
+  "Primera capitalización de intereses - Megabono Crédito 326", because Banco de Valores is the
+  trust's fiduciary. `BMA` is both a catalog stock and a CEDEAR publisher.
 - **Equity words in non-equity notices.** "capitalización de intereses", "capitalización de pasivos",
   "convertibles en acciones", "Canje Voluntario de Acciones", "acciones propias".
 

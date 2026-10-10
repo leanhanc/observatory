@@ -4,9 +4,9 @@
 
 After the analyzed lines' main pass and retry pass, and before the snapshot write, the run SHALL fetch the relevant-facts feed once through the corporate-action-watch module, with the historical request pause before the request, for the seven calendar days ending on the Requested-Through Session. It SHALL match the notices against every analyzed Trading Line, whatever its analysis outcome, and against the run's Corporate Action list, the committed list unless the runner options replace it. The feed request SHALL NOT be retried and SHALL NOT be subject to the retry cut-off. The feed SHALL be fetched only when at least one analyzed line is available: a run that fails before analyzing lines, or with reason `no-analyzed-lines`, writes no snapshot to record the watch in.
 
-A watch that is unavailable SHALL NOT fail the run, change any analyzed line or prevent the snapshot write. Nothing in the watch SHALL be applied to any bar.
+A watch that is unavailable SHALL NOT fail the run, change any analyzed line or prevent the snapshot write. Nothing in the watch SHALL be applied to any bar. The watch rules SHALL be replaceable through the runner options, defaulting to the committed rules, and creating the runner SHALL fail when they do not fit the analyzed lines, as the corporate-action-watch module checks.
 
-The `analyze` command SHALL log the watch once it is reported: an unavailable watch as one warning, `Corporate-action watch unavailable: <message>`; each unlisted candidate as one warning naming its Trading Line, and each notice's publication date, title and PDF URL; each listed candidate the same way at info; and, when there is no candidate, one info entry naming the window.
+The `analyze` command SHALL log the watch once it is reported: an unavailable watch as one warning, `Corporate-action watch unavailable: <message>`; each candidate with at least one unlisted notice as one warning naming its Trading Line, and each notice's publication date, listing, title and PDF URL; each candidate whose notices are all listed the same way at info; and, when there is no candidate, one info entry naming the window.
 
 #### Scenario: a feed failure does not fail the run
 
@@ -17,12 +17,17 @@ The `analyze` command SHALL log the watch once it is reported: an unavailable wa
 #### Scenario: an unlisted candidate is logged as a warning
 
 - **WHEN** a stock-dividend notice, document 479966, matches Galicia's line and the list has no Galicia entry near it
-- **THEN** the command logs one warning naming `galicia-stock-byma-ars`, the notice's date and title, and `https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/479966`
+- **THEN** the command logs one warning naming `galicia-stock-byma-ars`, the notice's date, `unlisted`, its title, and `https://open.bymadata.com.ar/vanoms-be-core/rest/api/bymadata/free/sba/download/479966`
 
 #### Scenario: a listed candidate is logged at info
 
-- **WHEN** the same notice matches and the list has a Galicia entry within 10 days of it
+- **WHEN** the same notice matches and the list has a Galicia entry 7 days after it
 - **THEN** the command logs the candidate at info
+
+#### Scenario: an unavailable line is still watched
+
+- **WHEN** a CEDEAR line fails to fetch and the feed has a stock-split notice for it
+- **THEN** the line is unavailable and the watch has its candidate
 
 #### Scenario: no snapshot can be written
 

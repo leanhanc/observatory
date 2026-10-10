@@ -34,16 +34,19 @@ export type CorporateActionNotice = Readonly<{
 	publishedAt: string;
 	title: string;
 	pdfUrl: string;
+	/**
+	 * The Corporate Action list has an entry for the notice's line with an ex-date from 10 days
+	 * before to 70 days after the notice's publication date.
+	 */
+	isListed: boolean;
 }>;
 
 /**
  * Every Corporate Action Notice for one line within the watched window, so one event's
- * announcement and follow-ups are one candidate. `isListed` says the committed Corporate Action
- * list already has an entry for the line near one of the notices.
+ * announcement and follow-ups are one candidate.
  */
 export type CorporateActionCandidate = Readonly<{
 	tradingLineId: string;
-	isListed: boolean;
 	notices: readonly CorporateActionNotice[];
 }>;
 

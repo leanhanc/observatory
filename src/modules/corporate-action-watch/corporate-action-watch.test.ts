@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+	assertWatchRulesMatchTradingLines,
 	findCorporateActionCandidates,
 	validateWatchRules,
 	watchCorporateActions,
@@ -90,7 +91,7 @@ const UL_FOLLOW_UPS = [
 		'Hecho Relevante de Cedear - UL - UNILEVER PLC-SPONSORED ADR - Anuncia Reverse Stock Split - Rectificativo',
 	),
 ];
-// SEMI's stock-dividend payment notice (479966), published under Telecom's issuer code.
+// A relabeled fixture: SEMI's stock-dividend payment notice (479966) under Telecom's issuer code.
 const TECO_STOCK_DIVIDEND = createFact(
 	479966,
 	'2025-10-24T10:59:51',
@@ -110,6 +111,16 @@ const TRADING_LINES: readonly WatchedTradingLine[] = [
 	createLine('nvda-cedear-byma-ars', 'NVDA', 'cedear'),
 	createLine('teco2-stock-byma-ars', 'TECO2', 'stock'),
 	createLine('macro-stock-byma-ars', 'BMA', 'stock'),
+	createLine('valo-stock-byma-ars', 'VALO', 'stock'),
+];
+
+// The analyzed lines the committed rules name, for checking the rules against lines.
+const WATCH_RULE_LINES: readonly WatchedTradingLine[] = [
+	createLine('hut-cedear-byma-ars', 'HUT', 'cedear'),
+	createLine('supv-stock-byma-ars', 'SUPV', 'stock'),
+	createLine('teco2-stock-byma-ars', 'TECO2', 'stock'),
+	createLine('tgno4-stock-byma-ars', 'TGNO4', 'stock'),
+	createLine('tgsu2-stock-byma-ars', 'TGSU2', 'stock'),
 	createLine('valo-stock-byma-ars', 'VALO', 'stock'),
 ];
 
@@ -134,7 +145,7 @@ describe('the committed watch rules', () => {
 				'cambio de ratio',
 				'dividendo en acciones',
 				'dividendos en acciones',
-				'capitalizaciones',
+				'aviso de pago de capitalizaciones',
 				'stock dividend',
 				'dividendo opcional',
 			],
@@ -151,6 +162,7 @@ describe('validateWatchRules', () => {
 		['cedearProgramIssuers', []],
 		['stockIssuerCodes', { TECO2: 'teco' }],
 		['cedearNameAliases', { 'HUT 8 CORP.': 'Hut' }],
+		['cedearNameAliases', { 'HUT 8 CORP.': 'HUT ' }],
 	])('rejects %s %p', (field, value) => {
 		const validation = validateWatchRules({ ...watchRules, [field]: value });
 
@@ -161,6 +173,42 @@ describe('validateWatchRules', () => {
 	test('rejects an extra field', () => {
 		expect(validateWatchRules({ ...watchRules, note: 'unsupported' }).isValid).toBe(false);
 	});
+
+	test('accepts a dotted BYMA symbol as an alias target', () => {
+		const rules = { ...watchRules, cedearNameAliases: { 'CITIGROUP INC.': 'BA.C' } };
+
+		expect(validateWatchRules(rules).isValid).toBe(true);
+	});
+});
+
+describe('assertWatchRulesMatchTradingLines', () => {
+	test('accepts rules that fit the lines', () => {
+		expect(() => assertWatchRulesMatchTradingLines(watchRules, WATCH_RULE_LINES)).not.toThrow();
+	});
+
+	test.each([
+		[
+			'an issuer code for a stock that is not analyzed',
+			{ stockIssuerCodes: { YPFD: 'YPF' } },
+			'YPFD',
+		],
+		['an issuer code for a CEDEAR symbol', { stockIssuerCodes: { HUT: 'HUT8' } }, 'HUT'],
+		[
+			'an alias for a CEDEAR that is not analyzed',
+			{ cedearNameAliases: { 'NVIDIA CORP.': 'NVDA' } },
+			'NVDA',
+		],
+		[
+			'an alias for a stock symbol',
+			{ cedearNameAliases: { 'TELECOM ARGENTINA': 'TECO2' } },
+			'TECO2',
+		],
+		['two stocks sharing an issuer code', { stockIssuerCodes: { TECO2: 'VALO' } }, 'VALO'],
+	])('rejects %s', (_, override, named) => {
+		const rules = { ...watchRules, ...override };
+
+		expect(() => assertWatchRulesMatchTradingLines(rules, WATCH_RULE_LINES)).toThrow(named);
+	});
 });
 
 describe('findCorporateActionCandidates', () => {
@@ -170,13 +218,13 @@ describe('findCorporateActionCandidates', () => {
 		expect(candidates).toEqual([
 			{
 				tradingLineId: 'etha-cedear-byma-ars',
-				isListed: true,
 				notices: [
 					{
 						documentId: 501592,
 						publishedAt: '2026-10-06T15:28:24',
 						title: ETHA_REVERSE_SPLIT.title,
 						pdfUrl: `${PDF_URL_PREFIX}501592`,
+						isListed: true,
 					},
 				],
 			},
@@ -187,7 +235,7 @@ describe('findCorporateActionCandidates', () => {
 		const candidates = findCandidates([NOW_SPLIT], [ETHA_ENTRY]);
 
 		expect(candidates).toMatchObject([
-			{ tradingLineId: 'now-cedear-byma-ars', isListed: false },
+			{ tradingLineId: 'now-cedear-byma-ars', notices: [{ isListed: false }] },
 		]);
 	});
 
@@ -243,6 +291,42 @@ describe('findCorporateActionCandidates', () => {
 		expect(summarize(candidates)).toEqual([['macro-stock-byma-ars', [900002]]]);
 	});
 
+	test('does not match a Banco Macro notice naming an analyzed CEDEAR to its stock', () => {
+		// Adapted: the plain "Hecho relevante - <NAME>" shape, without "Cedear", from Banco Macro.
+		const macroNamedNotice = createFact(
+			900004,
+			'2026-10-05T10:00:00',
+			MACRO,
+			'BMA',
+			'Hecho relevante - HUT 8 CORP.: Anuncia cambio de ratio y split',
+		);
+
+		expect(summarize(findCandidates([macroNamedNotice]))).toEqual([
+			['hut-cedear-byma-ars', [900004]],
+		]);
+	});
+
+	test('matches the publisher case-insensitively and the especie after trimming', () => {
+		const recasedNotice = { ...NOW_SPLIT, emisor: ' Banco Comafi S.A. ' };
+		const paddedNotice = { ...TECO_STOCK_DIVIDEND, especie: ' TECO ' };
+
+		expect(summarize(findCandidates([recasedNotice, paddedNotice]))).toEqual([
+			['now-cedear-byma-ars', [483240]],
+			['teco2-stock-byma-ars', [479966]],
+		]);
+	});
+
+	test('trims the title pieces around a ticker', () => {
+		const paddedTicker = {
+			...NOW_SPLIT,
+			title: 'Hecho Relevante de Cedear -  NOW  - SERVICENOW INC. - Anuncia Stock Split',
+		};
+
+		expect(summarize(findCandidates([paddedTicker]))).toEqual([
+			['now-cedear-byma-ars', [483240]],
+		]);
+	});
+
 	test('does not match a CEDEAR ticker in a notice from a local issuer', () => {
 		// Adapted: a local issuer's title that names a CEDEAR ticker as a piece.
 		const localNotice = createFact(
@@ -266,10 +350,6 @@ describe('findCorporateActionCandidates', () => {
 		expect(findCandidates([NVDA_CASH_DISTRIBUTION, cashDistribution])).toEqual([]);
 	});
 
-	test('does not match "transacciones" or "CORPORATION"', () => {
-		expect(findCandidates([VALO_RELATED_PARTIES, NVDA_CASH_DISTRIBUTION])).toEqual([]);
-	});
-
 	test('matches a phrase only as whole words', () => {
 		// With bare phrases, substring matching would hit both titles; whole-word matching hits neither.
 		const bareRules = {
@@ -285,6 +365,29 @@ describe('findCorporateActionCandidates', () => {
 		);
 
 		expect(candidates).toEqual([]);
+	});
+
+	test('treats an accented letter as part of a word', () => {
+		// An ASCII word boundary would see one between "Split" and "é" and match.
+		const accentedNotice = {
+			...NOW_SPLIT,
+			title: 'Hecho Relevante de Cedear - NOW - SERVICENOW INC. - Anuncia Stock Splité',
+		};
+
+		expect(findCandidates([accentedNotice])).toEqual([]);
+	});
+
+	test('keeps a stock-dividend payment notice but not an interest capitalization', () => {
+		// Adapted: a local stock's capitalization of interest, which bare "capitalizaciones" matched.
+		const interestCapitalization = {
+			...TECO_STOCK_DIVIDEND,
+			documentId: 900005,
+			title: 'Hecho relevante - Capitalizaciones de intereses - Obligaciones Negociables Clase 22',
+		};
+
+		expect(summarize(findCandidates([TECO_STOCK_DIVIDEND, interestCapitalization]))).toEqual([
+			['teco2-stock-byma-ars', [479966]],
+		]);
 	});
 
 	test('matches a phrase across the double spaces publishers type', () => {
@@ -305,20 +408,43 @@ describe('findCorporateActionCandidates', () => {
 	});
 
 	test.each([
-		['the publication is 10 days before the ex-date', '2026-10-16', true],
-		['the publication is 10 days after the ex-date', '2026-09-26', true],
-		['the publication is 11 days before the ex-date', '2026-10-17', false],
-		['the publication is 11 days after the ex-date', '2026-09-25', false],
-	])('marks a candidate listed when %s: %s', (_, exDate, isListed) => {
+		['70 days after the publication', '2026-12-15', true],
+		['71 days after the publication', '2026-12-16', false],
+		['10 days before the publication', '2026-09-26', true],
+		['11 days before the publication', '2026-09-25', false],
+	])('lists a notice when the ex-date is %s (%s): %p', (_, exDate, isListed) => {
 		const candidates = findCandidates([ETHA_REVERSE_SPLIT], [{ ...ETHA_ENTRY, exDate }]);
 
-		expect(candidates[0]!.isListed).toBe(isListed);
+		expect(candidates[0]!.notices[0]!.isListed).toBe(isListed);
 	});
 
-	test("does not take another line's entry as listing a candidate", () => {
+	test('lists each notice on its own, so a listed event does not hide another', () => {
+		// Two NOW notices months apart in one group, with an entry near the later one only.
+		const earlierNotice = {
+			...NOW_SPLIT,
+			documentId: 900006,
+			publishedAt: '2025-06-02T10:00:00',
+		};
+		const entry = {
+			...ETHA_ENTRY,
+			tradingLineId: 'now-cedear-byma-ars',
+			exDate: '2025-12-18',
+			kind: 'split' as const,
+			priceFactor: 0.2,
+		};
+
+		const [candidate] = findCandidates([earlierNotice, NOW_SPLIT], [entry]);
+
+		expect(candidate!.notices.map((notice) => [notice.documentId, notice.isListed])).toEqual([
+			[900006, false],
+			[483240, true],
+		]);
+	});
+
+	test("does not take another line's entry as listing a notice", () => {
 		const candidates = findCandidates([NOW_SPLIT], [{ ...ETHA_ENTRY, exDate: '2025-12-18' }]);
 
-		expect(candidates[0]!.isListed).toBe(false);
+		expect(candidates[0]!.notices[0]!.isListed).toBe(false);
 	});
 });
 
@@ -354,7 +480,7 @@ describe('watchCorporateActions', () => {
 			status: 'available',
 			publishedFrom: '2026-10-02',
 			publishedThrough: '2026-10-08',
-			candidates: [{ tradingLineId: 'etha-cedear-byma-ars', isListed: true }],
+			candidates: [{ tradingLineId: 'etha-cedear-byma-ars', notices: [{ isListed: true }] }],
 		});
 	});
 
@@ -388,6 +514,23 @@ describe('watchCorporateActions', () => {
 			publishedFrom: '2026-10-02',
 			publishedThrough: '2026-10-08',
 			message: expect.stringContaining(messagePart),
+		});
+	});
+
+	test('records an unexpected failure as an unavailable watch instead of throwing', async () => {
+		const invalidRules = { ...watchRules, eventPhrases: null } as unknown as typeof watchRules;
+
+		const watch = await watchCorporateActions({
+			fetchFromProvider: () => Promise.resolve(createFeedResponse([NOW_SPLIT])),
+			requestedThroughSession: '2026-10-08',
+			tradingLines: TRADING_LINES,
+			corporateActions: [],
+			rules: invalidRules,
+		});
+
+		expect(watch).toMatchObject({
+			status: 'unavailable',
+			message: expect.stringMatching(/^The watch failed: /),
 		});
 	});
 

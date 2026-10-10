@@ -2,6 +2,7 @@ import { validateWatchRules } from './corporate-action-watch.ts';
 import storedWatchRules from './data/corporate-action-watch-rules.v1.json' with { type: 'json' };
 
 export {
+	assertWatchRulesMatchTradingLines,
 	findCorporateActionCandidates,
 	validateWatchRules,
 	watchCorporateActions,

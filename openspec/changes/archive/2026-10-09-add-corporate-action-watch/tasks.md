@@ -7,5 +7,5 @@
 - [x] Add the Corporate Action Notice glossary entry.
 - [x] Test ETHA, NOW, SPY, HUT, TECO2, BMA, the excluded cash-distribution prefix, words containing phrase fragments, grouping, the listing window, the feed's failures and the request and pause sequence.
 - [x] Run tests, typecheck, lint, format, strict OpenSpec validation and an Analysis Run dry run.
-- [ ] Review.
-- [ ] Archive after review.
+- [x] Review: record GFVA as uncovered; list each notice on its own with a window from 10 days before to 70 days after it; keep Banco Macro notices naming an analyzed CEDEAR off the BMA stock; check the rules against the analyzed lines at runner creation and allow dotted symbols; narrow `capitalizaciones`; never throw from the watch; add tests for unavailable lines, trimming, case, Unicode word boundaries and interest capitalizations.
+- [x] Archive after review.

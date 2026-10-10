@@ -1,6 +1,7 @@
 import * as v from 'valibot';
 
-const BYMA_SYMBOL_PATTERN = /^[A-Z0-9]+$/;
+// BYMA symbols are uppercase letters and digits, with a dot in some, such as `BA.C`.
+const BYMA_SYMBOL_PATTERN = /^[A-Z0-9.]+$/;
 
 const messages = {
 	additionalField: 'Value contains a field not supported by the watch rules schema v1.',

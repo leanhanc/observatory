@@ -6,7 +6,11 @@ import {
 	createOpenBymadataBarHistoryAcquirer,
 	validateDailyBars,
 } from '#modules/bar-history/index.ts';
-import { watchCorporateActions, watchRules } from '#modules/corporate-action-watch/index.ts';
+import {
+	assertWatchRulesMatchTradingLines,
+	watchCorporateActions,
+	watchRules as committedWatchRules,
+} from '#modules/corporate-action-watch/index.ts';
 import {
 	applyCorporateActions,
 	corporateActions as committedCorporateActions,
@@ -41,6 +45,8 @@ import type {
 import type {
 	CorporateActionWatch,
 	RelevantFactsFetch,
+	WatchRules,
+	WatchedTradingLine,
 } from '#modules/corporate-action-watch/index.ts';
 import type { CorporateAction } from '#modules/corporate-actions/index.ts';
 import type { MepRateSession } from '#modules/dollarized-series/index.ts';
@@ -118,6 +124,7 @@ type AnalysisRunDependencies = Readonly<{
 	pause: BarHistoryPause;
 	catalog: InstrumentCatalog;
 	corporateActions: readonly CorporateAction[];
+	watchRules: WatchRules;
 	snapshotStorage: AnalysisSnapshotStorage;
 	getCurrentInstant: () => string;
 	reportProgress: (progress: AnalysisRunProgress) => void;
@@ -153,7 +160,12 @@ export function createAnalysisRunner(
 	const pause = options.pause ?? Bun.sleep;
 	const catalog = options.catalog ?? instrumentCatalog;
 	const corporateActions = options.corporateActions ?? committedCorporateActions;
+	const watchRules = options.watchRules ?? committedWatchRules;
 	assertCorporateActionsTargetAnalyzedLines(corporateActions, catalog);
+	assertWatchRulesMatchTradingLines(
+		watchRules,
+		describeWatchedLines(selectAnalyzedTradingLines(catalog)),
+	);
 
 	const dependencies: AnalysisRunDependencies = {
 		fetchFromProvider,
@@ -161,6 +173,7 @@ export function createAnalysisRunner(
 		pause,
 		catalog,
 		corporateActions,
+		watchRules,
 		snapshotStorage,
 		getCurrentInstant: options.getCurrentInstant ?? getCurrentUtcInstant,
 		reportProgress: options.reportProgress ?? (() => {}),
@@ -877,30 +890,36 @@ function collectEvents(
 /**
  * Looks for Corporate Action Notices about every analyzed line, whatever its outcome, after the
  * lines are analyzed so the feed cannot delay them. It is one request with the usual pause before
- * it, not retried: an unavailable watch is recorded, never a run failure.
+ * it, not retried; the watch module returns every failure as an unavailable watch, so it can never
+ * fail a finished run.
  */
 async function watchAnalyzedLines(
 	dependencies: AnalysisRunDependencies,
 	analyzedLines: readonly AnalyzedTradingLine[],
 	requestedThroughSession: string,
 ): Promise<CorporateActionWatch> {
-	const { fetchFromProvider, pause, corporateActions, reportProgress } = dependencies;
-	const tradingLines = analyzedLines.map(({ instrumentType, tradingLine }) => ({
-		...tradingLine,
-		instrumentType,
-	}));
+	const { fetchFromProvider, pause, corporateActions, watchRules, reportProgress } = dependencies;
 
 	await pause(HISTORICAL_REQUEST_PAUSE_MS);
 	const watch = await watchCorporateActions({
 		fetchFromProvider,
 		requestedThroughSession,
-		tradingLines,
+		tradingLines: describeWatchedLines(analyzedLines),
 		corporateActions,
 		rules: watchRules,
 	});
 
 	reportProgress({ type: 'corporate-action-watch-checked', watch });
 	return watch;
+}
+
+function describeWatchedLines(
+	analyzedLines: readonly AnalyzedTradingLine[],
+): readonly WatchedTradingLine[] {
+	return analyzedLines.map(({ instrumentType, tradingLine }) => ({
+		...tradingLine,
+		instrumentType,
+	}));
 }
 
 function getRequiredFetchedLine(

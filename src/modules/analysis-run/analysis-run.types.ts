@@ -1,5 +1,5 @@
 import type { BarHistoryPause } from '#modules/bar-history/index.ts';
-import type { CorporateActionWatch } from '#modules/corporate-action-watch/index.ts';
+import type { CorporateActionWatch, WatchRules } from '#modules/corporate-action-watch/index.ts';
 import type { CorporateAction, CorporateActionOutcome } from '#modules/corporate-actions/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type { InstrumentState } from '#modules/instrument-state/index.ts';
@@ -177,7 +177,7 @@ export type AnalysisRunProgress =
 			tradingLineIds: readonly string[];
 	  }>
 	| Readonly<{
-			/** The relevant-facts feed was fetched and matched, after every line was analyzed. */
+			/** The watch ran, available or not, after every line was analyzed. */
 			type: 'corporate-action-watch-checked';
 			watch: CorporateActionWatch;
 	  }>
@@ -196,6 +196,8 @@ export type AnalysisRunnerOptions = Readonly<{
 	catalog?: InstrumentCatalog;
 	/** The confirmed Corporate Actions to correct; the committed list by default. */
 	corporateActions?: readonly CorporateAction[];
+	/** The corporate-action watch's matching rules; the committed rules by default. */
+	watchRules?: WatchRules;
 	reportProgress?: (progress: AnalysisRunProgress) => void;
 	/**
 	 * Run time after which no analyzed line is retried, so that retries cannot push the run past

@@ -11,7 +11,11 @@ import { loadGgalFixture } from '#modules/technical-analysis/tests/support/index
 import { resolveAnalysisRunInvocation, runAnalysisCommand } from './analysis-run.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
-import type { CorporateAction } from '#modules/corporate-actions/index.ts';
+import type {
+	CorporateAction,
+	PricesAndVolumeCorporateAction,
+	VolumeCorporateAction,
+} from '#modules/corporate-actions/index.ts';
 import type { AnalysisRunCommandOutcome, AnalysisRunLog } from './analysis-run.ts';
 
 const DRY_RUN_ARGS = ['--output', 'snapshot.json'];
@@ -134,11 +138,20 @@ const ggalPesoBars = ggalDollarBars.map((bar) => scaleBarPrices(bar, MEP_RATE));
 const thinlyTradedPesoBars = ggalPesoBars.map((bar) => ({ ...bar, volume: 1 }));
 const al30Bars = ggalDollarBars.map((bar) => createFlatBar(bar.sessionDate, MEP_RATE));
 const al30dBars = ggalDollarBars.map((bar) => createFlatBar(bar.sessionDate, 1));
-const GGAL_SHARE_DISTRIBUTION: CorporateAction = {
+const GGAL_SHARE_DISTRIBUTION: PricesAndVolumeCorporateAction = {
 	tradingLineId: 'galicia-stock-byma-ars',
 	exDate: '2025-06-02',
+	correction: 'prices-and-volume',
 	priceFactor: 0.5,
 	kind: 'share-distribution',
+	sourceUrl: 'https://example.com/notice',
+};
+const GGAL_VOLUME_SPLIT: VolumeCorporateAction = {
+	tradingLineId: 'galicia-stock-byma-ars',
+	exDate: '2025-06-02',
+	correction: 'volume',
+	shareFactor: 2,
+	kind: 'split',
 	sourceUrl: 'https://example.com/notice',
 };
 // Galicia as a provider that did not adjust a 1:1 share distribution: earlier prices are twice the
@@ -224,6 +237,78 @@ describe('Analysis Run command logging', () => {
 					},
 				],
 			},
+		});
+	});
+
+	test('warns about a volume-only Corporate Action whose price still shows the step', async () => {
+		const { entries } = await runCommandWithProvider(
+			{ GGAL: unadjustedGgalPesoBars, THIN: thinlyTradedPesoBars },
+			{ corporateActions: [GGAL_VOLUME_SPLIT] },
+		);
+
+		expect(entries[2]).toMatchObject({
+			level: 'warn',
+			message: expect.stringMatching(
+				/; corporate action 2025-06-02: price-step-observed \(observed ×0\.\d{3}; check whether the provider adjusted the price, or the entry needs prices-and-volume\)\)$/,
+			),
+			fields: {
+				corporateActions: [
+					{
+						exDate: '2025-06-02',
+						status: 'price-step-observed',
+						observedCloseRatio: expect.any(Number),
+					},
+				],
+			},
+		});
+	});
+
+	test('warns about a volume-only Corporate Action whose volume may be rescaled', async () => {
+		const rescaledGgalPesoBars = ggalPesoBars.map((bar) =>
+			bar.sessionDate < GGAL_VOLUME_SPLIT.exDate ? { ...bar, volume: bar.volume * 2 } : bar,
+		);
+		const { entries } = await runCommandWithProvider(
+			{ GGAL: rescaledGgalPesoBars, THIN: thinlyTradedPesoBars },
+			{ corporateActions: [GGAL_VOLUME_SPLIT] },
+		);
+
+		expect(entries[2]).toMatchObject({
+			level: 'warn',
+			message: expect.stringMatching(
+				/; corporate action 2025-06-02: volume-rescale-suspected \(every earlier volume read is a multiple of 2; the provider may already have rescaled the volume, check the history before removing the entry\)\)$/,
+			),
+		});
+	});
+
+	test('reports the Corporate Actions of a line the liquidity gate excluded', async () => {
+		const thinVolumeSplit = { ...GGAL_VOLUME_SPLIT, tradingLineId: 'thin-stock-byma-ars' };
+		const unadjustedThinPesoBars = unadjustedGgalPesoBars.map((bar) => ({ ...bar, volume: 1 }));
+		const { entries } = await runCommandWithProvider(
+			{ GGAL: ggalPesoBars, THIN: unadjustedThinPesoBars },
+			{ corporateActions: [thinVolumeSplit] },
+		);
+
+		expect(entries[3]).toMatchObject({
+			level: 'warn',
+			message: expect.stringMatching(
+				/^\[2\/3\] thin-stock-byma-ars: unavailable: insufficient-liquidity \(participation 1\.00, median USD \d+k; corporate action 2025-06-02: price-step-observed \(observed ×0\.\d{3}; .+\)\)$/,
+			),
+			fields: { corporateActions: [{ status: 'price-step-observed' }] },
+		});
+	});
+
+	test('logs an excluded line whose listed Corporate Action was applied at info', async () => {
+		const thinVolumeSplit = { ...GGAL_VOLUME_SPLIT, tradingLineId: 'thin-stock-byma-ars' };
+		const { entries } = await runCommandWithProvider(
+			{ GGAL: ggalPesoBars, THIN: thinlyTradedPesoBars },
+			{ corporateActions: [thinVolumeSplit] },
+		);
+
+		expect(entries[3]).toMatchObject({
+			level: 'info',
+			message: expect.stringMatching(
+				/^\[2\/3\] thin-stock-byma-ars: unavailable: insufficient-liquidity \(participation 1\.00, median USD \d+k; corporate action 2025-06-02: applied\)$/,
+			),
 		});
 	});
 

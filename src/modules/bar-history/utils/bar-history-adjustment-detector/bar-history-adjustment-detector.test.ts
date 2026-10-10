@@ -89,7 +89,7 @@ describe('detectAdjustmentOrCorrection', () => {
 		});
 	});
 
-	test('accepts a split that also rescales volume', () => {
+	test('accepts an adjustment whose bars also changed volume', () => {
 		const fetchedBars = [
 			...STORED_BARS.slice(0, 2).map((bar) => ({
 				...scaleBar(bar, 0.5),

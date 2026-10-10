@@ -21,8 +21,9 @@ type AdjustmentStep = Readonly<{
  * adjustments since the last check form a staircase in which each earlier step carries the
  * product of every later adjustment. Anything else is reported as corrections, including an
  * adjustment combined with a correction, a ratio at or above 1, and a step boundary that falls on
- * a stored session the refetch omitted. Volume may differ on adjusted bars because splits can
- * rescale it.
+ * a stored session the refetch omitted. A changed volume marks a bar as changed, but the
+ * classification reads only prices, so an adjusted bar may keep or change its volume. Open BYMADATA
+ * has not been seen rescaling volume, even for the splits whose prices it adjusted.
  */
 export function detectAdjustmentOrCorrection(
 	storedBars: readonly DailyBar[],

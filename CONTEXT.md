@@ -121,7 +121,7 @@ A direction-neutral Event in which a completed Trading Session's movement magnit
 _Avoid_: Bullish or bearish signal, continuation, reversal, opportunity, price target
 
 **Corporate Action**:
-An issuer's decision, such as a split, a reverse split or a share distribution, that changes the number of shares or CEDEARs and moves the price in inverse proportion, without changing what a holding is worth. A price step it causes is bookkeeping, not market behavior.
+An issuer's decision, such as a split, a reverse split, a share distribution or a change of a CEDEAR's ratio, that changes the number of shares or CEDEARs and moves the price in inverse proportion, without changing what a holding is worth. A price step it causes is bookkeeping, not market behavior.
 _Avoid_: Split when referring to every kind, adjustment when referring to the issuer's decision
 
 **Large One-Session Move**:

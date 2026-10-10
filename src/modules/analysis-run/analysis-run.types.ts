@@ -76,6 +76,11 @@ export type AnalyzedLine =
 			message: string;
 			/** Both measures over the run's liquidity window, so a reader sees how far it missed. */
 			liquidity: LiquidityMeasures;
+			/**
+			 * The line's listed Corporate Actions and whether each was applied before the gate. A
+			 * volume-only correction exists to change the gate's result.
+			 */
+			corporateActions: readonly CorporateActionOutcome[];
 	  }> &
 			BarRepairs);
 
@@ -97,7 +102,7 @@ export type TradingLineSession = Readonly<{
 }>;
 
 export type AnalysisSnapshot = Readonly<{
-	schemaVersion: 4;
+	schemaVersion: 5;
 	ranAt: string;
 	requestedThroughSession: string;
 	analysisConfigurationVersion: number;

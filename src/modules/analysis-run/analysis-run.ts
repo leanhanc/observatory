@@ -273,7 +273,7 @@ async function runAnalysis(
 	);
 
 	const snapshot = {
-		schemaVersion: 4,
+		schemaVersion: 5,
 		ranAt,
 		requestedThroughSession,
 		analysisConfigurationVersion: ANALYSIS_CONFIGURATION.version,
@@ -839,6 +839,7 @@ function analyzeTradingLine(
 			message:
 				'The line did not trade regularly or heavily enough over the liquidity window.',
 			liquidity: liquidity.measures,
+			corporateActions: correction.outcomes,
 			...barRepairs,
 		};
 	}

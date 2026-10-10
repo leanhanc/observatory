@@ -8,7 +8,11 @@ import {
 } from './corporate-action-watch.ts';
 import { RELEVANT_FACTS_URL, watchRules } from './index.ts';
 
-import type { CorporateAction } from '#modules/corporate-actions/index.ts';
+import type {
+	CorporateAction,
+	PricesAndVolumeCorporateAction,
+	VolumeCorporateAction,
+} from '#modules/corporate-actions/index.ts';
 import type { RelevantFact, WatchedTradingLine } from './corporate-action-watch.types.ts';
 
 const COMAFI = 'BANCO COMAFI S.A.';
@@ -124,9 +128,10 @@ const WATCH_RULE_LINES: readonly WatchedTradingLine[] = [
 	createLine('valo-stock-byma-ars', 'VALO', 'stock'),
 ];
 
-const ETHA_ENTRY: CorporateAction = {
+const ETHA_ENTRY: PricesAndVolumeCorporateAction = {
 	tradingLineId: 'etha-cedear-byma-ars',
 	exDate: '2026-10-06',
+	correction: 'prices-and-volume',
 	priceFactor: 3,
 	kind: 'reverse-split',
 	sourceUrl: `${PDF_URL_PREFIX}501592`,
@@ -236,6 +241,22 @@ describe('findCorporateActionCandidates', () => {
 
 		expect(candidates).toMatchObject([
 			{ tradingLineId: 'now-cedear-byma-ars', notices: [{ isListed: false }] },
+		]);
+	});
+
+	test("marks SPY's ratio change listed by its volume-only entry", () => {
+		const spyEntry: VolumeCorporateAction = {
+			tradingLineId: 'spy-cedear-byma-ars',
+			exDate: '2026-05-29',
+			correction: 'volume',
+			shareFactor: 3,
+			kind: 'ratio-change',
+			sourceUrl: `${PDF_URL_PREFIX}493877`,
+		};
+		const candidates = findCandidates([SPY_RATIO_CHANGE], [spyEntry]);
+
+		expect(candidates).toMatchObject([
+			{ tradingLineId: 'spy-cedear-byma-ars', notices: [{ isListed: true }] },
 		]);
 	});
 

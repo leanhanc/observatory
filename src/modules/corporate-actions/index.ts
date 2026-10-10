@@ -1,5 +1,5 @@
 import { validateCorporateActionList } from './corporate-actions.ts';
-import storedCorporateActionList from './data/corporate-actions.v1.json' with { type: 'json' };
+import storedCorporateActionList from './data/corporate-actions.v2.json' with { type: 'json' };
 
 export { applyCorporateActions, validateCorporateActionList } from './corporate-actions.ts';
 
@@ -11,7 +11,7 @@ if (!listValidation.isValid) {
 	});
 }
 
-/** The committed, confirmed Corporate Actions the provider was observed not to adjust. */
+/** The committed, confirmed Corporate Actions, each with what the provider was observed not to adjust. */
 export const corporateActions = listValidation.corporateActions;
 
 export type {
@@ -20,4 +20,6 @@ export type {
 	CorporateActionOutcome,
 	CorporateActionStatus,
 	CorporateActionValidationIssue,
+	PricesAndVolumeCorporateAction,
+	VolumeCorporateAction,
 } from './corporate-actions.types.ts';

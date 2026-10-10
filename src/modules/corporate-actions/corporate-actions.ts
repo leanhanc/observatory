@@ -12,9 +12,16 @@ import type {
 	CorporateActionListValidation,
 	CorporateActionOutcome,
 	CorporateActionValidationIssue,
+	VolumeCorporateAction,
+	VolumeCorrectionStatus,
 } from './corporate-actions.types.ts';
 
-const { maximumStepDeviation } = ANALYSIS_CONFIGURATION.corporateActions;
+const { maximumStepDeviation, volumeRescaleCheckBars } = ANALYSIS_CONFIGURATION.corporateActions;
+
+/** What a bar's prices and volume are multiplied by to put it on the post-ex-date scale. */
+type BarRescaling = Readonly<{ priceFactor: number; volumeFactor: number }>;
+
+const NO_RESCALING: BarRescaling = { priceFactor: 1, volumeFactor: 1 };
 
 /** Validates a Corporate Action list value, such as the parsed committed data file. */
 export function validateCorporateActionList(value: unknown): CorporateActionListValidation {
@@ -38,13 +45,17 @@ export function validateCorporateActionList(value: unknown): CorporateActionList
 }
 
 /**
- * Puts one line's bars before each ex-date on the post-ex-date scale: prices are multiplied by the
- * price factor and volume, a share count, is divided by it, so traded value is unchanged.
+ * Puts one line's bars before each ex-date on the post-ex-date scale. A `prices-and-volume` action
+ * multiplies prices by the price factor and divides volume, a share count, by it, so traded value
+ * is unchanged. A `volume` action, for a provider that adjusted the price but not the count,
+ * multiplies volume by the share factor and leaves prices as served, so traded value grows by it.
  *
- * An action is applied only when the uncorrected bars still show its step across the ex-date. When
- * they do not, the provider may have adjusted the history already, and applying it again would
- * create the step it is meant to remove; but a real move on the ex-date can also hide the step, so
- * the outcome says only that the step was not observed. Expects validated, chronological bars of a
+ * Each action is applied only when the uncorrected bars pass its guard, and the outcome says why
+ * when they do not. A `prices-and-volume` action needs the step still visible across the ex-date: a
+ * provider that has since adjusted the history would otherwise get it adjusted twice. A `volume`
+ * action needs the opposite, no price step, and is also skipped when every recent volume before the
+ * ex-date is a multiple of its integer share factor, because a volume rescaled twice overstates
+ * traded value and could admit a thin line to analysis. Expects validated, chronological bars of a
  * single Trading Line and that line's actions only.
  */
 export function applyCorporateActions(
@@ -60,11 +71,8 @@ export function applyCorporateActions(
 
 	const correctedBars = bars.map((bar) => {
 		const laterActions = appliedActions.filter((action) => bar.sessionDate < action.exDate);
-		const cumulativeFactor = laterActions.reduce(
-			(factor, action) => factor * action.priceFactor,
-			1,
-		);
-		return rescaleBar(bar, cumulativeFactor);
+		const rescaling = laterActions.reduce(composeRescaling, NO_RESCALING);
+		return rescaleBar(bar, rescaling);
 	});
 
 	return { bars: correctedBars, outcomes };
@@ -74,15 +82,17 @@ function evaluateCorporateAction(
 	bars: readonly DailyBar[],
 	action: CorporateAction,
 ): CorporateActionOutcome {
-	const exDateIndex = bars.findIndex((bar) => bar.sessionDate >= action.exDate);
-	const lastBarBeforeExDate = bars[exDateIndex - 1];
-	const firstBarFromExDate = bars[exDateIndex];
+	const observedCloseRatio = observeCloseRatio(bars, action.exDate);
 
-	if (!lastBarBeforeExDate || !firstBarFromExDate) {
-		return { ...action, status: 'outside-window', observedCloseRatio: null };
+	if (observedCloseRatio === null) {
+		return { ...action, status: 'outside-window', observedCloseRatio };
 	}
 
-	const observedCloseRatio = firstBarFromExDate.close / lastBarBeforeExDate.close;
+	if (action.correction === 'volume') {
+		const status = evaluateVolumeCorrection(bars, action, observedCloseRatio);
+		return { ...action, status, observedCloseRatio };
+	}
+
 	// The list's factors are far enough from 1 that this band never reaches an unstepped ratio.
 	const hasStep =
 		measureDeviation(observedCloseRatio, action.priceFactor) <= maximumStepDeviation;
@@ -94,6 +104,66 @@ function evaluateCorporateAction(
 	};
 }
 
+/** The uncorrected close ratio across the ex-date, or `null` when the bars do not straddle it. */
+function observeCloseRatio(bars: readonly DailyBar[], exDate: string): number | null {
+	const exDateIndex = bars.findIndex((bar) => bar.sessionDate >= exDate);
+	const lastBarBeforeExDate = bars[exDateIndex - 1];
+	const firstBarFromExDate = bars[exDateIndex];
+
+	if (!lastBarBeforeExDate || !firstBarFromExDate) {
+		return null;
+	}
+
+	return firstBarFromExDate.close / lastBarBeforeExDate.close;
+}
+
+function evaluateVolumeCorrection(
+	bars: readonly DailyBar[],
+	action: VolumeCorporateAction,
+	observedCloseRatio: number,
+): VolumeCorrectionStatus {
+	// The list's factors are far enough from 1 that this band never reaches the unadjusted step.
+	const hasNoPriceStep = measureDeviation(observedCloseRatio, 1) <= maximumStepDeviation;
+
+	if (!hasNoPriceStep) {
+		return 'price-step-observed';
+	}
+
+	if (checkIfVolumeLooksRescaled(bars, action)) {
+		return 'volume-rescale-suspected';
+	}
+
+	return 'applied';
+}
+
+/**
+ * A count the provider rescaled by an integer factor is a multiple of it on every earlier bar,
+ * while an unrescaled count is a multiple about once in `shareFactor` bars. Zero volumes are a
+ * multiple of anything, so only traded bars are read. With fewer bars, chance alone would flag too
+ * often, and a non-integer factor leaves no divisibility signature, so neither is checked.
+ */
+function checkIfVolumeLooksRescaled(
+	bars: readonly DailyBar[],
+	action: VolumeCorporateAction,
+): boolean {
+	const { exDate, shareFactor } = action;
+	const hasDivisibilitySignature = Number.isInteger(shareFactor) && shareFactor >= 2;
+
+	if (!hasDivisibilitySignature) {
+		return false;
+	}
+
+	const tradedBarsBeforeExDate = bars.filter((bar) => bar.sessionDate < exDate && bar.volume > 0);
+	const checkedBars = tradedBarsBeforeExDate.slice(-volumeRescaleCheckBars);
+	const hasEnoughBars = checkedBars.length === volumeRescaleCheckBars;
+
+	if (!hasEnoughBars) {
+		return false;
+	}
+
+	return checkedBars.every((bar) => bar.volume % shareFactor === 0);
+}
+
 /**
  * The larger-over-smaller ratio of two positive values: `exp(|ln a − ln b|)`, computed without
  * logarithms so that exact boundary ratios compare exactly.
@@ -102,8 +172,21 @@ function measureDeviation(left: number, right: number): number {
 	return Math.max(left / right, right / left);
 }
 
-function rescaleBar(bar: DailyBar, priceFactor: number): DailyBar {
-	if (priceFactor === 1) {
+function composeRescaling(rescaling: BarRescaling, action: CorporateAction): BarRescaling {
+	if (action.correction === 'volume') {
+		return { ...rescaling, volumeFactor: rescaling.volumeFactor * action.shareFactor };
+	}
+
+	return {
+		priceFactor: rescaling.priceFactor * action.priceFactor,
+		volumeFactor: rescaling.volumeFactor / action.priceFactor,
+	};
+}
+
+function rescaleBar(bar: DailyBar, rescaling: BarRescaling): DailyBar {
+	const { priceFactor, volumeFactor } = rescaling;
+
+	if (priceFactor === 1 && volumeFactor === 1) {
 		return bar;
 	}
 
@@ -113,7 +196,7 @@ function rescaleBar(bar: DailyBar, priceFactor: number): DailyBar {
 		high: bar.high * priceFactor,
 		low: bar.low * priceFactor,
 		close: bar.close * priceFactor,
-		volume: bar.volume / priceFactor,
+		volume: bar.volume * volumeFactor,
 	};
 }
 

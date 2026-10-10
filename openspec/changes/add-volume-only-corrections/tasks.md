@@ -1,0 +1,11 @@
+- [x] Read the volume-adjustment research, ADR 0009, the corporate-actions, corporate-action-watch and liquidity-eligibility modules, and the affected specs.
+- [x] Draft the proposal and the `corporate-actions`, `analysis-run` and `corporate-action-watch` deltas.
+- [x] Add `volumeRescaleCheckBars` to `ANALYSIS_CONFIGURATION.corporateActions` and bump its version to 4.
+- [x] Move the list to `corporate-actions.v2.json` with `correction`, `shareFactor` and the `ratio-change` kind; add the seven volume-only entries.
+- [x] Apply volume-only entries in `applyCorporateActions` with the inverted guard and the divisibility check.
+- [x] Record `corporateActions` on `insufficient-liquidity` lines and bump the snapshot to schema and prefix `v5`.
+- [x] Log `price-step-observed` and `volume-rescale-suspected` as warnings in the `analyze` command, for available and insufficient-liquidity lines.
+- [x] Test validation, the applied correction, the inverted guard's boundaries, the divisibility check, ordering before liquidity, causality, and the watch listing a volume-only entry.
+- [x] Write ADR 0010, correct ADR 0009's NOW sentence, decision 4 of `handle-provider-adjusted-history` and the bar-history adjustment detector's volume comment.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation and an Analysis Run dry run.
+- [ ] Archive.

@@ -7,7 +7,7 @@
  * Expansion's baseline and the Instrument State's distance unit are separate conventions.
  */
 export const ANALYSIS_CONFIGURATION = {
-	version: 3,
+	version: 4,
 	regime: {
 		fastEmaPeriod: 50,
 		slowEmaPeriod: 200,
@@ -41,11 +41,16 @@ export const ANALYSIS_CONFIGURATION = {
 	largeMove: {
 		minimumCloseRatio: 1.8,
 	},
-	// A listed Corporate Action is applied only while the fetched close ratio across its ex-date is
-	// within this factor of the action's price factor, so a history the provider has since adjusted
-	// is not adjusted twice. A listed price factor must be at least this factor squared away from 1,
-	// so re-adjusting an adjusted history always takes a real move of at least this factor.
+	// A listed Corporate Action that corrects prices and volume is applied only while the fetched
+	// close ratio across its ex-date is within this factor of the action's price factor, so a history
+	// the provider has since adjusted is not adjusted twice. One that corrects only volume is applied
+	// only while the ratio is within this factor of 1, so the provider has visibly adjusted the price.
+	// A listed factor must be at least this factor squared away from 1, so the two bands stay apart.
+	// A volume-only correction is skipped when the last `volumeRescaleCheckBars` traded bars before
+	// the ex-date all have volumes that are multiples of an integer share factor: the provider may
+	// already have rescaled them. See docs/research/open-bymadata-relevant-facts.md.
 	corporateActions: {
 		maximumStepDeviation: 1.25,
+		volumeRescaleCheckBars: 20,
 	},
 } as const;

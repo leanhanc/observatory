@@ -10,7 +10,11 @@ import { loadGgalFixture } from '#modules/technical-analysis/tests/support/index
 import { createAnalysisRunner } from './analysis-run.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
-import type { CorporateAction } from '#modules/corporate-actions/index.ts';
+import type {
+	CorporateAction,
+	PricesAndVolumeCorporateAction,
+	VolumeCorporateAction,
+} from '#modules/corporate-actions/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type {
 	AnalysisRunProgress,
@@ -145,7 +149,7 @@ describe('createAnalysisRunner', () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 
 		expect(result.ok && result.snapshot).toMatchObject({
-			schemaVersion: 4,
+			schemaVersion: 5,
 			ranAt: RAN_AT,
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			analysisConfigurationVersion: ANALYSIS_CONFIGURATION.version,
@@ -507,6 +511,7 @@ describe('createAnalysisRunner', () => {
 			message:
 				'The line did not trade regularly or heavily enough over the liquidity window.',
 			liquidity: { participation: 1, medianDailyTradedValueUsd: 20_000 },
+			corporateActions: [],
 			rangeRepairSessions: [],
 			droppedBarSessions: [],
 		});
@@ -617,9 +622,10 @@ describe('createAnalysisRunner', () => {
 describe('Analysis Run corporate actions and large moves', () => {
 	// A session in the middle of a single MEP Rate period on which GGAL has no Event.
 	const exDate = '2025-06-02';
-	const shareDistribution: CorporateAction = {
+	const shareDistribution: PricesAndVolumeCorporateAction = {
 		tradingLineId: 'apple-cedear-byma-ars',
 		exDate,
+		correction: 'prices-and-volume',
 		priceFactor: 0.5,
 		kind: 'share-distribution',
 		sourceUrl: 'https://example.com/notice',
@@ -724,6 +730,114 @@ describe('Analysis Run corporate actions and large moves', () => {
 		expect(selectAvailableLine(result, 'galicia-stock-byma-ars').corporateActions).toEqual([]);
 	});
 
+	describe('a volume-only correction', () => {
+		// Twenty sessions before the last, so 105 of the 125 liquidity-window sessions precede it.
+		const volumeExDate = sessionDates.at(-20)!;
+		const ratioChange: VolumeCorporateAction = {
+			tradingLineId: 'new-stock-byma-ars',
+			exDate: volumeExDate,
+			correction: 'volume',
+			shareFactor: 3,
+			kind: 'ratio-change',
+			sourceUrl: 'https://example.com/notice',
+		};
+		// USD 100 × 600 = USD 60,000 a day on the new unit. The provider adjusted the price but still
+		// counts the earlier, larger units: 200 a session, or USD 20,000, below the USD 50,000 floor.
+		const newUnitDollarBars = sessionDates.map((sessionDate) => ({
+			...createFlatBar(sessionDate, 100),
+			volume: 600,
+		}));
+		const servedDollarBars = newUnitDollarBars.map((bar) =>
+			bar.sessionDate < volumeExDate ? { ...bar, volume: 200 } : bar,
+		);
+
+		test('is applied before the liquidity gate and can make the line eligible', async () => {
+			const provider = {
+				...createHealthyProvider(),
+				NEW: convertDollarBarsToPeso(servedDollarBars),
+			};
+			const { result } = await runWithProvider(provider, REQUESTED_THROUGH_SESSION, [
+				ratioChange,
+			]);
+			const newLine = selectAvailableLine(result, 'new-stock-byma-ars');
+
+			expect(newLine.corporateActions).toEqual([
+				{ ...ratioChange, status: 'applied', observedCloseRatio: 1 },
+			]);
+		});
+
+		test('leaves prices, State and Events as a line served on the new unit', async () => {
+			const servedProvider = {
+				...createHealthyProvider(),
+				NEW: convertDollarBarsToPeso(servedDollarBars),
+			};
+			const newUnitProvider = {
+				...createHealthyProvider(),
+				NEW: convertDollarBarsToPeso(newUnitDollarBars),
+			};
+			const corrected = await runWithProvider(servedProvider, REQUESTED_THROUGH_SESSION, [
+				ratioChange,
+			]);
+			const reference = await runWithProvider(newUnitProvider);
+			const { corporateActions: _, ...correctedLine } = selectAvailableLine(
+				corrected.result,
+				'new-stock-byma-ars',
+			);
+			const { corporateActions: _reference, ...referenceLine } = selectAvailableLine(
+				reference.result,
+				'new-stock-byma-ars',
+			);
+
+			expect(correctedLine).toEqual(referenceLine);
+		});
+
+		test('leaves the line excluded without the entry', async () => {
+			const provider = {
+				...createHealthyProvider(),
+				NEW: convertDollarBarsToPeso(servedDollarBars),
+			};
+			const { result } = await runWithProvider(provider);
+
+			expect(selectLine(result, 'new-stock-byma-ars')).toMatchObject({
+				status: 'unavailable',
+				reason: 'insufficient-liquidity',
+				liquidity: { participation: 1, medianDailyTradedValueUsd: 20_000 },
+				corporateActions: [],
+			});
+		});
+
+		test('records a skipped entry on a line the gate excludes', async () => {
+			// The provider did not adjust the price either: USD 300 × 50 before, USD 100 × 150 after,
+			// USD 15,000 a day on both sides.
+			const unadjustedDollarBars = sessionDates.map((sessionDate) => {
+				const isBeforeExDate = sessionDate < volumeExDate;
+				const price = isBeforeExDate ? 300 : 100;
+				const volume = isBeforeExDate ? 50 : 150;
+				return { ...createFlatBar(sessionDate, price), volume };
+			});
+			const provider = {
+				...createHealthyProvider(),
+				NEW: convertDollarBarsToPeso(unadjustedDollarBars),
+			};
+			const { result } = await runWithProvider(provider, REQUESTED_THROUGH_SESSION, [
+				ratioChange,
+			]);
+
+			expect(selectLine(result, 'new-stock-byma-ars')).toMatchObject({
+				status: 'unavailable',
+				reason: 'insufficient-liquidity',
+				liquidity: { medianDailyTradedValueUsd: 15_000 },
+				corporateActions: [
+					{
+						...ratioChange,
+						status: 'price-step-observed',
+						observedCloseRatio: expect.closeTo(1 / 3, 12),
+					},
+				],
+			});
+		});
+	});
+
 	test('flags a move made by the MEP Rate alone, using each session own rate', async () => {
 		const halvedRateSession = '2025-06-03';
 		const halvedRate = selectMepRate(halvedRateSession) / 2;
@@ -758,9 +872,10 @@ describe('Analysis Run corporate-action watch', () => {
 		referencia: 'Hecho Relevante de Cedear - AAPL - APPLE INC. - Anuncia Stock Split',
 		emisor: 'BANCO COMAFI S.A.',
 	};
-	const appleSplit: CorporateAction = {
+	const appleSplit: PricesAndVolumeCorporateAction = {
 		tradingLineId: 'apple-cedear-byma-ars',
 		exDate: '2026-10-05',
+		correction: 'prices-and-volume',
 		priceFactor: 0.25,
 		kind: 'split',
 		sourceUrl: 'https://example.com/notice',

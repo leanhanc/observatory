@@ -150,6 +150,7 @@ describe('createAnalysisRunner', () => {
 
 		expect(result.ok && result.snapshot).toMatchObject({
 			schemaVersion: 6,
+			priceUnit: 'mep-dollar',
 			ranAt: RAN_AT,
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			analysisConfigurationVersion: ANALYSIS_CONFIGURATION.version,

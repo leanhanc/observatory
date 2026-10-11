@@ -133,6 +133,10 @@ type AnalysisRunDependencies = Readonly<{
 
 const MARKET_TIME_ZONE = 'America/Argentina/Buenos_Aires';
 
+// Every line is analyzed on its Dollarized Series (ADR 0005), so every price and ATR in the
+// snapshot is in MEP dollars.
+const SNAPSHOT_PRICE_UNIT = 'mep-dollar';
+
 // Retry policy: the MEP rate source and the analyzed lines each get one retry. Provider failures
 // come in clusters, so a retry first waits for the provider to recover. Between retried requests
 // the usual HISTORICAL_REQUEST_PAUSE_MS still applies. The cut-off for analyzed lines comes from
@@ -274,6 +278,7 @@ async function runAnalysis(
 
 	const snapshot = {
 		schemaVersion: 6,
+		priceUnit: SNAPSHOT_PRICE_UNIT,
 		ranAt,
 		requestedThroughSession,
 		analysisConfigurationVersion: ANALYSIS_CONFIGURATION.version,

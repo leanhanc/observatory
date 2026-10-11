@@ -28,6 +28,7 @@ const unavailableLine = {
 } as const;
 const serializedSnapshot = JSON.stringify({
 	schemaVersion: 6,
+	priceUnit: 'mep-dollar',
 	ranAt: '2026-10-11T14:03:58.608Z',
 	requestedThroughSession: '2026-10-10',
 	analyzedLines: [availableLine, unavailableLine],
@@ -41,7 +42,11 @@ describe('buildLinePages', () => {
 
 		const pages = buildLinePages(snapshot);
 
-		const run = { ranAt: '2026-10-11T14:03:58.608Z', requestedThroughSession: '2026-10-10' };
+		const run = {
+			ranAt: '2026-10-11T14:03:58.608Z',
+			requestedThroughSession: '2026-10-10',
+			priceUnit: 'mep-dollar',
+		} as const;
 		expect(pages).toEqual([
 			{
 				params: { tradingLineId: 'ggal-stock-byma-ars' },

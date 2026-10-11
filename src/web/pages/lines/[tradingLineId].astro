@@ -11,9 +11,14 @@ export function getStaticPaths() {
 	return buildLinePages(latestSnapshot);
 }
 
-const { ranAt, requestedThroughSession, line } = Astro.props as LinePageProps;
+const { ranAt, requestedThroughSession, priceUnit, line } = Astro.props as LinePageProps;
 ---
 
 <PageLayout>
-	<LinePage ranAt={ranAt} requestedThroughSession={requestedThroughSession} line={line} />
+	<LinePage
+		ranAt={ranAt}
+		requestedThroughSession={requestedThroughSession}
+		priceUnit={priceUnit}
+		line={line}
+	/>
 </PageLayout>

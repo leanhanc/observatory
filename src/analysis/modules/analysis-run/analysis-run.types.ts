@@ -103,8 +103,12 @@ export type TradingLineSession = Readonly<{
 	sessionDate: string;
 }>;
 
+/** The unit of every price and price-denominated measurement in a snapshot. */
+export type PriceUnit = 'mep-dollar';
+
 export type AnalysisSnapshot = Readonly<{
 	schemaVersion: 6;
+	priceUnit: PriceUnit;
 	ranAt: string;
 	requestedThroughSession: string;
 	analysisConfigurationVersion: number;

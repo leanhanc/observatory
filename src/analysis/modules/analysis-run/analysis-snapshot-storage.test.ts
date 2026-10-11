@@ -9,6 +9,7 @@ import type { AnalysisSnapshot } from './analysis-run.types.ts';
 
 const snapshot: AnalysisSnapshot = {
 	schemaVersion: 6,
+	priceUnit: 'mep-dollar',
 	ranAt: '2026-10-04T15:00:00.000Z',
 	requestedThroughSession: '2026-10-02',
 	analysisConfigurationVersion: 1,
@@ -116,6 +117,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 			ok: true,
 			snapshot: {
 				schemaVersion: 6,
+				priceUnit: 'mep-dollar',
 				ranAt: '2026-10-04T15:00:00.000Z',
 				requestedThroughSession: '2026-10-02',
 				analyzedLines: [
@@ -160,6 +162,19 @@ describe('parseAnalysisSnapshotOverview', () => {
 			reason: 'invalid-snapshot',
 			message: 'The snapshot is invalid. schemaVersion: Schema version must be 6.',
 		});
+	});
+
+	test('rejects a snapshot without a known price unit', () => {
+		const { priceUnit: _priceUnit, ...snapshotWithoutUnit } = v6Snapshot;
+		const pesoSnapshot = { ...v6Snapshot, priceUnit: 'ars' };
+
+		const resultWithoutUnit = parseAnalysisSnapshotOverview(
+			JSON.stringify(snapshotWithoutUnit),
+		);
+		const pesoResult = parseAnalysisSnapshotOverview(JSON.stringify(pesoSnapshot));
+
+		expect(resultWithoutUnit).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
+		expect(pesoResult).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
 	});
 
 	test('rejects a v5 Event type', () => {

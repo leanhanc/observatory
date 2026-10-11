@@ -3,7 +3,7 @@ import { UnavailableLineDetails } from './unavailable-line-details.tsx';
 
 import type { LinePageProps } from '#web/lib/utils/snapshot-pages/index.ts';
 
-export function LinePage({ ranAt, requestedThroughSession, line }: LinePageProps) {
+export function LinePage({ ranAt, requestedThroughSession, priceUnit, line }: LinePageProps) {
 	return (
 		<main>
 			<p>
@@ -14,7 +14,7 @@ export function LinePage({ ranAt, requestedThroughSession, line }: LinePageProps
 			<p>Requested through session: {requestedThroughSession}</p>
 			<p>Status: {line.status}</p>
 			{line.status === 'available' ? (
-				<AvailableLineDetails line={line} />
+				<AvailableLineDetails line={line} priceUnit={priceUnit} />
 			) : (
 				<UnavailableLineDetails line={line} />
 			)}

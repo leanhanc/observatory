@@ -2,9 +2,11 @@ import { formatEvaluatedValue } from '#web/lib/utils/line-formatting/index.ts';
 
 import { EventDetails } from './event-details.tsx';
 
-import type { AvailableLine } from '#web/lib/utils/snapshot-pages/index.ts';
+import type { AvailableLine, SnapshotPriceUnit } from '#web/lib/utils/snapshot-pages/index.ts';
 
-export function AvailableLineDetails({ line }: { line: AvailableLine }) {
+type AvailableLineDetailsProps = { line: AvailableLine; priceUnit: SnapshotPriceUnit };
+
+export function AvailableLineDetails({ line, priceUnit }: AvailableLineDetailsProps) {
 	const { sessionDate, regime, structure, rsi, priceRelativeToEmaInAtr } = line.latestState;
 	const hasEvents = line.events.length > 0;
 
@@ -26,7 +28,7 @@ export function AvailableLineDetails({ line }: { line: AvailableLine }) {
 						<li
 							key={`${snapshotEvent.sessionDate}-${snapshotEvent.event.type}-${index}`}
 						>
-							<EventDetails snapshotEvent={snapshotEvent} />
+							<EventDetails snapshotEvent={snapshotEvent} priceUnit={priceUnit} />
 						</li>
 					))}
 				</ul>

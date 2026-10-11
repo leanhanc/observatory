@@ -158,6 +158,7 @@ const analyzedLineSchema = v.variant(
 export const analysisSnapshotOverviewSchema = v.object(
 	{
 		schemaVersion: v.literal(6, messages.invalidSchemaVersion),
+		priceUnit: v.picklist(['mep-dollar'], messages.invalidType),
 		ranAt: v.pipe(stringSchema, v.isoTimestamp(messages.invalidTimestamp)),
 		requestedThroughSession: sessionDateSchema,
 		analyzedLines: v.pipe(v.array(analyzedLineSchema, messages.invalidType), v.readonly()),

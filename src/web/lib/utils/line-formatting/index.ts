@@ -3,4 +3,5 @@ export {
 	formatEvaluatedValue,
 	formatMedianTradedValue,
 	formatNumber,
+	formatPrice,
 } from './line-formatting.ts';

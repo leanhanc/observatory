@@ -4,5 +4,6 @@ export type {
 	AvailableLine,
 	SnapshotEvent,
 	SnapshotLine,
+	SnapshotPriceUnit,
 	UnavailableLine,
 } from './snapshot-pages.types.ts';

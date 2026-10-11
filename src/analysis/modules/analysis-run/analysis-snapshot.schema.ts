@@ -3,7 +3,7 @@ import * as v from 'valibot';
 import { checkIfIsoDateIsValid } from '#lib/utils/validation/index.ts';
 
 const messages = {
-	invalidSchemaVersion: 'Schema version must be 5.',
+	invalidSchemaVersion: 'Schema version must be 6.',
 	invalidSessionDate: 'Value must be a real YYYY-MM-DD date.',
 	invalidTimestamp: 'Value must be an ISO timestamp.',
 	invalidType: 'Value has an invalid type or shape.',
@@ -70,11 +70,11 @@ const analysisEventSchema = v.variant(
 		),
 		v.object(
 			{
-				type: v.literal('volatility-expansion'),
+				type: v.literal('volatile-session'),
 				trueRange: numberSchema,
 				baselineAtr: numberSchema,
 				baselineThroughSessionDate: sessionDateSchema,
-				expansionMultiple: numberSchema,
+				atrMultiple: numberSchema,
 			},
 			messages.invalidType,
 		),
@@ -157,7 +157,7 @@ const analyzedLineSchema = v.variant(
  */
 export const analysisSnapshotOverviewSchema = v.object(
 	{
-		schemaVersion: v.literal(5, messages.invalidSchemaVersion),
+		schemaVersion: v.literal(6, messages.invalidSchemaVersion),
 		ranAt: v.pipe(stringSchema, v.isoTimestamp(messages.invalidTimestamp)),
 		requestedThroughSession: sessionDateSchema,
 		analyzedLines: v.pipe(v.array(analyzedLineSchema, messages.invalidType), v.readonly()),

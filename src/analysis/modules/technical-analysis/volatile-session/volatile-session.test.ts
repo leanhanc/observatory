@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { calculateAtr, detectVolatilityExpansionEvents } from '../index.ts';
+import { calculateAtr, detectVolatileSessionEvents } from '../index.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
 
@@ -19,43 +19,41 @@ function baselineBars(): DailyBar[] {
 	return rangeBars(Array<number>(14).fill(10));
 }
 
-describe('detectVolatilityExpansionEvents', () => {
+describe('detectVolatileSessionEvents', () => {
 	test('preserves empty input and emits nothing before a prior ATR is readable', () => {
-		expect(detectVolatilityExpansionEvents([])).toEqual([]);
+		expect(detectVolatileSessionEvents([])).toEqual([]);
 		const bars = rangeBars([...Array<number>(13).fill(10), 100, 100]);
-		const rows = detectVolatilityExpansionEvents(bars);
+		const rows = detectVolatileSessionEvents(bars);
 		expect(rows.slice(0, 14).every(({ event }) => event === null)).toBe(true);
 		expect(rows[14]!.event).toEqual({
-			type: 'volatility-expansion',
+			type: 'volatile-session',
 			trueRange: 100,
 			baselineAtr: 230 / 14,
 			baselineThroughSessionDate: bars[13]!.sessionDate,
-			expansionMultiple: 100 / (230 / 14),
+			atrMultiple: 100 / (230 / 14),
 		});
 	});
 
 	test.each([17, 18])('does not emit for True Range %s against ATR 10', (range) => {
 		const bars = rangeBars([...Array<number>(14).fill(10), range]);
-		expect(detectVolatilityExpansionEvents(bars).at(-1)!.event).toBeNull();
+		expect(detectVolatileSessionEvents(bars).at(-1)!.event).toBeNull();
 	});
 
 	test('uses prior ATR rather than current ATR at the strict boundary', () => {
 		const bars = rangeBars([...Array<number>(14).fill(10), 19]);
 		expect(19 / calculateAtr(bars).at(-1)!).toBeLessThan(1.8);
-		expect(detectVolatilityExpansionEvents(bars).at(-1)!.event).toEqual({
-			type: 'volatility-expansion',
+		expect(detectVolatileSessionEvents(bars).at(-1)!.event).toEqual({
+			type: 'volatile-session',
 			trueRange: 19,
 			baselineAtr: 10,
 			baselineThroughSessionDate: bars[13]!.sessionDate,
-			expansionMultiple: 1.9,
+			atrMultiple: 1.9,
 		});
 	});
 
 	test('does not round away a readable multiple just above 1.8', () => {
 		const bars = rangeBars([...Array<number>(14).fill(10), 18.000000000001]);
-		expect(
-			detectVolatilityExpansionEvents(bars).at(-1)!.event!.expansionMultiple,
-		).toBeGreaterThan(1.8);
+		expect(detectVolatileSessionEvents(bars).at(-1)!.event!.atrMultiple).toBeGreaterThan(1.8);
 	});
 
 	test('does not double-smooth a changing volatility baseline', () => {
@@ -66,12 +64,12 @@ describe('detectVolatilityExpansionEvents', () => {
 			atr.slice(-20).reduce<number>((total, value) => total + value!, 0) / 20;
 		expect(15 / historicalMean).toBeGreaterThan(1.8);
 		expect(15 / priorAtr).toBeLessThan(1.8);
-		expect(detectVolatilityExpansionEvents(bars).at(-1)!.event).toBeNull();
+		expect(detectVolatileSessionEvents(bars).at(-1)!.event).toBeNull();
 	});
 
 	test('zero baseline is unavailable even if the current session establishes positive ATR', () => {
 		const bars = rangeBars([...Array<number>(14).fill(0), 20, 20]);
-		const rows = detectVolatilityExpansionEvents(bars);
+		const rows = detectVolatileSessionEvents(bars);
 		expect(rows[14]!.event).toBeNull();
 		expect(rows[15]!.event!.baselineAtr).toBe(20 / 14);
 	});
@@ -81,7 +79,7 @@ describe('detectVolatilityExpansionEvents', () => {
 		(value) => {
 			const bars = rangeBars([...Array<number>(14).fill(10), 20, 100]);
 			bars[14] = { ...bars[14]!, high: value };
-			expect(detectVolatilityExpansionEvents(bars)[15]!.event).toBeNull();
+			expect(detectVolatileSessionEvents(bars)[15]!.event).toBeNull();
 		},
 	);
 
@@ -90,7 +88,7 @@ describe('detectVolatilityExpansionEvents', () => {
 		(value) => {
 			const bars = rangeBars([...Array<number>(14).fill(10), 20]);
 			bars[14] = { ...bars[14]!, high: value };
-			expect(detectVolatilityExpansionEvents(bars)[14]!.event).toBeNull();
+			expect(detectVolatileSessionEvents(bars)[14]!.event).toBeNull();
 		},
 	);
 
@@ -109,16 +107,16 @@ describe('detectVolatilityExpansionEvents', () => {
 		}));
 		bars[14] = { ...bars[14]!, high: 1e100 };
 		expect(calculateAtr(bars)[13]).toBeGreaterThan(0);
-		expect(detectVolatilityExpansionEvents(bars)[14]!.event).toBeNull();
+		expect(detectVolatileSessionEvents(bars)[14]!.event).toBeNull();
 	});
 
 	test('upward and downward large intraday movements have identical neutral evidence', () => {
 		const wideBar = rangeBars(Array<number>(15).fill(20))[14]!;
 		const up = [...baselineBars(), { ...wideBar, open: 90, close: 110 }];
 		const down = [...baselineBars(), { ...wideBar, open: 110, close: 90 }];
-		const upEvent = detectVolatilityExpansionEvents(up)[14]!.event;
+		const upEvent = detectVolatileSessionEvents(up)[14]!.event;
 		expect(upEvent).not.toBeNull();
-		expect(detectVolatilityExpansionEvents(down)[14]!.event).toEqual(upEvent);
+		expect(detectVolatileSessionEvents(down)[14]!.event).toEqual(upEvent);
 		expect(upEvent).not.toHaveProperty('direction');
 	});
 
@@ -134,23 +132,23 @@ describe('detectVolatilityExpansionEvents', () => {
 				close: center,
 				volume: 1,
 			};
-			const rows = detectVolatilityExpansionEvents([...baselineBars(), gapBar]);
+			const rows = detectVolatileSessionEvents([...baselineBars(), gapBar]);
 			expect(rows[14]).toEqual({
 				sessionDate: '2026-01-19',
 				event: {
-					type: 'volatility-expansion',
+					type: 'volatile-session',
 					trueRange: 21,
 					baselineAtr: 10,
 					baselineThroughSessionDate: '2026-01-14',
-					expansionMultiple: 2.1,
+					atrMultiple: 2.1,
 				},
 			});
 		},
 	);
 
-	test('emits consecutive expansions with each session’s own baseline', () => {
+	test('emits consecutive Volatile Sessions with each session’s own baseline', () => {
 		const bars = rangeBars([...Array<number>(14).fill(10), 28, 28, 1]);
-		const rows = detectVolatilityExpansionEvents(bars);
+		const rows = detectVolatileSessionEvents(bars);
 		expect(rows[14]!.event!.baselineAtr).toBe(10);
 		expect(rows[15]!.event!.baselineAtr).toBe(158 / 14);
 		expect(rows[15]!.event!.baselineThroughSessionDate).toBe(bars[14]!.sessionDate);
@@ -164,12 +162,12 @@ describe('detectVolatilityExpansionEvents', () => {
 			),
 		);
 		const before = structuredClone(bars);
-		const full = detectVolatilityExpansionEvents(bars);
+		const full = detectVolatileSessionEvents(bars);
 		expect(full.map(({ sessionDate }) => sessionDate)).toEqual(
 			bars.map(({ sessionDate }) => sessionDate),
 		);
 		for (let length = 0; length <= bars.length; length += 1) {
-			expect(detectVolatilityExpansionEvents(bars.slice(0, length))).toEqual(
+			expect(detectVolatileSessionEvents(bars.slice(0, length))).toEqual(
 				full.slice(0, length),
 			);
 		}

@@ -44,6 +44,6 @@ export function describeEvent(event: SnapshotEvent['event']): string {
 
 	const trueRange = formatNumber(event.trueRange);
 	const baselineAtr = formatNumber(event.baselineAtr);
-	const expansionMultiple = formatNumber(event.expansionMultiple);
-	return `True Range ${trueRange} is ${expansionMultiple} times the ATR ${baselineAtr} through ${event.baselineThroughSessionDate}.`;
+	const atrMultiple = formatNumber(event.atrMultiple);
+	return `True Range ${trueRange} is ${atrMultiple} times the ATR ${baselineAtr} through ${event.baselineThroughSessionDate}.`;
 }

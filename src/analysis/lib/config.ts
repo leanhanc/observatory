@@ -3,8 +3,8 @@
  * analysis comparable across Instruments and runs. Changing any value changes what results
  * mean, so it requires a new `version`.
  *
- * Each concept owns its periods, even where values coincide: Regime's band width, Volatility
- * Expansion's baseline and the Instrument State's distance unit are separate conventions.
+ * Each concept owns its periods, even where values coincide: Regime's band width, a Volatile
+ * Session's baseline and the Instrument State's distance unit are separate conventions.
  */
 export const ANALYSIS_CONFIGURATION = {
 	version: 4,
@@ -15,9 +15,9 @@ export const ANALYSIS_CONFIGURATION = {
 		atrBandMultiplier: 0.5,
 		transitionConfirmations: 3,
 	},
-	volatilityExpansion: {
+	volatileSession: {
 		atrPeriod: 14,
-		expansionThreshold: 1.8,
+		atrMultipleThreshold: 1.8,
 	},
 	marketStructure: {
 		confirmationBars: 3,

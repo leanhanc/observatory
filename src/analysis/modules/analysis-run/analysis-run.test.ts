@@ -106,7 +106,7 @@ describe('createAnalysisRunner', () => {
 			'2026-05-26',
 			'2026-09-14',
 		]);
-		expect(sessionsByKind('volatility-expansion')).toHaveLength(16);
+		expect(sessionsByKind('volatile-session')).toHaveLength(16);
 	});
 
 	test('orders Events by session, then by kind within a session', async () => {
@@ -118,7 +118,7 @@ describe('createAnalysisRunner', () => {
 			.map(({ event }) => event.type);
 
 		expect(eventDates).toEqual(eventDates.toSorted());
-		expect(sameSessionKinds).toEqual(['structure-break', 'volatility-expansion']);
+		expect(sameSessionKinds).toEqual(['structure-break', 'volatile-session']);
 	});
 
 	test('analyzes dollarized prices rather than peso prices', async () => {
@@ -149,7 +149,7 @@ describe('createAnalysisRunner', () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 
 		expect(result.ok && result.snapshot).toMatchObject({
-			schemaVersion: 5,
+			schemaVersion: 6,
 			ranAt: RAN_AT,
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
 			analysisConfigurationVersion: ANALYSIS_CONFIGURATION.version,
@@ -454,7 +454,7 @@ describe('createAnalysisRunner', () => {
 	test('ignores provider bars after the Requested-Through Session', async () => {
 		const nextSession = '2026-10-01';
 		const lastPesoBar = ggalPesoBars.at(-1)!;
-		// A tripled close would be a Volatility Expansion if this bar were analyzed.
+		// A tripled close would be a Volatile Session if this bar were analyzed.
 		const spikeBar = {
 			...lastPesoBar,
 			sessionDate: nextSession,
@@ -644,7 +644,7 @@ describe('Analysis Run corporate actions and large moves', () => {
 		const otherEvents = apple.events.filter((entry) => entry.sessionDate !== exDate);
 
 		expect(apple.largeMoves.map((move) => move.sessionDate)).toContain(exDate);
-		expect(exDateEvents.map(({ event }) => event.type)).toContain('volatility-expansion');
+		expect(exDateEvents.map(({ event }) => event.type)).toContain('volatile-session');
 		expect(exDateEvents.every((entry) => entry.coincidesWithLargeMove)).toBe(true);
 		expect(otherEvents.some((entry) => entry.coincidesWithLargeMove)).toBe(false);
 		expect(apple.corporateActions).toEqual([]);
@@ -669,7 +669,7 @@ describe('Analysis Run corporate actions and large moves', () => {
 			},
 		]);
 		expect(exDateEventTypes).not.toContain('structure-break');
-		expect(exDateEventTypes).not.toContain('volatility-expansion');
+		expect(exDateEventTypes).not.toContain('volatile-session');
 		expect(apple.largeMoves).toEqual(ggal.largeMoves);
 		expect(apple.largeMoves.map((move) => move.sessionDate)).not.toContain(exDate);
 		expect(apple.events).toEqual(ggal.events);

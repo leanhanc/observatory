@@ -4,35 +4,38 @@ import { calculateAtr } from '../atr/index.ts';
 import { calculateTrueRange } from '../true-range/index.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
-import type {
-	VolatilityExpansionEvent,
-	VolatilityExpansionSession,
-} from './volatility-expansion.types.ts';
+import type { VolatileSessionEvent, VolatileSessionRow } from './volatile-session.types.ts';
 
-const { atrPeriod, expansionThreshold } = ANALYSIS_CONFIGURATION.volatilityExpansion;
+const { atrPeriod, atrMultipleThreshold } = ANALYSIS_CONFIGURATION.volatileSession;
 
 /**
- * Detects direction-neutral expansion against ATR known before each session.
+ * Detects Volatile Sessions: sessions whose True Range, gaps included, is more than the configured
+ * multiple of the ATR known before the session. Direction-neutral, and relative to the line's own
+ * recent range.
  * Expects validated completed Daily Bars ordered oldest to newest.
  * A null Event includes unavailable evaluation; it does not imply quiet conditions.
  */
-export function detectVolatilityExpansionEvents(
+export function detectVolatileSessionEvents(
 	bars: readonly DailyBar[],
-): readonly VolatilityExpansionSession[] {
+): readonly VolatileSessionRow[] {
 	const trueRanges = calculateTrueRange(bars);
 	const atr = calculateAtr(bars, atrPeriod);
 
 	return bars.map((bar, index) => ({
 		sessionDate: bar.sessionDate,
-		event: detectExpansion(trueRanges[index]!, atr[index - 1], bars[index - 1]?.sessionDate),
+		event: detectVolatileSession(
+			trueRanges[index]!,
+			atr[index - 1],
+			bars[index - 1]?.sessionDate,
+		),
 	}));
 }
 
-function detectExpansion(
+function detectVolatileSession(
 	trueRange: number,
 	baselineAtr: number | null | undefined,
 	baselineThroughSessionDate: string | undefined,
-): VolatilityExpansionEvent | null {
+): VolatileSessionEvent | null {
 	const hasReadableBaseline =
 		baselineAtr != null && Number.isFinite(baselineAtr) && baselineAtr > 0;
 
@@ -40,19 +43,19 @@ function detectExpansion(
 		return null;
 	}
 
-	const expansionMultiple = trueRange / baselineAtr;
-	const isReadable = Number.isFinite(trueRange) && Number.isFinite(expansionMultiple);
-	const isExpansion = expansionMultiple > expansionThreshold;
+	const atrMultiple = trueRange / baselineAtr;
+	const isReadable = Number.isFinite(trueRange) && Number.isFinite(atrMultiple);
+	const isVolatile = atrMultiple > atrMultipleThreshold;
 
-	if (!isReadable || !isExpansion) {
+	if (!isReadable || !isVolatile) {
 		return null;
 	}
 
 	return {
-		type: 'volatility-expansion',
+		type: 'volatile-session',
 		trueRange,
 		baselineAtr,
 		baselineThroughSessionDate,
-		expansionMultiple,
+		atrMultiple,
 	};
 }

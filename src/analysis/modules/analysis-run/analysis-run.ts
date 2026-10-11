@@ -31,7 +31,7 @@ import {
 	detectLargeOneSessionMoves,
 	detectRegimeTransitionEvents,
 	detectStructureBreakEvents,
-	detectVolatilityExpansionEvents,
+	detectVolatileSessionEvents,
 } from '#modules/technical-analysis/index.ts';
 
 import type {
@@ -273,7 +273,7 @@ async function runAnalysis(
 	);
 
 	const snapshot = {
-		schemaVersion: 5,
+		schemaVersion: 6,
 		ranAt,
 		requestedThroughSession,
 		analysisConfigurationVersion: ANALYSIS_CONFIGURATION.version,
@@ -877,7 +877,7 @@ function collectEvents(
 		[
 			...detectRegimeTransitionEvents(bars),
 			...detectStructureBreakEvents(bars),
-			...detectVolatilityExpansionEvents(bars),
+			...detectVolatileSessionEvents(bars),
 		];
 	const events = eventSessions.flatMap(({ sessionDate, event }) =>
 		event

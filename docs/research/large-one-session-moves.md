@@ -5,7 +5,7 @@ This note describes the largest one-session moves on the 173 analyzed catalog li
 for the large-move safeguard in
 [handle-provider-adjusted-history](../../openspec/changes/handle-provider-adjusted-history/proposal.md)
 (decision 4): flag a one-session move that is probably an unadjusted corporate action, such as a
-split or a CEDEAR ratio change, so it does not become a false Structure Break, Volatility Expansion,
+split or a CEDEAR ratio change, so it does not become a false Structure Break, Volatile Session,
 or Regime flip. It describes the data and counts candidate rules. It does not choose a rule. Only
 BYMA price data was used ([ADR 0006](../adr/0006-separate-research-lab-from-product.md)). News and
 issuer notices were read only to label dates.

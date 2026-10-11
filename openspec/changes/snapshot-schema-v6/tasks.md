@@ -1,0 +1,10 @@
+- [x] Read CONTEXT.md, ADR 0005 and the `technical-analysis`, `instrument-state`, `analysis-run` and `web-app` specs.
+- [x] Draft the proposal, design and the four spec deltas.
+- [x] Rename Volatility Expansion to Volatile Session in CONTEXT.md, the configuration, the technical-analysis module, the Analysis Run, the snapshot schema, the web formatting and the tests.
+- [x] Record `priceUnit` in the snapshot, validate it in `readLatest`, pass it to the line page and label prices and ATRs with it.
+- [x] Add `longTermEmaPeriod` to `ANALYSIS_CONFIGURATION.instrumentState`, bump its version to 5, and add `priceRelativeToLongTermEmaInPercent` to the Instrument State, the snapshot schema and the line page.
+- [x] Bump the snapshot to schema and prefix `v6`.
+- [x] Test the new part's known value, warm-up boundary and prefix replay; the snapshot's unit and v6 shape; and the page labels.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation and the web build (the build fails until a v6 snapshot exists).
+- [ ] At archive, edit the `instrument-state` Purpose to name the new part.
+- [ ] Archive.

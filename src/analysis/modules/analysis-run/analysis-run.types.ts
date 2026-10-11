@@ -8,12 +8,12 @@ import type {
 	LargeOneSessionMove,
 	RegimeTransitionEvent,
 	StructureBreakEvent,
-	VolatilityExpansionEvent,
+	VolatileSessionEvent,
 } from '#modules/technical-analysis/index.ts';
 import type { analysisSnapshotOverviewSchema } from './analysis-snapshot.schema.ts';
 import type * as v from 'valibot';
 
-export type AnalysisEvent = RegimeTransitionEvent | StructureBreakEvent | VolatilityExpansionEvent;
+export type AnalysisEvent = RegimeTransitionEvent | StructureBreakEvent | VolatileSessionEvent;
 
 /**
  * One Event and the session on which it was detected. `event.type` is the Event kind.
@@ -104,7 +104,7 @@ export type TradingLineSession = Readonly<{
 }>;
 
 export type AnalysisSnapshot = Readonly<{
-	schemaVersion: 5;
+	schemaVersion: 6;
 	ranAt: string;
 	requestedThroughSession: string;
 	analysisConfigurationVersion: number;

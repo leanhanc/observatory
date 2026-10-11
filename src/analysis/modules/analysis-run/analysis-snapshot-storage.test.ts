@@ -8,7 +8,7 @@ import {
 import type { AnalysisSnapshot } from './analysis-run.types.ts';
 
 const snapshot: AnalysisSnapshot = {
-	schemaVersion: 5,
+	schemaVersion: 6,
 	ranAt: '2026-10-04T15:00:00.000Z',
 	requestedThroughSession: '2026-10-02',
 	analysisConfigurationVersion: 1,
@@ -27,8 +27,8 @@ const snapshot: AnalysisSnapshot = {
 		candidates: [],
 	},
 };
-const DATED_KEY = 'analysis-snapshots/v5/2026-10-02/2026-10-04T15:00:00.000Z.json';
-const LATEST_KEY = 'analysis-snapshots/v5/latest.json';
+const DATED_KEY = 'analysis-snapshots/v6/2026-10-02/2026-10-04T15:00:00.000Z.json';
+const LATEST_KEY = 'analysis-snapshots/v6/latest.json';
 
 describe('createAnalysisSnapshotStorageFromS3Client', () => {
 	test('writes the dated snapshot before latest', async () => {
@@ -78,14 +78,14 @@ describe('parseAnalysisSnapshotOverview', () => {
 		rsi: null,
 		priceRelativeToEmaInAtr: -1.39,
 	} as const;
-	const volatilityExpansion = {
+	const volatileSession = {
 		sessionDate: '2026-09-30',
 		event: {
-			type: 'volatility-expansion',
+			type: 'volatile-session',
 			trueRange: 0.52,
 			baselineAtr: 0.18,
 			baselineThroughSessionDate: '2026-09-29',
-			expansionMultiple: 2.85,
+			atrMultiple: 2.85,
 		},
 		coincidesWithLargeMove: false,
 	} as const;
@@ -94,7 +94,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 		instrumentId: 'ggal',
 		tradingLineId: 'ggal-stock-byma-ars',
 		latestState,
-		events: [volatilityExpansion],
+		events: [volatileSession],
 		largeMoves: [],
 	};
 	const liquidity = { participation: 1, medianDailyTradedValueUsd: 43_290 };
@@ -107,15 +107,15 @@ describe('parseAnalysisSnapshotOverview', () => {
 		liquidity,
 		corporateActions: [],
 	};
-	const v5Snapshot = { ...snapshot, analyzedLines: [availableLine, unavailableLine] };
+	const v6Snapshot = { ...snapshot, analyzedLines: [availableLine, unavailableLine] };
 
 	test('returns the run metadata and the fields the line pages read', () => {
-		const result = parseAnalysisSnapshotOverview(JSON.stringify(v5Snapshot));
+		const result = parseAnalysisSnapshotOverview(JSON.stringify(v6Snapshot));
 
 		expect(result).toEqual({
 			ok: true,
 			snapshot: {
-				schemaVersion: 5,
+				schemaVersion: 6,
 				ranAt: '2026-10-04T15:00:00.000Z',
 				requestedThroughSession: '2026-10-02',
 				analyzedLines: [
@@ -124,7 +124,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 						instrumentId: 'ggal',
 						tradingLineId: 'ggal-stock-byma-ars',
 						latestState,
-						events: [volatilityExpansion],
+						events: [volatileSession],
 					},
 					{
 						status: 'unavailable',
@@ -140,7 +140,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 	});
 
 	test('accepts a ranAt with nanoseconds, as the run writes it', () => {
-		const nanosecondSnapshot = { ...v5Snapshot, ranAt: '2026-10-10T09:02:43.04013226Z' };
+		const nanosecondSnapshot = { ...v6Snapshot, ranAt: '2026-10-10T09:02:43.04013226Z' };
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(nanosecondSnapshot));
 
@@ -150,20 +150,34 @@ describe('parseAnalysisSnapshotOverview', () => {
 		});
 	});
 
-	test('rejects another schema version', () => {
-		const v4Snapshot = { ...v5Snapshot, schemaVersion: 4 };
+	test.each([5, 7])('rejects schema version %d', (schemaVersion) => {
+		const otherSnapshot = { ...v6Snapshot, schemaVersion };
 
-		const result = parseAnalysisSnapshotOverview(JSON.stringify(v4Snapshot));
+		const result = parseAnalysisSnapshotOverview(JSON.stringify(otherSnapshot));
 
 		expect(result).toEqual({
 			ok: false,
 			reason: 'invalid-snapshot',
-			message: 'The snapshot is invalid. schemaVersion: Schema version must be 5.',
+			message: 'The snapshot is invalid. schemaVersion: Schema version must be 6.',
 		});
 	});
 
+	test('rejects a v5 Event type', () => {
+		const v5Event = {
+			...volatileSession,
+			event: { ...volatileSession.event, type: 'volatility-expansion' },
+		};
+		const lineWithV5Event = { ...availableLine, events: [v5Event] };
+
+		const eventResult = parseAnalysisSnapshotOverview(
+			JSON.stringify({ ...v6Snapshot, analyzedLines: [lineWithV5Event] }),
+		);
+
+		expect(eventResult).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
+	});
+
 	test('rejects data that is not JSON', () => {
-		const result = parseAnalysisSnapshotOverview('{"schemaVersion": 5,');
+		const result = parseAnalysisSnapshotOverview('{"schemaVersion": 6,');
 
 		expect(result).toEqual({
 			ok: false,
@@ -174,7 +188,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 
 	test('rejects a line with an unknown status', () => {
 		const pendingLine = { ...availableLine, status: 'pending' };
-		const malformedSnapshot = { ...v5Snapshot, analyzedLines: [pendingLine] };
+		const malformedSnapshot = { ...v6Snapshot, analyzedLines: [pendingLine] };
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(malformedSnapshot));
 
@@ -187,7 +201,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 
 	test('rejects an available line without a latest State', () => {
 		const { latestState: _latestState, ...lineWithoutState } = availableLine;
-		const malformedSnapshot = { ...v5Snapshot, analyzedLines: [lineWithoutState] };
+		const malformedSnapshot = { ...v6Snapshot, analyzedLines: [lineWithoutState] };
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(malformedSnapshot));
 
@@ -199,9 +213,9 @@ describe('parseAnalysisSnapshotOverview', () => {
 	});
 
 	test('rejects an Event of an unknown type', () => {
-		const unknownEvent = { ...volatilityExpansion, event: { type: 'gap-up' } };
+		const unknownEvent = { ...volatileSession, event: { type: 'gap-up' } };
 		const lineWithUnknownEvent = { ...availableLine, events: [unknownEvent] };
-		const malformedSnapshot = { ...v5Snapshot, analyzedLines: [lineWithUnknownEvent] };
+		const malformedSnapshot = { ...v6Snapshot, analyzedLines: [lineWithUnknownEvent] };
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(malformedSnapshot));
 
@@ -214,7 +228,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 
 	test('rejects an insufficiently liquid line without its liquidity measures', () => {
 		const { liquidity: _liquidity, ...lineWithoutLiquidity } = unavailableLine;
-		const malformedSnapshot = { ...v5Snapshot, analyzedLines: [lineWithoutLiquidity] };
+		const malformedSnapshot = { ...v6Snapshot, analyzedLines: [lineWithoutLiquidity] };
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(malformedSnapshot));
 
@@ -226,7 +240,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 	});
 
 	test('rejects a requested-through session that is not a real date', () => {
-		const malformedSnapshot = { ...v5Snapshot, requestedThroughSession: '2026-02-30' };
+		const malformedSnapshot = { ...v6Snapshot, requestedThroughSession: '2026-02-30' };
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(malformedSnapshot));
 
@@ -239,7 +253,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 	});
 
 	test('rejects a snapshot without analyzed lines', () => {
-		const { analyzedLines: _analyzedLines, ...snapshotWithoutLines } = v5Snapshot;
+		const { analyzedLines: _analyzedLines, ...snapshotWithoutLines } = v6Snapshot;
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(snapshotWithoutLines));
 

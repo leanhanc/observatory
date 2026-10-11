@@ -116,9 +116,9 @@ _Avoid_: Pattern, signal, prediction, Structural Hold as a separate state
 A local high or low of a completed Trading Session that becomes knowable only after the required number of later completed Trading Sessions. Its occurrence session and confirmation session are distinct.
 _Avoid_: Current price, unconfirmed turning point
 
-**Volatility Expansion**:
-A direction-neutral Event in which a completed Trading Session's movement magnitude, including overnight gaps, is unusually large relative to recent volatility known before that session. Each qualifying session is a separate historical fact.
-_Avoid_: Bullish or bearish signal, continuation, reversal, opportunity, price target
+**Volatile Session**:
+A direction-neutral Event in which one completed Trading Session's True Range, including the gap from the previous close, is unusually large relative to the line's average range (ATR) known before that session. "Volatile" is relative to the line's own recent range, not an absolute level: a calm line can have a Volatile Session that would be an ordinary day for a turbulent one. Each qualifying session is a separate historical fact; it does not mark the start of a phase of widening ranges.
+_Avoid_: Volatility Expansion, wide-range session, bullish or bearish signal, continuation, reversal, opportunity, price target
 
 **Corporate Action**:
 An issuer's decision, such as a split, a reverse split, a share distribution or a change of a CEDEAR's ratio, that changes the number of shares or CEDEARs and moves the price in inverse proportion, without changing what a holding is worth. A price step it causes is bookkeeping, not market behavior.

@@ -88,15 +88,6 @@ Volatile Session SHALL describe only unusually large completed-session movement 
 - **WHEN** upward and downward movement produce equal True Range against equal readable prior ATR14
 - **THEN** both produce the same direction-neutral Event evidence and identity when the threshold is exceeded
 
-### Requirement: independent single-session historical facts
-
-One qualifying completed session SHALL suffice. Consecutive qualifying sessions SHALL each emit their own Event with their respective prior-session baseline. Later sessions SHALL NOT retract earlier Events. Confirmation, cooldowns, persistence, and notification grouping SHALL remain outside this capability.
-
-#### Scenario: consecutive Volatile Sessions
-
-- **WHEN** two consecutive sessions each exceed the threshold against their own prior ATR14
-- **THEN** both sessions contain Events without waiting for confirmation or suppressing the second
-
 ### Requirement: baseline evidence identifies the previous input session
 
 `baselineThroughSessionDate` SHALL equal the immediately preceding input bar's session date. `trueRange`, `baselineAtr`, and `atrMultiple` SHALL preserve the actual unrounded measurements used in evaluation.
@@ -115,3 +106,22 @@ Every row SHALL depend only on bars available through its completed session. Ful
 - **WHEN** detection runs over a history and each prefix
 - **THEN** every prefix result equals the corresponding full-history slice
 - **AND** appending later bars does not change any earlier Event or evidence
+
+## REMOVED Requirements
+
+### Requirement: independent single-session historical facts
+
+**Reason**: Its scenario named the Event by its old term. The same contract continues as "each Volatile Session is an independent historical fact"; OpenSpec cannot rename a scenario inside a MODIFIED requirement.
+
+**Migration**: None; the behavior is unchanged.
+
+## ADDED Requirements
+
+### Requirement: each Volatile Session is an independent historical fact
+
+One qualifying completed session SHALL suffice. Consecutive qualifying sessions SHALL each emit their own Event with their respective prior-session baseline. Later sessions SHALL NOT retract earlier Events. Confirmation, cooldowns, persistence, and notification grouping SHALL remain outside this capability.
+
+#### Scenario: consecutive Volatile Sessions
+
+- **WHEN** two consecutive sessions each exceed the threshold against their own prior ATR14
+- **THEN** both sessions contain Events without waiting for confirmation or suppressing the second

@@ -48,6 +48,8 @@ export default defineRailway(() => {
 	const analysisRun = service('analysis-run', {
 		source: github('leanhanc/observatory', { branch: 'main' }),
 		build: {
+			// A no-op, so Railpack skips the package `build` (the site); Bun runs the source as is.
+			buildCommand: 'true',
 			watchPatterns: [...SHARED_WATCH_PATTERNS, '/src/server/**', TEST_FILES_WATCH_PATTERN],
 		},
 		// Runs the script directly: `bun run` would add its own stderr lines, which Railway shows as errors.

@@ -15,8 +15,6 @@ export default defineConfig(async ({ command, isPreview, mode }) => {
 
 	return {
 		server: { port: 3000 },
-		// Resolves the `#lib/*` and `#modules/*` aliases from tsconfig.json.
-		resolve: { tsconfigPaths: true },
 		plugins: [
 			// The app lives in `src/web` so that the analysis engine in `src/analysis` stays outside it.
 			tanstackStart({

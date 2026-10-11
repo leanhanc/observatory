@@ -6,7 +6,7 @@ import {
 	validateBarHistory,
 	validateDailyBars,
 	validateReconciliationRequest,
-} from './utils';
+} from './utils/index.ts';
 
 import type {
 	BarHistory,

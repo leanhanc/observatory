@@ -7,12 +7,6 @@
 		"lib": ["ESNext", "DOM", "DOM.Iterable"],
 		"jsx": "react-jsx",
 		"types": ["bun"],
-		"paths": {
-			"#lib/*": ["./src/analysis/lib/*"],
-			"#modules/*": ["./src/analysis/modules/*"],
-			"#server/*": ["./src/server/*"],
-			"#web/*": ["./src/web/*"]
-		},
 		"allowImportingTsExtensions": true,
 		"verbatimModuleSyntax": true,
 		"isolatedModules": true,

@@ -2,6 +2,12 @@
 	"name": "observatory",
 	"description": "Open-source market observatory that explains what changed and surfaces potential opportunities.",
 	"type": "module",
+	"imports": {
+		"#lib/*": "./src/analysis/lib/*",
+		"#modules/*": "./src/analysis/modules/*",
+		"#server/*": "./src/server/*",
+		"#web/*": "./src/web/*"
+	},
 	"scripts": {
 		"dev": "bun --bun vite dev",
 		"build": "bun --bun vite build",

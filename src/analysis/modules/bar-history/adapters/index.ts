@@ -1,4 +1,4 @@
-export { buildOpenBymadataSource, createOpenBymadataAdapter } from './open-bymadata';
+export { buildOpenBymadataSource, createOpenBymadataAdapter } from './open-bymadata/index.ts';
 export type {
 	DailyBarRangeRepair,
 	OpenBymadataAdapter,
@@ -6,4 +6,4 @@ export type {
 	OpenBymadataHistoryRequest,
 	OpenBymadataHistoryResult,
 	OpenBymadataTradingLineDescriptor,
-} from './open-bymadata';
+} from './open-bymadata/index.ts';

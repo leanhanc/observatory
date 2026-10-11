@@ -8,7 +8,7 @@ node_modules/
 dist/
 build/
 .output/
-.tanstack/
+.astro/
 
 # Environment / secrets
 .env

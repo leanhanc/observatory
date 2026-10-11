@@ -1,4 +1,4 @@
-import { describeEvent } from '../-utils/line-formatting.ts';
+import { describeEvent } from '#web/lib/utils/line-formatting.ts';
 
 import type { SnapshotEvent } from '#web/lib/utils/snapshot-pages.types.ts';
 

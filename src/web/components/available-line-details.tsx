@@ -1,4 +1,5 @@
-import { formatEvaluatedValue } from '../-utils/line-formatting.ts';
+import { formatEvaluatedValue } from '#web/lib/utils/line-formatting.ts';
+
 import { EventDetails } from './event-details.tsx';
 
 import type { AvailableLine } from '#web/lib/utils/snapshot-pages.types.ts';

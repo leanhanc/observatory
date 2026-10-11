@@ -34,7 +34,9 @@
 									"react-dom",
 									"react/**",
 									"react-dom/**",
-									"@tanstack/**"
+									"astro",
+									"astro/**",
+									"@astrojs/**"
 								],
 								"message": "The analysis engine stays independent of the server commands, the web app and its framework."
 							}
@@ -44,5 +46,5 @@
 			}
 		}
 	],
-	"ignorePatterns": ["dist", "node_modules", "**/*.d.ts", "**/routeTree.gen.ts"]
+	"ignorePatterns": ["dist", "node_modules", "**/*.d.ts", ".astro"]
 }

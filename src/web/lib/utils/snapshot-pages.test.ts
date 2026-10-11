@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { parseAnalysisSnapshotOverview } from '#modules/analysis-run/analysis-snapshot-storage.ts';
 
-import { buildPrerenderPages, requireRenderableSnapshot } from './snapshot-pages.ts';
+import { buildLinePages, requireRenderableSnapshot } from './snapshot-pages.ts';
 
 import type { LatestAnalysisSnapshotReadResult } from '#modules/analysis-run/index.ts';
 
@@ -18,14 +18,14 @@ const availableLine = {
 		priceRelativeToEmaInAtr: -1.39,
 	},
 	events: [],
-};
+} as const;
 const unavailableLine = {
 	status: 'unavailable',
 	instrumentId: 'gfva',
 	tradingLineId: 'gfva-stock-byma-ars',
 	reason: 'no-provider-bars',
 	message: 'The provider returned no Daily Bars for this Trading Line.',
-};
+} as const;
 const serializedSnapshot = JSON.stringify({
 	schemaVersion: 5,
 	ranAt: '2026-10-11T14:03:58.608Z',
@@ -33,18 +33,24 @@ const serializedSnapshot = JSON.stringify({
 	analyzedLines: [availableLine, unavailableLine],
 });
 
-describe('buildPrerenderPages', () => {
-	test('lists the index and every analyzed line in snapshot order, available or not', () => {
+describe('buildLinePages', () => {
+	test('lists every analyzed line in snapshot order, available or not, with the run it belongs to', () => {
 		const snapshot = requireRenderableSnapshot(
 			parseAnalysisSnapshotOverview(serializedSnapshot),
 		);
 
-		const pages = buildPrerenderPages(snapshot);
+		const pages = buildLinePages(snapshot);
 
+		const run = { ranAt: '2026-10-11T14:03:58.608Z', requestedThroughSession: '2026-10-10' };
 		expect(pages).toEqual([
-			{ path: '/' },
-			{ path: '/lines/ggal-stock-byma-ars' },
-			{ path: '/lines/gfva-stock-byma-ars' },
+			{
+				params: { tradingLineId: 'ggal-stock-byma-ars' },
+				props: { ...run, line: availableLine },
+			},
+			{
+				params: { tradingLineId: 'gfva-stock-byma-ars' },
+				props: { ...run, line: unavailableLine },
+			},
 		]);
 	});
 });

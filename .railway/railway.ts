@@ -23,9 +23,9 @@ export default defineRailway(() => {
 	};
 
 	// The public site. The build reads the latest snapshot from the bucket and prerenders every page;
-	// Railpack then serves `dist/client` with Caddy, with no server process. Railpack deploys TanStack
-	// Start with a server unless the output directory forces its static mode, and a start command
-	// would turn that mode off. A failed build keeps the previous deployment serving.
+	// Railpack detects the static Astro build and serves `dist` with Caddy, with no server process. A
+	// start command would turn that static mode off. A failed build keeps the previous deployment
+	// serving.
 	const web = service('web', {
 		source: github('leanhanc/observatory', { branch: 'main' }),
 		build: {
@@ -34,15 +34,12 @@ export default defineRailway(() => {
 				...SHARED_WATCH_PATTERNS,
 				'/src/web/**',
 				'/src/server/bar-history-storage-configuration/**',
-				'/vite.config.ts',
+				'/astro.config.ts',
 				'/Staticfile',
 				TEST_FILES_WATCH_PATTERN,
 			],
 		},
-		env: {
-			...storageEnvironment,
-			RAILPACK_SPA_OUTPUT_DIR: 'dist/client',
-		},
+		env: storageEnvironment,
 	});
 
 	// The daily Analysis Run: a cron job that analyzes the previous Buenos Aires session and exits.

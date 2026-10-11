@@ -1,0 +1,19 @@
+---
+import latestSnapshot from 'virtual:observatory/latest-snapshot';
+
+import { LinePage } from '#web/components/line-page.tsx';
+import PageLayout from '#web/layouts/page-layout.astro';
+import { buildLinePages } from '#web/lib/utils/snapshot-pages.ts';
+
+import type { LinePageProps } from '#web/lib/utils/snapshot-pages.ts';
+
+export function getStaticPaths() {
+	return buildLinePages(latestSnapshot);
+}
+
+const { ranAt, requestedThroughSession, line } = Astro.props as LinePageProps;
+---
+
+<PageLayout>
+	<LinePage ranAt={ranAt} requestedThroughSession={requestedThroughSession} line={line} />
+</PageLayout>

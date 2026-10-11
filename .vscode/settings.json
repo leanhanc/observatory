@@ -5,15 +5,6 @@
 	"editor.codeActionsOnSave": {
 		"source.format.oxc": "always"
 	},
-	"files.watcherExclude": {
-		"**/routeTree.gen.ts": true
-	},
-	"search.exclude": {
-		"**/routeTree.gen.ts": true
-	},
-	"files.readonlyInclude": {
-		"**/routeTree.gen.ts": true
-	},
 	"material-icon-theme.activeIconPack": "nest",
 	"material-icon-theme.folders.associations": {
 		"openspec": "Toc",

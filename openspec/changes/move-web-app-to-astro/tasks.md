@@ -1,0 +1,9 @@
+- [x] Read the Astro docs on configuration, environment variables, integrations, islands and Bun, and Railpack's Astro detection.
+- [x] Draft the proposal, design and `web-app` delta.
+- [x] Replace the TanStack Start app with Astro pages, the snapshot integration and the static React renderer.
+- [x] Add the build-output guard and its test; adapt `snapshot-pages.test.ts`.
+- [x] Update `.railway/railway.ts`, the ignore and lint configs, and AGENTS.md.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation, a build and `railway config plan`.
+- [x] Compare a local line page with the live one.
+- [ ] After Lean applies and deploys: check a line page, its trailing-slash form and a 404 on the live site.
+- [ ] Archive.

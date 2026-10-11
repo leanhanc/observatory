@@ -2,5 +2,5 @@
 - [x] Draft the proposal, design and `web-app` delta.
 - [x] Add the not-found page, the root `Caddyfile` and the `web` watch pattern; remove the `Staticfile`.
 - [x] Run tests, typecheck, lint, format, strict OpenSpec validation, a build and `railway config plan`.
-- [ ] After Lean applies and deploys: check that an unknown line answers 404 with the page, and that a line page and `/` answer 200.
-- [ ] Archive.
+- [x] After Lean applies and deploys: check that an unknown line answers 404 with the page, and that a line page and `/` answer 200.
+- [x] Archive.

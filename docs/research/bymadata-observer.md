@@ -7,10 +7,10 @@ YPFD, and AAPL.
 
 ```sh
 # One sample (also useful the following morning)
-bun scripts/bymadata-observer.ts
+bun src/server/bymadata-observer/bymadata-observer.ts
 
 # Eight samples, 15 minutes apart, starting when you invoke the script
-bun scripts/bymadata-observer.ts --samples 8 --interval-minutes 15
+bun src/server/bymadata-observer/bymadata-observer.ts --samples 8 --interval-minutes 15
 ```
 
 Start around 30 minutes before the reported market closing time on a trading day. Keep the

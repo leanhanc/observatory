@@ -52,7 +52,10 @@ const REQUEST_PAUSE_MS = 2_000;
 const MARKET_TIME_ZONE = 'America/Argentina/Buenos_Aires';
 const PROGRESS_INTERVAL = 50;
 const CATALOG_PATH = fileURLToPath(
-	new URL('../src/modules/instrument-catalog/data/instrument-catalog.v1.json', import.meta.url),
+	new URL(
+		'../../analysis/modules/instrument-catalog/data/instrument-catalog.v1.json',
+		import.meta.url,
+	),
 );
 const PESO_CURRENCY = 'ARS';
 // Open BYMADATA's settlement code for 24HS.

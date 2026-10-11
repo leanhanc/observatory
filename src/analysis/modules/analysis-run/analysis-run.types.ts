@@ -10,6 +10,8 @@ import type {
 	StructureBreakEvent,
 	VolatilityExpansionEvent,
 } from '#modules/technical-analysis/index.ts';
+import type { analysisSnapshotOverviewSchema } from './analysis-snapshot.schema.ts';
+import type * as v from 'valibot';
 
 export type AnalysisEvent = RegimeTransitionEvent | StructureBreakEvent | VolatilityExpansionEvent;
 
@@ -127,6 +129,23 @@ export type AnalysisSnapshotWriteResult =
 export type AnalysisSnapshotStorage = Readonly<{
 	write(snapshot: AnalysisSnapshot): Promise<AnalysisSnapshotWriteResult>;
 }>;
+
+/** The validated part of an Analysis Snapshot that the web reads. */
+export type AnalysisSnapshotOverview = v.InferOutput<typeof analysisSnapshotOverviewSchema>;
+
+export type LatestAnalysisSnapshotReadResult =
+	| Readonly<{ ok: true; snapshot: AnalysisSnapshotOverview }>
+	| Readonly<{
+			ok: false;
+			reason: 'not-found' | 'read-failed' | 'invalid-snapshot';
+			message: string;
+	  }>;
+
+/** Snapshot storage in the bucket, which public pages also read the latest snapshot from. */
+export type AnalysisSnapshotBucketStorage = AnalysisSnapshotStorage &
+	Readonly<{
+		readLatest(): Promise<LatestAnalysisSnapshotReadResult>;
+	}>;
 
 export type AnalysisRunFailureReason =
 	| 'invalid-request'

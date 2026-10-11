@@ -14,7 +14,7 @@ export default defineRailway(() => {
 	const analysisRun = service('analysis-run', {
 		source: github('leanhanc/observatory', { branch: 'main' }),
 		// Runs the script directly: `bun run` would add its own stderr lines, which Railway shows as errors.
-		start: 'bun scripts/analysis-run.ts',
+		start: 'bun src/server/analysis-run/analysis-run.ts',
 		deploy: {
 			cronSchedule: '0 9 * * 2-6',
 			restartPolicyType: 'NEVER',

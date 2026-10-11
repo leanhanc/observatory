@@ -8,14 +8,14 @@ domain validation and counts candidate repairs for each one. It does not choose 
 It is input for the five lines the dry run through 2026-10-06 reported as `invalid-bars`: TGNO4,
 HUT, SATL, XLP and ARM. Since commit `4031085` (`drop-invalid-analysis-bars`) the Analysis Run no
 longer drops these lines. It drops the invalid bars one by one and records them in
-`droppedBarSessions` (`src/modules/analysis-run/analysis-run.ts:371`). Bar History acquisition still
+`droppedBarSessions` (`src/analysis/modules/analysis-run/analysis-run.ts:371`). Bar History acquisition still
 rejects a whole line for one invalid bar (`openspec/specs/bar-history/spec.md:54`).
 
 ## Method
 
 - **Data:** the raw responses in the git-ignored `.snapshots/research/large-moves/raw/`. GFVA
   returned `no_data`, so 174 files have rows. Each row's timestamp was converted to a Buenos Aires
-  session date, as the adapter does (`src/modules/bar-history/adapters/open-bymadata/open-bymadata.ts:244`).
+  session date, as the adapter does (`src/analysis/modules/bar-history/adapters/open-bymadata/open-bymadata.ts:244`).
 - **Raw rows:** every row is checked before the adapter. It is then checked again after
   `createOpenBymadataAdapter` has dropped Continuity Data and applied the 1% range repair, and
   `validateDailyBars` is run on the result.

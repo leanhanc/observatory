@@ -36,7 +36,9 @@ async function captureSnapshot() {
 	});
 
 	if (values.help) {
-		console.log('bun scripts/bymadata-history-snapshot.ts [--output /path]');
+		console.log(
+			'bun src/server/bymadata-history-snapshot/bymadata-history-snapshot.ts [--output /path]',
+		);
 		return;
 	}
 

@@ -14,10 +14,13 @@ export type {
 	AnalysisRunner,
 	AnalysisRunnerOptions,
 	AnalysisSnapshot,
+	AnalysisSnapshotBucketStorage,
+	AnalysisSnapshotOverview,
 	AnalysisSnapshotEvent,
 	AnalysisSnapshotStorage,
 	AnalysisSnapshotWriteResult,
 	AnalyzedLine,
 	AnalyzedLineFailureReason,
+	LatestAnalysisSnapshotReadResult,
 	TradingLineSession,
 } from './analysis-run.types.ts';

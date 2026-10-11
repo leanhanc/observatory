@@ -683,7 +683,7 @@ describe('Committed catalog', () => {
 			.map((line) => line.symbol);
 		const committedFile = await Bun.file(
 			new URL(
-				'../src/modules/instrument-catalog/data/instrument-catalog.v1.json',
+				'../../analysis/modules/instrument-catalog/data/instrument-catalog.v1.json',
 				import.meta.url,
 			),
 		).text();
@@ -706,7 +706,7 @@ describe('Committed catalog', () => {
 			.map((line) => line.symbol);
 		const committedFile = await Bun.file(
 			new URL(
-				'../src/modules/instrument-catalog/data/instrument-catalog.v1.json',
+				'../../analysis/modules/instrument-catalog/data/instrument-catalog.v1.json',
 				import.meta.url,
 			),
 		).text();

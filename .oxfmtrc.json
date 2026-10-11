@@ -4,7 +4,7 @@
 	"singleQuote": true,
 	"trailingComma": "all",
 	"tabWidth": 4,
-	"ignorePatterns": [".agents/**"],
+	"ignorePatterns": [".agents/**", "**/routeTree.gen.ts"],
 	"sortImports": {
 		"newlinesBetween": true,
 		"groups": [

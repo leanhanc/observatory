@@ -4,11 +4,14 @@
 		"module": "Preserve",
 		"moduleResolution": "bundler",
 		"moduleDetection": "force",
-		"lib": ["ESNext"],
+		"lib": ["ESNext", "DOM", "DOM.Iterable"],
+		"jsx": "react-jsx",
 		"types": ["bun"],
 		"paths": {
-			"#lib/*": ["./src/lib/*"],
-			"#modules/*": ["./src/modules/*"]
+			"#lib/*": ["./src/analysis/lib/*"],
+			"#modules/*": ["./src/analysis/modules/*"],
+			"#server/*": ["./src/server/*"],
+			"#web/*": ["./src/web/*"]
 		},
 		"allowImportingTsExtensions": true,
 		"verbatimModuleSyntax": true,

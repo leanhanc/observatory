@@ -7,8 +7,7 @@ import {
 	resolvePreviousMarketDate,
 } from '#modules/analysis-run/index.ts';
 import { createLogger } from '#modules/logger/index.ts';
-
-import { resolveBarHistoryStorageConfiguration } from './bar-history-storage-configuration.ts';
+import { resolveBarHistoryStorageConfiguration } from '#server/bar-history-storage-configuration/index.ts';
 
 import type {
 	AnalysisRunProgress,

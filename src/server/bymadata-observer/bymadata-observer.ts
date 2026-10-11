@@ -29,7 +29,7 @@ async function observe() {
 	});
 	if (values.help) {
 		console.log(
-			'bun scripts/bymadata-observer.ts [--samples 8] [--interval-minutes 15] [--output /path]',
+			'bun src/server/bymadata-observer/bymadata-observer.ts [--samples 8] [--interval-minutes 15] [--output /path]',
 		);
 		return;
 	}

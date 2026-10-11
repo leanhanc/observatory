@@ -16,5 +16,33 @@
 		"no-console": "warn",
 		"import/no-duplicates": "error"
 	},
-	"ignorePatterns": ["dist", "node_modules", "**/*.d.ts"]
+	"overrides": [
+		{
+			"files": ["src/analysis/**"],
+			"rules": {
+				"no-restricted-imports": [
+					"error",
+					{
+						"patterns": [
+							{
+								"group": [
+									"#server/**",
+									"#web/**",
+									"**/server/**",
+									"**/web/**",
+									"react",
+									"react-dom",
+									"react/**",
+									"react-dom/**",
+									"@tanstack/**"
+								],
+								"message": "The analysis engine stays independent of the server commands, the web app and its framework."
+							}
+						]
+					}
+				]
+			}
+		}
+	],
+	"ignorePatterns": ["dist", "node_modules", "**/*.d.ts", "**/routeTree.gen.ts"]
 }

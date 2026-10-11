@@ -446,7 +446,7 @@ one; ETHA's reverse split was not price-adjusted at all.
 
 The correction below multiplies pre-ex volume by `F` and leaves prices as served. The measures are
 computed with `selectLiquidityWindow` and `evaluateLiquidityEligibility` from
-`src/modules/liquidity-eligibility`, on the peso bars.
+`src/analysis/modules/liquidity-eligibility`, on the peso bars.
 
 **Window ending 2026-10-06** (2026-04-08 to 2026-10-06, 125 market sessions). Only SPY and HUT have
 an ex-date inside it, each with 35 window sessions before the ex-date.

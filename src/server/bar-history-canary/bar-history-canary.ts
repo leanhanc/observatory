@@ -10,8 +10,7 @@ import {
 import { buildBarHistoryStorageKey } from '#modules/bar-history/storage/index.ts';
 import { instrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import { createLogger } from '#modules/logger/index.ts';
-
-import { resolveBarHistoryStorageConfiguration } from './bar-history-storage-configuration.ts';
+import { resolveBarHistoryStorageConfiguration } from '#server/bar-history-storage-configuration/index.ts';
 
 import type { OpenBymadataTradingLineDescriptor } from '#modules/bar-history/adapters/index.ts';
 import type {

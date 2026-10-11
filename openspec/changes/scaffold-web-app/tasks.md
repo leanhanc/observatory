@@ -1,0 +1,9 @@
+- [x] Read the web-architecture section of AGENTS.md, ADR 0003, the analysis-run snapshot storage and the storage configuration resolver.
+- [x] Draft the proposal and the `analysis-run` and `web-app` deltas.
+- [x] Split the source into `src/analysis`, `src/server` and `src/web`, with an oxlint rule that keeps the engine independent.
+- [x] Scaffold TanStack Start under `src/web` with `dev` and `build` scripts.
+- [x] Add `readLatest` with a validated parse of the snapshot fields the web reads.
+- [x] Read the latest snapshot in a server function and render the run metadata and line statuses on `/`.
+- [x] Test the parse with a v5 snapshot, a wrong schema version and malformed data, and `readLatest` for a missing and an unreadable object.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation, a build, and the dev server against the bucket.
+- [ ] Archive.

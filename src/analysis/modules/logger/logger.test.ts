@@ -40,7 +40,7 @@ describe('createLogger', () => {
 			import { createLogger } from ${JSON.stringify(loggerModulePath)};
 			const logger = createLogger(${JSON.stringify(options)}, { NODE_ENV: 'production' });
 			logger.info(
-				{ token: 'top-level-secret', nested: { token: 'nested-secret' }, customer: { email: 'private@example.test' } },
+				{ token: 'top-level-secret', nested: { token: 'nested-secret' }, environment: { OBSERVATORY_RAILWAY_TOKEN: 'railway-secret' }, customer: { email: 'private@example.test' } },
 				'test message',
 			);
 		`;
@@ -53,6 +53,7 @@ describe('createLogger', () => {
 			expect(output).toContain('"token":"[REDACTED]"');
 			expect(output).not.toContain('top-level-secret');
 			expect(output).not.toContain('nested-secret');
+			expect(output).not.toContain('railway-secret');
 			if (hasCustomPaths) {
 				expect(output).not.toContain('private@example.test');
 				expect(output).toContain('"email":"[REDACTED]"');

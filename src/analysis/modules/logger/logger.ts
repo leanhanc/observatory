@@ -28,6 +28,8 @@ const SENSITIVE_FIELD_NAMES = [
 	'secret',
 	'accessKeyId',
 	'secretAccessKey',
+	// The Analysis Run's Railway project token, by its environment variable name.
+	'OBSERVATORY_RAILWAY_TOKEN',
 ] as const;
 const DEFAULT_REDACT_PATHS = [
 	...SENSITIVE_FIELD_NAMES,

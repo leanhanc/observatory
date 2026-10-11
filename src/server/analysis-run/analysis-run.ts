@@ -9,6 +9,8 @@ import {
 import { createLogger } from '#modules/logger/index.ts';
 import { resolveBarHistoryStorageConfiguration } from '#server/bar-history-storage-configuration/index.ts';
 
+import { redeployWebService } from './web-redeploy.ts';
+
 import type {
 	AnalysisRunProgress,
 	AnalysisRunnerOptions,
@@ -21,6 +23,7 @@ import type {
 	CorporateActionWatch,
 } from '#modules/corporate-action-watch/index.ts';
 import type { CorporateActionOutcome } from '#modules/corporate-actions/index.ts';
+import type { FetchFromRailway } from './web-redeploy.ts';
 
 const PROVIDER_REQUEST_TIMEOUT_MS = 20_000;
 // Railway skips a cron run while the previous one is still running, so a hung request (the
@@ -34,6 +37,8 @@ const RETRY_DEADLINE_MARGIN_MS = 5 * 60_000;
 type AnalysisRunInvocation = Readonly<{
 	requestedThroughSession: string;
 	snapshotStorage: AnalysisSnapshotStorage;
+	/** A dry run writes the snapshot to a local file instead of the bucket. */
+	isDryRun: boolean;
 }>;
 
 /** The logger methods the command uses; pino's logger satisfies it. */
@@ -55,6 +60,8 @@ export type AnalysisRunCommand = Readonly<{
 	>;
 	/** How long the run may take before it is logged as failed; 30 minutes by default. */
 	deadlineMs?: number;
+	/** Sends the web redeploy request to Railway's Public API; `fetch` by default. */
+	fetchFromRailway?: FetchFromRailway | undefined;
 }>;
 
 /**
@@ -97,13 +104,18 @@ export function resolveAnalysisRunInvocation(
 	}
 
 	if (outputPath !== undefined) {
-		return { requestedThroughSession, snapshotStorage: createLocalFileStorage(outputPath) };
+		return {
+			requestedThroughSession,
+			snapshotStorage: createLocalFileStorage(outputPath),
+			isDryRun: true,
+		};
 	}
 
 	const configuration = resolveBarHistoryStorageConfiguration(environment);
 	return {
 		requestedThroughSession,
 		snapshotStorage: createAnalysisSnapshotStorage(configuration),
+		isDryRun: false,
 	};
 }
 
@@ -128,8 +140,11 @@ function createLocalFileStorage(outputPath: string): AnalysisSnapshotStorage {
  * as soon as it is analyzed, and the outcome. Every failure, including an invalid invocation and a
  * run that misses its deadline, is logged as one error entry starting with `Analysis Run failed:`.
  *
+ * After writing the snapshot to the bucket, it asks Railway to redeploy the web service; that
+ * request never changes the outcome.
+ *
  * Logs carry dates, Trading Line IDs, outcomes and snapshot keys only, never the storage
- * configuration.
+ * configuration or the Railway token.
  */
 export async function runAnalysisCommand(
 	command: AnalysisRunCommand,
@@ -163,7 +178,7 @@ async function runAndLogAnalysis(
 	command: AnalysisRunCommand,
 	measureDurationSeconds: () => number,
 ): Promise<Exclude<AnalysisRunCommandOutcome, 'deadline-exceeded'>> {
-	const { args, environment, log, getCurrentInstant, runnerOptions } = command;
+	const { args, environment, log, getCurrentInstant, runnerOptions, fetchFromRailway } = command;
 	const { deadlineMs = RUN_DEADLINE_MS } = command;
 
 	try {
@@ -189,6 +204,11 @@ async function runAndLogAnalysis(
 		}
 
 		logCompletion(log, result.snapshot, result.locations, durationSeconds);
+
+		if (!invocation.isDryRun) {
+			await redeployWebService({ environment, log, fetchFromRailway });
+		}
+
 		return 'snapshot-written';
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

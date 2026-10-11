@@ -17,6 +17,7 @@ import type {
 	VolumeCorporateAction,
 } from '#modules/corporate-actions/index.ts';
 import type { AnalysisRunCommandOutcome, AnalysisRunLog } from './analysis-run.ts';
+import type { FetchFromRailway } from './web-redeploy.ts';
 
 const DRY_RUN_ARGS = ['--output', 'snapshot.json'];
 const WEDNESDAY_MORNING = '2026-10-07T09:00:00Z';
@@ -123,6 +124,11 @@ const SECRET_SENTINEL = 'sentinel-secret-7f3a9c';
 const ACCESS_KEY_SENTINEL = 'sentinel-access-key-2b8e';
 // Nothing listens on the discard port, so the real S3 client fails its write without leaving the
 // machine.
+const WEB_REDEPLOY_ENVIRONMENT = {
+	OBSERVATORY_RAILWAY_TOKEN: 'railway-token',
+	OBSERVATORY_WEB_SERVICE_ID: 'web-service-id',
+	OBSERVATORY_WEB_ENVIRONMENT_ID: 'production-environment-id',
+};
 const UNREACHABLE_STORAGE_ENVIRONMENT = {
 	OBSERVATORY_STORAGE_ACCESS_KEY_ID: ACCESS_KEY_SENTINEL,
 	OBSERVATORY_STORAGE_SECRET_ACCESS_KEY: SECRET_SENTINEL,
@@ -547,9 +553,100 @@ describe('Analysis Run command logging', () => {
 		expect(serializedLog).not.toContain(SECRET_SENTINEL);
 		expect(serializedLog).not.toContain(ACCESS_KEY_SENTINEL);
 	});
+
+	test.each([
+		[
+			'requested',
+			Response.json({ data: { serviceInstanceDeployV2: 'deployment-1' } }),
+			'info Web redeploy requested: deployment deployment-1.',
+		],
+		[
+			'refused',
+			Response.json({ errors: [{ message: 'Not Authorized' }] }),
+			'warn Web redeploy failed: Railway answered: Not Authorized. The snapshot is written; the site shows it after its next deploy.',
+		],
+	])(
+		'redeploys the web service after the bucket write: %s',
+		async (_case, railwayAnswer, lastEntry) => {
+			await using bucket = startAcceptingBucket();
+			const railwayRequests: string[] = [];
+			const { entries, outcome } = await runCommandWithProvider(
+				{ GGAL: ggalPesoBars, THIN: thinlyTradedPesoBars },
+				{
+					args: ['--through-session', '2026-09-30'],
+					environment: { ...bucket.environment, ...WEB_REDEPLOY_ENVIRONMENT },
+					fetchFromRailway: (url) => {
+						railwayRequests.push(url);
+						return Promise.resolve(railwayAnswer);
+					},
+				},
+			);
+			const messages = entries.map(({ level, message }) => `${level} ${message}`);
+
+			expect(outcome).toBe('snapshot-written');
+			expect(railwayRequests).toEqual(['https://backboard.railway.com/graphql/v2']);
+			expect(messages.at(-2)).toStartWith('info Analysis Run through 2026-09-30 completed');
+			expect(messages.at(-1)).toBe(lastEntry);
+		},
+	);
+
+	test('a dry run does not redeploy the web service', async () => {
+		const railwayRequests: string[] = [];
+		const { outcome } = await runCommandWithProvider(
+			{ GGAL: ggalPesoBars, THIN: thinlyTradedPesoBars },
+			{
+				environment: WEB_REDEPLOY_ENVIRONMENT,
+				fetchFromRailway: (url) => {
+					railwayRequests.push(url);
+					return Promise.resolve(Response.json({}));
+				},
+			},
+		);
+
+		expect(outcome).toBe('snapshot-written');
+		expect(railwayRequests).toEqual([]);
+	});
+
+	test('a failed bucket write does not redeploy the web service', async () => {
+		const railwayRequests: string[] = [];
+		const { outcome } = await runCommandWithProvider(
+			{ GGAL: ggalPesoBars, THIN: thinlyTradedPesoBars },
+			{
+				args: ['--through-session', '2026-09-30'],
+				environment: { ...UNREACHABLE_STORAGE_ENVIRONMENT, ...WEB_REDEPLOY_ENVIRONMENT },
+				fetchFromRailway: (url) => {
+					railwayRequests.push(url);
+					return Promise.resolve(Response.json({}));
+				},
+			},
+		);
+
+		expect(outcome).toBe('failed');
+		expect(railwayRequests).toEqual([]);
+	});
 });
 
 type LogEntry = Readonly<{ level: 'info' | 'warn' | 'error'; message: string; fields: object }>;
+
+/** A loopback S3 endpoint that accepts every write, so the run reaches its redeploy. */
+function startAcceptingBucket(): Readonly<{
+	environment: Readonly<Record<string, string>>;
+	[Symbol.asyncDispose](): Promise<void>;
+}> {
+	const server = Bun.serve({
+		hostname: '127.0.0.1',
+		port: 0,
+		fetch: () => new Response(null, { headers: { ETag: '"accepted"' } }),
+	});
+
+	return {
+		environment: {
+			...UNREACHABLE_STORAGE_ENVIRONMENT,
+			OBSERVATORY_STORAGE_ENDPOINT: server.url.origin,
+		},
+		[Symbol.asyncDispose]: () => server.stop(true),
+	};
+}
 
 type CommandOverrides = Readonly<{
 	args?: readonly string[];
@@ -560,6 +657,7 @@ type CommandOverrides = Readonly<{
 	fetchFromProvider?: (input: string | URL | Request) => Promise<Response>;
 	corporateActions?: readonly CorporateAction[];
 	relevantFacts?: FakeRelevantFacts;
+	fetchFromRailway?: FetchFromRailway;
 }>;
 
 type FakeRelevantFacts = readonly Readonly<Record<string, string | number>>[] | 'http-error';
@@ -578,6 +676,7 @@ async function runCommandWithProvider(
 		relevantFacts = [],
 		fetchFromProvider = createFakeProvider(provider, relevantFacts),
 		corporateActions = [],
+		fetchFromRailway,
 	} = overrides;
 	const entries: LogEntry[] = [];
 	const recordAt =
@@ -596,6 +695,7 @@ async function runCommandWithProvider(
 		log,
 		getCurrentInstant,
 		deadlineMs,
+		fetchFromRailway,
 		runnerOptions: {
 			fetchFromProvider,
 			pause: () => Promise.resolve(),

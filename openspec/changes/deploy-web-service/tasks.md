@@ -1,0 +1,9 @@
+- [x] Archive `prerender-web-pages`.
+- [x] Read the Railway and Railpack docs on static serving, build-time variables, watch paths, IaC and the Public API.
+- [x] Draft the proposal, design and the `web-app` and `analysis-run` deltas.
+- [x] Declare the `web` service, the `Staticfile` and both services' watch paths.
+- [x] Request the web deploy after a bucket write, and redact the token's variable.
+- [x] Test the requested, not-configured, refused, failed and dry-run paths with an injected fetch.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation, a build and `railway config plan`.
+- [ ] After Lean applies: set the token, generate the domain, deploy `web` and check a line page and a 404.
+- [ ] Archive.

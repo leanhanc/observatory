@@ -2,7 +2,7 @@
 
 ## Why
 
-The scaffold renders `/` on every request by reading the bucket. The snapshot changes once per Analysis Run, so every visitor between two runs sees the same pages. Decided 2026-10-11: the web app is true static generation, rebuilt daily. A later slice has the Analysis Run's cron job redeploy the web service after it writes `latest.json`; the build reads the bucket and prerenders every page. When a build fails, the previous deployment keeps serving, so a missing or broken snapshot must fail the build rather than publish empty pages.
+The scaffold renders `/` on every request by reading the bucket. The snapshot changes once per Analysis Run, so every visitor between two runs sees the same pages. The web app is true static generation, rebuilt daily. A later slice has the Analysis Run's cron job redeploy the web service after it writes `latest.json`; the build reads the bucket and prerenders every page. When a build fails, the previous deployment keeps serving, so a missing or broken snapshot must fail the build rather than publish empty pages.
 
 ## What Changes
 

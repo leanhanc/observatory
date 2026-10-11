@@ -2,7 +2,7 @@
 
 ## Rendering: static generation, rebuilt daily
 
-Decided 2026-10-11. Pages change only when an Analysis Run writes a new snapshot, so they are rendered once per run at build time instead of once per request. The Analysis Run's cron job will later trigger a redeploy of the web service after it writes `latest.json`. A failed build leaves the previous deployment serving, which is why every way of having no snapshot to render fails the build: a stale page that shows its session is better than an empty one.
+Pages change only when an Analysis Run writes a new snapshot, so they are rendered once per run at build time instead of once per request. The Analysis Run's cron job will later trigger a redeploy of the web service after it writes `latest.json`. A failed build leaves the previous deployment serving, which is why every way of having no snapshot to render fails the build: a stale page that shows its session is better than an empty one.
 
 ## How prerendering finds the pages
 

@@ -7,4 +7,4 @@
 - [x] Split the line page into server functions, route, colocated components and formatting.
 - [x] Test the page list and the failure on a missing, invalid or empty snapshot.
 - [x] Run tests, typecheck, lint, format, OpenSpec validation and a build against the bucket.
-- [ ] Archive.
+- [x] Archive.

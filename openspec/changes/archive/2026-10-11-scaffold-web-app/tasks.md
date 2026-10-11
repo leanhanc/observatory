@@ -6,4 +6,4 @@
 - [x] Read the latest snapshot in a server function and render the run metadata and line statuses on `/`.
 - [x] Test the parse with a v5 snapshot, a wrong schema version and malformed data, and `readLatest` for a missing and an unreadable object.
 - [x] Run tests, typecheck, lint, format, strict OpenSpec validation, a build, and the dev server against the bucket.
-- [ ] Archive.
+- [x] Archive.

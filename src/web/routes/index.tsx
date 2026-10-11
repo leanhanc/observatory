@@ -1,34 +1,27 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { createServerFn } from '@tanstack/react-start';
 
-import { readLatestAnalysisSnapshot } from '#web/lib/utils/latest-analysis-snapshot.server.ts';
-
-const getLatestAnalysisSnapshot = createServerFn({ method: 'GET' }).handler(() =>
-	readLatestAnalysisSnapshot(),
-);
+import { getAnalyzedLineIndex } from '#web/lib/utils/analysis-snapshot.functions.ts';
+import { buildLinePagePath } from '#web/lib/utils/snapshot-pages.ts';
 
 export const Route = createFileRoute('/')({
-	loader: () => getLatestAnalysisSnapshot(),
+	loader: () => getAnalyzedLineIndex(),
 	component: HomePage,
 });
 
 function HomePage() {
-	const readResult = Route.useLoaderData();
-
-	if (!readResult.ok) {
-		return <p>No snapshot available.</p>;
-	}
-
-	const { ranAt, requestedThroughSession, analyzedLines } = readResult.snapshot;
+	const { ranAt, requestedThroughSession, lineStatuses } = Route.useLoaderData();
 
 	return (
 		<main>
 			<p>Ran at: {ranAt}</p>
 			<p>Requested through session: {requestedThroughSession}</p>
 			<ul>
-				{analyzedLines.map((line) => (
+				{lineStatuses.map((line) => (
 					<li key={line.tradingLineId}>
-						{line.tradingLineId}: {line.status}
+						{/* A plain anchor loads the prerendered page; a router `Link` would call the
+						    server function from the browser, which a static site cannot answer. */}
+						<a href={buildLinePagePath(line.tradingLineId)}>{line.tradingLineId}</a>:{' '}
+						{line.status}
 					</li>
 				))}
 			</ul>

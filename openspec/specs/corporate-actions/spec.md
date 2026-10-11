@@ -8,7 +8,7 @@ Keep a committed, sourced list of confirmed Corporate Actions with what the prov
 
 ### Requirement: a committed list of confirmed Corporate Actions
 
-The corporate-actions module SHALL load `src/modules/corporate-actions/data/corporate-actions.v2.json` and SHALL fail to load when it is invalid. The file SHALL hold `schemaVersion: 2` and `corporateActions`, a list of entries. Every entry SHALL have:
+The corporate-actions module SHALL load `src/analysis/modules/corporate-actions/data/corporate-actions.v2.json` and SHALL fail to load when it is invalid. The file SHALL hold `schemaVersion: 2` and `corporateActions`, a list of entries. Every entry SHALL have:
 
 - `tradingLineId`: a lowercase kebab-case Trading Line identifier;
 - `exDate`: a real `YYYY-MM-DD` date, the first session on which the line trades without the entitlement;

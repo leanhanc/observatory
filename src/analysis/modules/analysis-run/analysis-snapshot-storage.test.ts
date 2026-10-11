@@ -71,23 +71,45 @@ describe('createAnalysisSnapshotStorageFromS3Client', () => {
 });
 
 describe('parseAnalysisSnapshotOverview', () => {
+	const latestState = {
+		sessionDate: '2026-10-02',
+		regime: 'bearish',
+		structure: 'downtrend',
+		rsi: null,
+		priceRelativeToEmaInAtr: -1.39,
+	} as const;
+	const volatilityExpansion = {
+		sessionDate: '2026-09-30',
+		event: {
+			type: 'volatility-expansion',
+			trueRange: 0.52,
+			baselineAtr: 0.18,
+			baselineThroughSessionDate: '2026-09-29',
+			expansionMultiple: 2.85,
+		},
+		coincidesWithLargeMove: false,
+	} as const;
 	const availableLine = {
 		status: 'available',
 		instrumentId: 'ggal',
 		tradingLineId: 'ggal-stock-byma-ars',
-		latestState: { sessionDate: '2026-10-02' },
-		events: [],
+		latestState,
+		events: [volatilityExpansion],
+		largeMoves: [],
 	};
+	const liquidity = { participation: 1, medianDailyTradedValueUsd: 43_290 };
 	const unavailableLine = {
 		status: 'unavailable',
 		instrumentId: 'meli',
 		tradingLineId: 'meli-cedear-byma-ars',
 		reason: 'insufficient-liquidity',
 		message: 'The line did not trade often enough.',
+		liquidity,
+		corporateActions: [],
 	};
 	const v5Snapshot = { ...snapshot, analyzedLines: [availableLine, unavailableLine] };
 
-	test('returns the run metadata and every line status of a v5 snapshot', () => {
+	test('returns the run metadata and the fields the line pages read', () => {
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(v5Snapshot));
 
 		expect(result).toEqual({
@@ -101,11 +123,16 @@ describe('parseAnalysisSnapshotOverview', () => {
 						status: 'available',
 						instrumentId: 'ggal',
 						tradingLineId: 'ggal-stock-byma-ars',
+						latestState,
+						events: [volatilityExpansion],
 					},
 					{
 						status: 'unavailable',
 						instrumentId: 'meli',
 						tradingLineId: 'meli-cedear-byma-ars',
+						reason: 'insufficient-liquidity',
+						message: 'The line did not trade often enough.',
+						liquidity,
 					},
 				],
 			},
@@ -155,6 +182,46 @@ describe('parseAnalysisSnapshotOverview', () => {
 			ok: false,
 			reason: 'invalid-snapshot',
 			message: expect.stringContaining('analyzedLines.0.status'),
+		});
+	});
+
+	test('rejects an available line without a latest State', () => {
+		const { latestState: _latestState, ...lineWithoutState } = availableLine;
+		const malformedSnapshot = { ...v5Snapshot, analyzedLines: [lineWithoutState] };
+
+		const result = parseAnalysisSnapshotOverview(JSON.stringify(malformedSnapshot));
+
+		expect(result).toMatchObject({
+			ok: false,
+			reason: 'invalid-snapshot',
+			message: expect.stringContaining('analyzedLines.0.latestState'),
+		});
+	});
+
+	test('rejects an Event of an unknown type', () => {
+		const unknownEvent = { ...volatilityExpansion, event: { type: 'gap-up' } };
+		const lineWithUnknownEvent = { ...availableLine, events: [unknownEvent] };
+		const malformedSnapshot = { ...v5Snapshot, analyzedLines: [lineWithUnknownEvent] };
+
+		const result = parseAnalysisSnapshotOverview(JSON.stringify(malformedSnapshot));
+
+		expect(result).toMatchObject({
+			ok: false,
+			reason: 'invalid-snapshot',
+			message: expect.stringContaining('analyzedLines.0.events.0.event.type'),
+		});
+	});
+
+	test('rejects an insufficiently liquid line without its liquidity measures', () => {
+		const { liquidity: _liquidity, ...lineWithoutLiquidity } = unavailableLine;
+		const malformedSnapshot = { ...v5Snapshot, analyzedLines: [lineWithoutLiquidity] };
+
+		const result = parseAnalysisSnapshotOverview(JSON.stringify(malformedSnapshot));
+
+		expect(result).toMatchObject({
+			ok: false,
+			reason: 'invalid-snapshot',
+			message: expect.stringContaining('analyzedLines.0.liquidity'),
 		});
 	});
 

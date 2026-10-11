@@ -1,0 +1,10 @@
+- [x] Archive `scaffold-web-app`.
+- [x] Read the TanStack Start prerender docs and the installed plugin's prerender options.
+- [x] Draft the proposal, design and the `web-app` and `analysis-run` deltas.
+- [x] Validate the State, Event and unavailable-line fields in `readLatest`.
+- [x] Derive the prerender pages from the snapshot and fail the build without one.
+- [x] Add the line page and link it from `/`.
+- [x] Split the line page into server functions, route, colocated components and formatting.
+- [x] Test the page list and the failure on a missing, invalid or empty snapshot.
+- [x] Run tests, typecheck, lint, format, OpenSpec validation and a build against the bucket.
+- [ ] Archive.

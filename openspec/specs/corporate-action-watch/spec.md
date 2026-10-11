@@ -8,7 +8,7 @@ Find, in Open BYMADATA's relevant-facts feed, the Corporate Action Notices that 
 
 ### Requirement: committed matching rules
 
-The corporate-action-watch module SHALL load `src/modules/corporate-action-watch/data/corporate-action-watch-rules.v1.json` and SHALL fail to load when it is invalid. The file SHALL hold exactly:
+The corporate-action-watch module SHALL load `src/analysis/modules/corporate-action-watch/data/corporate-action-watch-rules.v1.json` and SHALL fail to load when it is invalid. The file SHALL hold exactly:
 
 - `schemaVersion: 1`;
 - `cedearProgramIssuers`: a non-empty list of distinct `emisor` names of CEDEAR program issuers;

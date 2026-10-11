@@ -9,12 +9,145 @@ const messages = {
 	invalidType: 'Value has an invalid type or shape.',
 } as const;
 
-const analyzedLineOverviewSchema = v.object(
+const stringSchema = v.string(messages.invalidType);
+const numberSchema = v.number(messages.invalidType);
+const sessionDateSchema = v.pipe(
+	stringSchema,
+	v.check(checkIfIsoDateIsValid, messages.invalidSessionDate),
+);
+const regimeSchema = v.picklist(['bullish', 'bearish', 'mixed'], messages.invalidType);
+
+const latestStateSchema = v.object(
 	{
-		status: v.picklist(['available', 'unavailable'], messages.invalidType),
-		instrumentId: v.string(messages.invalidType),
-		tradingLineId: v.string(messages.invalidType),
+		sessionDate: sessionDateSchema,
+		regime: v.nullable(regimeSchema),
+		structure: v.nullable(
+			v.picklist(['uptrend', 'downtrend', 'range', 'undefined'], messages.invalidType),
+		),
+		rsi: v.nullable(numberSchema),
+		priceRelativeToEmaInAtr: v.nullable(numberSchema),
 	},
+	messages.invalidType,
+);
+
+const confirmedSwingSchema = v.object(
+	{
+		kind: v.picklist(['high', 'low'], messages.invalidType),
+		price: numberSchema,
+		occurredAtSession: sessionDateSchema,
+		confirmedAtSession: sessionDateSchema,
+	},
+	messages.invalidType,
+);
+
+const analysisEventSchema = v.variant(
+	'type',
+	[
+		v.object(
+			{
+				type: v.literal('regime-transition'),
+				from: regimeSchema,
+				to: regimeSchema,
+				confirmingSessionDates: v.pipe(
+					v.tuple(
+						[sessionDateSchema, sessionDateSchema, sessionDateSchema],
+						messages.invalidType,
+					),
+					v.readonly(),
+				),
+			},
+			messages.invalidType,
+		),
+		v.object(
+			{
+				type: v.literal('structure-break'),
+				direction: v.picklist(['upward', 'downward'], messages.invalidType),
+				priorStructure: v.picklist(['uptrend', 'downtrend'], messages.invalidType),
+				definingSwing: confirmedSwingSchema,
+				closePrice: numberSchema,
+			},
+			messages.invalidType,
+		),
+		v.object(
+			{
+				type: v.literal('volatility-expansion'),
+				trueRange: numberSchema,
+				baselineAtr: numberSchema,
+				baselineThroughSessionDate: sessionDateSchema,
+				expansionMultiple: numberSchema,
+			},
+			messages.invalidType,
+		),
+	],
+	messages.invalidType,
+);
+
+const snapshotEventSchema = v.object(
+	{
+		sessionDate: sessionDateSchema,
+		event: analysisEventSchema,
+		coincidesWithLargeMove: v.boolean(messages.invalidType),
+	},
+	messages.invalidType,
+);
+
+const lineIdentityEntries = {
+	instrumentId: stringSchema,
+	tradingLineId: stringSchema,
+};
+
+const analyzedLineSchema = v.variant(
+	'status',
+	[
+		v.object(
+			{
+				status: v.literal('available'),
+				...lineIdentityEntries,
+				latestState: latestStateSchema,
+				events: v.pipe(v.array(snapshotEventSchema, messages.invalidType), v.readonly()),
+			},
+			messages.invalidType,
+		),
+		v.variant(
+			'reason',
+			[
+				v.object(
+					{
+						status: v.literal('unavailable'),
+						...lineIdentityEntries,
+						reason: v.literal('insufficient-liquidity'),
+						message: stringSchema,
+						liquidity: v.object(
+							{
+								participation: numberSchema,
+								medianDailyTradedValueUsd: v.nullable(numberSchema),
+							},
+							messages.invalidType,
+						),
+					},
+					messages.invalidType,
+				),
+				v.object(
+					{
+						status: v.literal('unavailable'),
+						...lineIdentityEntries,
+						reason: v.picklist(
+							[
+								'fetch-failed',
+								'invalid-bars',
+								'no-provider-bars',
+								'no-dollarized-bars',
+							],
+							messages.invalidType,
+						),
+						message: stringSchema,
+					},
+					messages.invalidType,
+				),
+			],
+			messages.invalidType,
+		),
+	],
 	messages.invalidType,
 );
 
@@ -25,15 +158,9 @@ const analyzedLineOverviewSchema = v.object(
 export const analysisSnapshotOverviewSchema = v.object(
 	{
 		schemaVersion: v.literal(5, messages.invalidSchemaVersion),
-		ranAt: v.pipe(v.string(messages.invalidType), v.isoTimestamp(messages.invalidTimestamp)),
-		requestedThroughSession: v.pipe(
-			v.string(messages.invalidType),
-			v.check(checkIfIsoDateIsValid, messages.invalidSessionDate),
-		),
-		analyzedLines: v.pipe(
-			v.array(analyzedLineOverviewSchema, messages.invalidType),
-			v.readonly(),
-		),
+		ranAt: v.pipe(stringSchema, v.isoTimestamp(messages.invalidTimestamp)),
+		requestedThroughSession: sessionDateSchema,
+		analyzedLines: v.pipe(v.array(analyzedLineSchema, messages.invalidType), v.readonly()),
 	},
 	messages.invalidType,
 );

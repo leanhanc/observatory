@@ -1,4 +1,4 @@
-import type { ValidationError } from '#lib/utils/validation.ts';
+import type { ValidationError } from '#lib/utils/validation/index.ts';
 import type { Logger } from '#modules/logger/index.ts';
 import type {
 	BarHistoryAcquisitionFailureReason,

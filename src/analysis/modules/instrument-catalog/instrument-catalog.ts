@@ -1,6 +1,6 @@
 import * as v from 'valibot';
 
-import { mapValibotIssues } from '#lib/utils/validation.ts';
+import { mapValibotIssues } from '#lib/utils/validation/index.ts';
 
 import { instrumentCatalogSchema, resolveSchemaIssueCode } from './instrument-catalog.schema.ts';
 

@@ -3,7 +3,7 @@ import {
 	checkIfValueIsRecord,
 	createValidationError,
 	type ValidationError,
-} from '#lib/utils/validation.ts';
+} from '#lib/utils/validation/index.ts';
 
 import type { DailyBar, SessionDateRange, ValidationIssue } from '../bar-history.types.ts';
 import type { BarHistoryStorage, BarHistoryStorageReadResult } from '../storage/index.ts';

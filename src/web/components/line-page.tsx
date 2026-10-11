@@ -1,7 +1,7 @@
 import { AvailableLineDetails } from './available-line-details.tsx';
 import { UnavailableLineDetails } from './unavailable-line-details.tsx';
 
-import type { LinePageProps } from '#web/lib/utils/snapshot-pages.ts';
+import type { LinePageProps } from '#web/lib/utils/snapshot-pages/index.ts';
 
 export function LinePage({ ranAt, requestedThroughSession, line }: LinePageProps) {
 	return (

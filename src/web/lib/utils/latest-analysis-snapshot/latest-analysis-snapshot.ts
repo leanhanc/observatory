@@ -1,7 +1,6 @@
 import { createAnalysisSnapshotStorage } from '#modules/analysis-run/index.ts';
 import { resolveBarHistoryStorageConfiguration } from '#server/bar-history-storage-configuration/index.ts';
-
-import { requireRenderableSnapshot } from './snapshot-pages.ts';
+import { requireRenderableSnapshot } from '#web/lib/utils/snapshot-pages/index.ts';
 
 import type { AnalysisSnapshotOverview } from '#modules/analysis-run/index.ts';
 

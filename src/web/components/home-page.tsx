@@ -1,4 +1,4 @@
-import { buildLinePagePath } from '#web/lib/utils/snapshot-pages.ts';
+import { buildLinePagePath } from '#web/lib/utils/snapshot-pages/index.ts';
 
 import type { AnalysisSnapshotOverview } from '#modules/analysis-run/index.ts';
 

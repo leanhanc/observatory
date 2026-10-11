@@ -5,7 +5,7 @@ import { parseArgs } from 'node:util';
 
 import * as v from 'valibot';
 
-import { checkIfIsoDateIsValid } from '#lib/utils/validation.ts';
+import { checkIfIsoDateIsValid } from '#lib/utils/validation/index.ts';
 import { resolvePreviousMarketDate } from '#modules/analysis-run/index.ts';
 import {
 	createOpenBymadataAdapter,

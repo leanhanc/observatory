@@ -1,4 +1,4 @@
-import type { SnapshotEvent } from '#web/lib/utils/snapshot-pages.types.ts';
+import type { SnapshotEvent } from '#web/lib/utils/snapshot-pages/index.ts';
 
 const numberFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 

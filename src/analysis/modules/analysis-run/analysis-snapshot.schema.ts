@@ -1,6 +1,6 @@
 import * as v from 'valibot';
 
-import { checkIfIsoDateIsValid } from '#lib/utils/validation.ts';
+import { checkIfIsoDateIsValid } from '#lib/utils/validation/index.ts';
 
 const messages = {
 	invalidSchemaVersion: 'Schema version must be 5.',

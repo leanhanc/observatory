@@ -1,6 +1,6 @@
 import * as v from 'valibot';
 
-import { mapValibotIssues } from '#lib/utils/validation.ts';
+import { mapValibotIssues } from '#lib/utils/validation/index.ts';
 
 import { watchRulesSchema } from './corporate-action-watch.schema.ts';
 import { buildDocumentDownloadUrl, fetchRelevantFacts } from './relevant-facts-feed.ts';

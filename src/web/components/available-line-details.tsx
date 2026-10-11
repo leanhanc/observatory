@@ -1,8 +1,8 @@
-import { formatEvaluatedValue } from '#web/lib/utils/line-formatting.ts';
+import { formatEvaluatedValue } from '#web/lib/utils/line-formatting/index.ts';
 
 import { EventDetails } from './event-details.tsx';
 
-import type { AvailableLine } from '#web/lib/utils/snapshot-pages.types.ts';
+import type { AvailableLine } from '#web/lib/utils/snapshot-pages/index.ts';
 
 export function AvailableLineDetails({ line }: { line: AvailableLine }) {
 	const { sessionDate, regime, structure, rsi, priceRelativeToEmaInAtr } = line.latestState;

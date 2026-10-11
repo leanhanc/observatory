@@ -1,7 +1,7 @@
 /* oxlint-disable no-console -- This operational command reports a concise pilot summary. */
 import { parseArgs } from 'node:util';
 
-import { checkIfIsoDateIsValid } from '#lib/utils/validation.ts';
+import { checkIfIsoDateIsValid } from '#lib/utils/validation/index.ts';
 import {
 	createBarHistoryReader,
 	createBarHistoryStorage,

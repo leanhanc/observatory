@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 
 import { loadEnv } from 'vite';
 
-import { readRenderableSnapshot } from '#web/lib/utils/latest-analysis-snapshot.ts';
+import { readRenderableSnapshot } from '#web/lib/utils/latest-analysis-snapshot/index.ts';
 
 import type { AstroIntegration } from 'astro';
 import type { Plugin } from 'vite';

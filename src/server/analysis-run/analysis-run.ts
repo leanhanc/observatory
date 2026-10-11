@@ -1,6 +1,6 @@
 import { parseArgs } from 'node:util';
 
-import { checkIfIsoDateIsValid } from '#lib/utils/validation.ts';
+import { checkIfIsoDateIsValid } from '#lib/utils/validation/index.ts';
 import {
 	createAnalysisRunner,
 	createAnalysisSnapshotStorage,

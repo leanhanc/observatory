@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 
 import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
-import { mapValibotIssues } from '#lib/utils/validation.ts';
+import { mapValibotIssues } from '#lib/utils/validation/index.ts';
 
 import { corporateActionListSchema } from './corporate-actions.schema.ts';
 

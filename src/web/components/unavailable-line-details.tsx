@@ -1,6 +1,6 @@
-import { formatMedianTradedValue, formatNumber } from '#web/lib/utils/line-formatting.ts';
+import { formatMedianTradedValue, formatNumber } from '#web/lib/utils/line-formatting/index.ts';
 
-import type { UnavailableLine } from '#web/lib/utils/snapshot-pages.types.ts';
+import type { UnavailableLine } from '#web/lib/utils/snapshot-pages/index.ts';
 
 export function UnavailableLineDetails({ line }: { line: UnavailableLine }) {
 	return (

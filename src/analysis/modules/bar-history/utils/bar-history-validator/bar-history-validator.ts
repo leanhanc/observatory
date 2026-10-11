@@ -6,7 +6,7 @@ import {
 	createValidationError,
 	createValibotObjectPath,
 	mapValibotIssues,
-} from '#lib/utils/validation.ts';
+} from '#lib/utils/validation/index.ts';
 
 import type {
 	ReconcileBarHistoryInput,

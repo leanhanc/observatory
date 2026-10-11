@@ -4,7 +4,7 @@ import {
 	checkIfIsoDateIsValid,
 	createValidationError,
 	mapValibotIssues,
-} from '#lib/utils/validation.ts';
+} from '#lib/utils/validation/index.ts';
 
 import {
 	BAR_HISTORY_ACQUISITION_MODES,

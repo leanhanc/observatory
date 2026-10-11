@@ -3,7 +3,7 @@ import {
 	checkIfIsoDateIsValid,
 	checkIfValueIsRecord,
 	createValidationError,
-} from '#lib/utils/validation.ts';
+} from '#lib/utils/validation/index.ts';
 
 import { buildOpenBymadataSource } from '../adapters/index.ts';
 import { validateBarHistory } from '../utils/index.ts';
@@ -12,7 +12,7 @@ import {
 	HISTORICAL_REQUEST_PAUSE_MS,
 } from './bar-history-acquirer.constants.ts';
 
-import type { ValidationError } from '#lib/utils/validation.ts';
+import type { ValidationError } from '#lib/utils/validation/index.ts';
 import type {
 	OpenBymadataAdapter,
 	OpenBymadataFailure,

@@ -1,5 +1,5 @@
 import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
-import { checkIfIsoDateIsValid } from '#lib/utils/validation.ts';
+import { checkIfIsoDateIsValid } from '#lib/utils/validation/index.ts';
 import {
 	HISTORICAL_REQUEST_PAUSE_MS,
 	createOpenBymadataAdapter,

@@ -1,7 +1,7 @@
 import * as v from 'valibot';
 
 import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
-import { checkIfIsoDateIsValid } from '#lib/utils/validation.ts';
+import { checkIfIsoDateIsValid } from '#lib/utils/validation/index.ts';
 
 const { maximumStepDeviation } = ANALYSIS_CONFIGURATION.corporateActions;
 

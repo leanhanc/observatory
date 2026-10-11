@@ -16,6 +16,7 @@ const availableLine = {
 		structure: 'downtrend',
 		rsi: 33.6,
 		priceRelativeToEmaInAtr: -1.39,
+		priceRelativeToLongTermEmaInPercent: -4.2,
 	},
 	events: [],
 } as const;

@@ -78,6 +78,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 		structure: 'downtrend',
 		rsi: null,
 		priceRelativeToEmaInAtr: -1.39,
+		priceRelativeToLongTermEmaInPercent: -4.2,
 	} as const;
 	const volatileSession = {
 		sessionDate: '2026-09-30',
@@ -177,18 +178,24 @@ describe('parseAnalysisSnapshotOverview', () => {
 		expect(pesoResult).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
 	});
 
-	test('rejects a v5 Event type', () => {
+	test('rejects a v5 Event type and a State without the long-term distance', () => {
 		const v5Event = {
 			...volatileSession,
 			event: { ...volatileSession.event, type: 'volatility-expansion' },
 		};
+		const { priceRelativeToLongTermEmaInPercent: _distance, ...v5State } = latestState;
 		const lineWithV5Event = { ...availableLine, events: [v5Event] };
+		const lineWithV5State = { ...availableLine, latestState: v5State };
 
 		const eventResult = parseAnalysisSnapshotOverview(
 			JSON.stringify({ ...v6Snapshot, analyzedLines: [lineWithV5Event] }),
 		);
+		const stateResult = parseAnalysisSnapshotOverview(
+			JSON.stringify({ ...v6Snapshot, analyzedLines: [lineWithV5State] }),
+		);
 
 		expect(eventResult).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
+		expect(stateResult).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
 	});
 
 	test('rejects data that is not JSON', () => {

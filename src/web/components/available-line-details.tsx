@@ -1,4 +1,7 @@
-import { formatEvaluatedValue } from '#web/lib/utils/line-formatting/index.ts';
+import {
+	formatEvaluatedPercent,
+	formatEvaluatedValue,
+} from '#web/lib/utils/line-formatting/index.ts';
 
 import { EventDetails } from './event-details.tsx';
 
@@ -7,7 +10,14 @@ import type { AvailableLine, SnapshotPriceUnit } from '#web/lib/utils/snapshot-p
 type AvailableLineDetailsProps = { line: AvailableLine; priceUnit: SnapshotPriceUnit };
 
 export function AvailableLineDetails({ line, priceUnit }: AvailableLineDetailsProps) {
-	const { sessionDate, regime, structure, rsi, priceRelativeToEmaInAtr } = line.latestState;
+	const {
+		sessionDate,
+		regime,
+		structure,
+		rsi,
+		priceRelativeToEmaInAtr,
+		priceRelativeToLongTermEmaInPercent,
+	} = line.latestState;
 	const hasEvents = line.events.length > 0;
 
 	return (
@@ -19,6 +29,10 @@ export function AvailableLineDetails({ line, priceUnit }: AvailableLineDetailsPr
 				<li>RSI: {formatEvaluatedValue(rsi)}</li>
 				<li>
 					Price relative to EMA, in ATRs: {formatEvaluatedValue(priceRelativeToEmaInAtr)}
+				</li>
+				<li>
+					Price relative to the long-term EMA:{' '}
+					{formatEvaluatedPercent(priceRelativeToLongTermEmaInPercent)}
 				</li>
 			</ul>
 			<h2>Events</h2>

@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 
-import { describeEvent, formatEvaluatedValue, formatPrice } from './line-formatting.ts';
+import {
+	describeEvent,
+	formatEvaluatedPercent,
+	formatEvaluatedValue,
+	formatPrice,
+} from './line-formatting.ts';
 
 describe('formatEvaluatedValue', () => {
 	test('shows a part the analysis could not evaluate as not evaluated', () => {
@@ -9,6 +14,16 @@ describe('formatEvaluatedValue', () => {
 
 	test('shows an evaluated zero as a number, not as missing', () => {
 		expect(formatEvaluatedValue(0)).toBe('0');
+	});
+});
+
+describe('formatEvaluatedPercent', () => {
+	test('shows a percentage with its sign and a percent mark', () => {
+		expect(formatEvaluatedPercent(-4.2)).toBe('-4.2%');
+	});
+
+	test('shows a part the analysis could not evaluate as not evaluated', () => {
+		expect(formatEvaluatedPercent(null)).toBe('not evaluated');
 	});
 });
 

@@ -18,4 +18,9 @@ export type InstrumentState = Readonly<{
 	rsi: number | null;
 	/** `(close − EMA) / ATR`: how far the close sits from its average, in typical daily ranges. */
 	priceRelativeToEmaInAtr: number | null;
+	/**
+	 * `(close − long-term EMA) / long-term EMA × 100`, unrounded: how far the close sits from its
+	 * long-term average, in percent of it. `null` until that average is readable.
+	 */
+	priceRelativeToLongTermEmaInPercent: number | null;
 }>;

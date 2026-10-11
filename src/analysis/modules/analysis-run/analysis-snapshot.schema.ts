@@ -26,6 +26,7 @@ const latestStateSchema = v.object(
 		),
 		rsi: v.nullable(numberSchema),
 		priceRelativeToEmaInAtr: v.nullable(numberSchema),
+		priceRelativeToLongTermEmaInPercent: v.nullable(numberSchema),
 	},
 	messages.invalidType,
 );

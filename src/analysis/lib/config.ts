@@ -4,10 +4,11 @@
  * mean, so it requires a new `version`.
  *
  * Each concept owns its periods, even where values coincide: Regime's band width, a Volatile
- * Session's baseline and the Instrument State's distance unit are separate conventions.
+ * Session's baseline and the Instrument State's distance unit and long-term average are
+ * separate conventions.
  */
 export const ANALYSIS_CONFIGURATION = {
-	version: 4,
+	version: 5,
 	regime: {
 		fastEmaPeriod: 50,
 		slowEmaPeriod: 200,
@@ -26,6 +27,9 @@ export const ANALYSIS_CONFIGURATION = {
 		rsiPeriod: 14,
 		emaPeriod: 20,
 		atrPeriod: 14,
+		// The most widely watched long-term trend reference. Equal to Regime's slow EMA by
+		// convention, not by reuse.
+		longTermEmaPeriod: 200,
 	},
 	// A Trading Line is analyzed only when, over the last `windowSessions` market sessions, it
 	// traded on at least `minimumParticipation` of them and its median traded value in MEP dollars

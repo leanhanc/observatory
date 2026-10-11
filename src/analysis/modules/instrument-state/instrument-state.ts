@@ -15,11 +15,12 @@ import type {
 } from '#modules/technical-analysis/index.ts';
 import type { InstrumentState, ReadableRegime } from './instrument-state.types.ts';
 
-const { rsiPeriod, emaPeriod, atrPeriod } = ANALYSIS_CONFIGURATION.instrumentState;
+const { rsiPeriod, emaPeriod, atrPeriod, longTermEmaPeriod } =
+	ANALYSIS_CONFIGURATION.instrumentState;
 
 /**
- * Describes one Trading Line at the close of each session: Regime, Structure,
- * RSI and the close's distance from its EMA in ATR units.
+ * Describes one Trading Line at the close of each session: Regime, Structure, RSI, the close's
+ * distance from its EMA in ATR units, and its distance from its long-term EMA in percent.
  *
  * Returns one State per bar, in input order. Every bar gets a State; a part
  * that lacks history or a readable input is `null` rather than a fabricated value.
@@ -35,6 +36,7 @@ export function calculateInstrumentStates(bars: readonly DailyBar[]): readonly I
 	const rsiValues = calculateRsi(closes, rsiPeriod);
 	const emaValues = calculateEma(closes, emaPeriod);
 	const atrValues = calculateAtr(bars, atrPeriod);
+	const longTermEmaValues = calculateEma(closes, longTermEmaPeriod);
 
 	return bars.map((bar, index) => ({
 		sessionDate: bar.sessionDate,
@@ -45,6 +47,10 @@ export function calculateInstrumentStates(bars: readonly DailyBar[]): readonly I
 			bar.close,
 			emaValues[index]!,
 			atrValues[index]!,
+		),
+		priceRelativeToLongTermEmaInPercent: measurePriceRelativeToLongTermEma(
+			bar.close,
+			longTermEmaValues[index]!,
 		),
 	}));
 }
@@ -76,6 +82,15 @@ function measurePriceRelativeToEma(
 	}
 
 	return toAvailableValue((close - ema) / atr);
+}
+
+function measurePriceRelativeToLongTermEma(close: number, ema: number | null): number | null {
+	// Validated closes are positive, so a zero average is not expected; dividing by it is undefined.
+	if (ema === null || ema === 0) {
+		return null;
+	}
+
+	return toAvailableValue(((close - ema) / ema) * 100);
 }
 
 function toAvailableValue(value: number | null): number | null {

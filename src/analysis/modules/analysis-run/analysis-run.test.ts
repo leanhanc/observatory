@@ -40,8 +40,9 @@ const al30Bars = sessionDates.map((sessionDate) =>
 );
 const al30dBars = sessionDates.map((sessionDate) => createFlatBar(sessionDate, 1));
 // A steady rise has no confirmed swing highs, so Structure stays unavailable while RSI and the
-// EMA distance warm up within 120 sessions and Regime's EMA200 does not. Trading on 120 of the last
-// 125 sessions at USD 100k or more a day, the line is liquidity-eligible.
+// EMA distance warm up within 120 sessions and the EMA200 of Regime and of the long-term distance
+// does not. Trading on 120 of the last 125 sessions at USD 100k or more a day, the line is
+// liquidity-eligible.
 const shortHistoryDollarBars = sessionDates.slice(-120).map((sessionDate, index) => ({
 	sessionDate,
 	open: 100 + index,
@@ -143,6 +144,7 @@ describe('createAnalysisRunner', () => {
 		expect(shortLine.latestState.structure).toBeNull();
 		expect(shortLine.latestState.rsi).toBeNumber();
 		expect(shortLine.latestState.priceRelativeToEmaInAtr).toBeNumber();
+		expect(shortLine.latestState.priceRelativeToLongTermEmaInPercent).toBeNull();
 	});
 
 	test('records run-level facts and the Analysis Configuration version', async () => {

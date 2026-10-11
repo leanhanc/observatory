@@ -1,5 +1,6 @@
 export {
 	describeEvent,
+	formatEvaluatedPercent,
 	formatEvaluatedValue,
 	formatMedianTradedValue,
 	formatNumber,

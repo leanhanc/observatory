@@ -39,6 +39,7 @@ describe('calculateInstrumentStates', () => {
 		expect(breakIndex).toBeGreaterThanOrEqual(0);
 		expect(Object.keys(states[breakIndex]!).toSorted()).toEqual([
 			'priceRelativeToEmaInAtr',
+			'priceRelativeToLongTermEmaInPercent',
 			'regime',
 			'rsi',
 			'sessionDate',
@@ -59,6 +60,51 @@ describe('calculateInstrumentStates', () => {
 			true,
 		);
 		expect(states.slice(19).every((state) => state.priceRelativeToEmaInAtr! > 0)).toBe(true);
+		expect(states.every((state) => state.priceRelativeToLongTermEmaInPercent === null)).toBe(
+			true,
+		);
+	});
+
+	test('the long-term distance is null exactly until EMA(200) is readable', () => {
+		const shortStates = calculateInstrumentStates(buildRisingBars(199));
+		const states = calculateInstrumentStates(buildRisingBars(201));
+		const warmUpStates = states.slice(0, 199);
+		const readableStates = states.slice(199);
+
+		expect(
+			shortStates.every((state) => state.priceRelativeToLongTermEmaInPercent === null),
+		).toBe(true);
+		expect(
+			warmUpStates.every((state) => state.priceRelativeToLongTermEmaInPercent === null),
+		).toBe(true);
+		expect(
+			readableStates.every((state) => state.priceRelativeToLongTermEmaInPercent! > 0),
+		).toBe(true);
+	});
+
+	test('measures the close below its long-term EMA as a negative percentage', () => {
+		const bars = buildBars([...Array<number>(199).fill(100), 95]);
+		// EMA(200) seeds from the first close and folds in the last one with weight 2 / 201, so it is
+		// 99.9502…, and the close of 95 sits 4.9527…% below it.
+		const lastState = calculateInstrumentStates(bars).at(-1)!;
+
+		expect(lastState.priceRelativeToLongTermEmaInPercent).toBeCloseTo(-4.952712792, 9);
+	});
+
+	test('measures (close − EMA200) / EMA200 × 100 at every session', async () => {
+		const bars = await loadGgalFixture();
+		const closes = bars.map((bar) => bar.close);
+		const ema200 = calculateEma(closes, 200);
+		const states = calculateInstrumentStates(bars);
+
+		states.forEach((state, index) => {
+			const ema = ema200[index]!;
+			const expectedDistance = ema === null ? null : ((closes[index]! - ema) / ema) * 100;
+
+			expect(state.priceRelativeToLongTermEmaInPercent).toBe(expectedDistance);
+		});
+		expect(states.some((state) => state.priceRelativeToLongTermEmaInPercent! < 0)).toBe(true);
+		expect(states.some((state) => state.priceRelativeToLongTermEmaInPercent! > 0)).toBe(true);
 	});
 
 	test('measures RSI(14) and (close − EMA20) / ATR14 at every session', async () => {
@@ -118,6 +164,8 @@ describe('calculateInstrumentStates', () => {
 
 		expect(lastState.regime).toBe('mixed');
 		expect(lastState.priceRelativeToEmaInAtr).toBe(0);
+		// EMA(200) of a constant drifts by floating-point error, so the distance is only about zero.
+		expect(lastState.priceRelativeToLongTermEmaInPercent).toBeCloseTo(0, 10);
 		expect(states.every((state) => state.rsi === null)).toBe(true);
 	});
 
@@ -137,6 +185,8 @@ describe('calculateInstrumentStates', () => {
 
 			expect(prefixStates.at(-1)).toEqual(states[index]);
 		});
+		// The fixture is long enough for the replay to cover readable long-term distances.
+		expect(states.at(-1)!.priceRelativeToLongTermEmaInPercent).not.toBeNull();
 	});
 
 	test('a swing confirmed later does not reach back to sessions before confirmation', async () => {
@@ -176,6 +226,10 @@ function findStructureChangingConfirmation(structures: readonly MarketStructureS
 	}
 
 	return confirmationIndex;
+}
+
+function buildRisingBars(length: number): readonly DailyBar[] {
+	return buildBars(Array.from({ length }, (_, index) => 100 + index));
 }
 
 function deepFreeze(bars: readonly DailyBar[]): readonly DailyBar[] {

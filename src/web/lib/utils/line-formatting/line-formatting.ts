@@ -23,6 +23,15 @@ export function formatEvaluatedValue(value: string | number | null): string {
 	return value;
 }
 
+/** Shows a percentage State part, or "not evaluated" for `null`. */
+export function formatEvaluatedPercent(value: number | null): string {
+	if (value === null) {
+		return 'not evaluated';
+	}
+
+	return `${formatNumber(value)}%`;
+}
+
 /** Labels a price or an ATR with the unit the snapshot declares for every price in it. */
 export function formatPrice(value: number, priceUnit: SnapshotPriceUnit): string {
 	return `${formatNumber(value)} ${PRICE_UNIT_LABELS[priceUnit]}`;

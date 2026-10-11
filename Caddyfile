@@ -1,0 +1,50 @@
+# Railpack's static-site Caddyfile, with a 404 page and no fallback to `/index.html`. Railpack renders
+# this file as a Go template; `{{.DIST_DIR}}` is the build's output directory.
+{
+	admin off
+	persist_config off
+	auto_https off
+
+	log {
+		format json
+	}
+
+	servers {
+		trusted_proxies static private_ranges 100.0.0.0/8 # trust Railway's proxy
+	}
+}
+
+:{$PORT:80} {
+	log {
+		format json
+	}
+
+	respond /health 200
+
+	header {
+		# Prevent some browsers from MIME-sniffing a response away from the declared Content-Type
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	root * {{.DIST_DIR}}
+
+	file_server {
+		hide .git
+		hide .env*
+	}
+
+	encode {
+		gzip
+		zstd
+	}
+
+	# A page is `<path>/index.html`, served with or without a trailing slash.
+	try_files {path} {path}.html {path}/index.html
+
+	# A path without a file answers 404 with the not-found page; `file_server` keeps the status.
+	handle_errors 404 {
+		rewrite * /404.html
+		file_server
+	}
+}

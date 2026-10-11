@@ -35,7 +35,7 @@ export default defineRailway(() => {
 				'/src/web/**',
 				'/src/server/bar-history-storage-configuration/**',
 				'/astro.config.ts',
-				'/Staticfile',
+				'/Caddyfile',
 				TEST_FILES_WATCH_PATTERN,
 			],
 		},

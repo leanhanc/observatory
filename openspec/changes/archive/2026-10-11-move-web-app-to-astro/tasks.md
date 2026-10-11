@@ -5,5 +5,5 @@
 - [x] Update `.railway/railway.ts`, the ignore and lint configs, and AGENTS.md.
 - [x] Run tests, typecheck, lint, format, strict OpenSpec validation, a build and `railway config plan`.
 - [x] Compare a local line page with the live one.
-- [ ] After Lean applies and deploys: check a line page, its trailing-slash form and a 404 on the live site.
-- [ ] Archive.
+- [x] After Lean applies and deploys: check a line page, its trailing-slash form and a 404 on the live site.
+- [x] Archive.

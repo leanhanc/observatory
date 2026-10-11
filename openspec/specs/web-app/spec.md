@@ -8,7 +8,7 @@ The public web app: statically generated pages that render the latest Analysis S
 
 ### Requirement: the home page lists every analyzed line
 
-The web app SHALL render `/` from the latest Analysis Snapshot, read on the server with `readLatest`. Storage credentials and bucket reads SHALL stay on the server; the browser SHALL NOT call the bucket or the market-data provider. The page SHALL render the snapshot's `ranAt` and `requestedThroughSession` and, for each analyzed line in snapshot order, its Trading Line ID, whether it is available or unavailable, and a link to its line page.
+The web app SHALL render `/` from the latest Analysis Snapshot, read at build time with `readLatest`. Storage credentials and bucket reads SHALL stay in the build; the browser SHALL NOT call the bucket or the market-data provider. The page SHALL render the snapshot's `ranAt` and `requestedThroughSession` and, for each analyzed line in snapshot order, its Trading Line ID, whether it is available or unavailable, and a link to its line page.
 
 #### Scenario: a snapshot exists
 
@@ -18,21 +18,21 @@ The web app SHALL render `/` from the latest Analysis Snapshot, read on the serv
 #### Scenario: credentials stay on the server
 
 - **WHEN** the app is built
-- **THEN** the client bundle contains no storage configuration or bucket client
+- **THEN** the published output contains no storage configuration or bucket client
 
 ### Requirement: the build prerenders a page per analyzed line
 
-The web app SHALL be statically generated. `vite build` SHALL read the latest snapshot once and prerender exactly `/` and `/lines/<tradingLineId>` for each analyzed line in it, available or not. The page list SHALL be derived from the snapshot; no Trading Line ID SHALL be written in code or configuration.
+The web app SHALL be statically generated. The build SHALL read the latest snapshot once and prerender exactly `/` and `/lines/<tradingLineId>` for each analyzed line in it, available or not. Each page SHALL be written as `index.html` in a directory named after its path, so that it is served with or without a trailing slash. The page list SHALL be derived from the snapshot; no Trading Line ID SHALL be written in code or configuration.
 
 #### Scenario: two analyzed lines
 
 - **WHEN** the latest snapshot has `ggal-stock-byma-ars` available and `meli-cedear-byma-ars` unavailable
-- **THEN** the build prerenders `/`, `/lines/ggal-stock-byma-ars` and `/lines/meli-cedear-byma-ars`, and no other page
+- **THEN** the build writes `index.html`, `lines/ggal-stock-byma-ars/index.html` and `lines/meli-cedear-byma-ars/index.html`, and no other page
 
 #### Scenario: a line not in the snapshot
 
-- **WHEN** `/lines/<tradingLineId>` is rendered for an ID the snapshot does not have
-- **THEN** it renders not found
+- **WHEN** the snapshot does not have a Trading Line ID
+- **THEN** the build writes no page for it
 
 ### Requirement: every page shows the session it describes
 
@@ -68,19 +68,47 @@ For an unavailable line it SHALL render the reason and message. For reason `insu
 
 ### Requirement: the build fails without a snapshot to render
 
-The build SHALL fail, and SHALL NOT emit pages, when the latest snapshot is missing, unreadable or invalid, or has no analyzed lines. A page whose loader fails during prerendering SHALL fail the build.
+The build SHALL fail, and SHALL NOT emit pages, when the latest snapshot is missing, unreadable or invalid, or has no analyzed lines. A page that fails to render SHALL fail the build.
 
 #### Scenario: no latest snapshot
 
 - **WHEN** the bucket has no `latest.json`
-- **THEN** `vite build` fails with the read failure's message
+- **THEN** the build fails with the read failure's message
 
 #### Scenario: an invalid snapshot
 
 - **WHEN** `latest.json` fails validation
-- **THEN** `vite build` fails with the validation message
+- **THEN** the build fails with the validation message
 
 #### Scenario: a snapshot without analyzed lines
 
 - **WHEN** `latest.json` has an empty `analyzedLines`
-- **THEN** `vite build` fails
+- **THEN** the build fails
+
+### Requirement: pages ship no client JavaScript unless a component is an island
+
+A page SHALL be plain HTML and CSS. It SHALL ship client JavaScript only for a component explicitly declared as an island, which hydrates on its own; no page has one yet. A page SHALL NOT embed a copy of its data for client-side rendering.
+
+#### Scenario: a line page
+
+- **WHEN** the build writes a line page
+- **THEN** the page has no `<script` tag, no modulepreload link and no serialized copy of the snapshot
+
+### Requirement: the build fails when the published output could leak or run code
+
+After writing the pages, the build SHALL check every published file and fail, naming the file, when one contains a `<script` tag, a storage variable name (`OBSERVATORY_STORAGE`) or the bucket endpoint host (`storageapi`). The `<script` rule holds while no page has an island; adding the first island SHALL relax it deliberately, for that island's scripts only.
+
+#### Scenario: a clean build
+
+- **WHEN** the published files contain no script tag, storage variable name or bucket host
+- **THEN** the build succeeds
+
+#### Scenario: a script reaches the output
+
+- **WHEN** a published page contains `<script`
+- **THEN** the build fails and names the page
+
+#### Scenario: server configuration reaches the output
+
+- **WHEN** a published file contains `OBSERVATORY_STORAGE` or `storageapi`
+- **THEN** the build fails and names the file

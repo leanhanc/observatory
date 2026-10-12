@@ -4,6 +4,7 @@ import {
 	calculateAtr,
 	calculateEma,
 	calculateMarketStructure,
+	calculatePendingRegimeTransitions,
 	calculateRegime,
 	calculateRsi,
 	detectStructureBreakEvents,
@@ -38,6 +39,9 @@ describe('calculateInstrumentStates', () => {
 
 		expect(breakIndex).toBeGreaterThanOrEqual(0);
 		expect(Object.keys(states[breakIndex]!).toSorted()).toEqual([
+			'lastConfirmedSwingHigh',
+			'lastConfirmedSwingLow',
+			'pendingRegimeTransition',
 			'priceRelativeToEmaInAtr',
 			'priceRelativeToLongTermEmaInPercent',
 			'regime',
@@ -176,6 +180,115 @@ describe('calculateInstrumentStates', () => {
 		expect(states.every((state) => state.priceRelativeToEmaInAtr === null)).toBe(true);
 	});
 
+	test('uses a swing only from its confirmation session, never while it is a candidate', () => {
+		// The high of 22 occurs at position 3 and is confirmed three bars later; the low of 4 occurs
+		// at position 9 and is confirmed at the last position.
+		const bars = buildBars([10, 11, 12, 20, 12, 11, 10, 9, 8, 5, 8, 9, 10]);
+		const states = calculateInstrumentStates(bars);
+		const swingHigh = {
+			kind: 'high',
+			price: 22,
+			occurredAtSession: '2026-01-04',
+			confirmedAtSession: '2026-01-07',
+		};
+
+		expect(states.slice(0, 6).every((state) => state.lastConfirmedSwingHigh === null)).toBe(
+			true,
+		);
+		expect(states[6]!.lastConfirmedSwingHigh).toMatchObject(swingHigh);
+		expect(states.slice(6).every((state) => state.lastConfirmedSwingHigh !== null)).toBe(true);
+		expect(states.slice(0, 12).every((state) => state.lastConfirmedSwingLow === null)).toBe(
+			true,
+		);
+		expect(states[12]!.lastConfirmedSwingLow).toMatchObject({
+			kind: 'low',
+			price: 4,
+			occurredAtSession: '2026-01-10',
+			confirmedAtSession: '2026-01-13',
+		});
+	});
+
+	test('measures the close below a swing high as negative and above a swing low as positive', () => {
+		const bars = buildBars([10, 11, 12, 20, 12, 11, 10, 9, 8, 5, 8, 9, 10]);
+		const lastState = calculateInstrumentStates(bars).at(-1)!;
+
+		// The close of 10 is 12 below the high of 22 and 6 above the low of 4.
+		expect(lastState.lastConfirmedSwingHigh!.priceRelativeToSwingInPercent).toBeCloseTo(
+			-54.545454545,
+			9,
+		);
+		expect(lastState.lastConfirmedSwingLow!.priceRelativeToSwingInPercent).toBe(150);
+	});
+
+	test('the last confirmed swing changes exactly on each confirmation session', async () => {
+		const bars = await loadGgalFixture();
+		const states = calculateInstrumentStates(bars);
+		const confirmations = calculateMarketStructure(bars).flatMap((session, index) =>
+			session.newlyConfirmedSwings.map((swing) => ({ swing, index })),
+		);
+
+		expect(confirmations.length).toBeGreaterThan(4);
+		for (const { swing, index } of confirmations) {
+			const part = swing.kind === 'high' ? 'lastConfirmedSwingHigh' : 'lastConfirmedSwingLow';
+			const { priceRelativeToSwingInPercent, ...confirmedSwing } = states[index]![part]!;
+
+			expect(confirmedSwing).toEqual(swing);
+			expect(states[index - 1]![part]?.confirmedAtSession).not.toBe(swing.confirmedAtSession);
+			expect(priceRelativeToSwingInPercent).toBe(
+				((bars[index]!.close - swing.price) / swing.price) * 100,
+			);
+		}
+	});
+
+	test('the swing a Structure Break crosses is the previous session’s last confirmed swing', async () => {
+		const bars = await loadGgalFixture();
+		const states = calculateInstrumentStates(bars);
+		const breaks = detectStructureBreakEvents(bars).flatMap((session, index) =>
+			session.event === null ? [] : [{ event: session.event, index }],
+		);
+
+		expect(breaks.length).toBeGreaterThan(0);
+		for (const { event, index } of breaks) {
+			const previousState = states[index - 1]!;
+			const part =
+				event.definingSwing.kind === 'high'
+					? previousState.lastConfirmedSwingHigh
+					: previousState.lastConfirmedSwingLow;
+
+			expect(part).toMatchObject(event.definingSwing);
+		}
+	});
+
+	test('reports the pending Regime transition of the same session, and none without a Regime', async () => {
+		const bars = await loadGgalFixture();
+		const pendingTransitions = calculatePendingRegimeTransitions(bars);
+		const states = calculateInstrumentStates(bars);
+
+		states.forEach((state, index) => {
+			expect(state.pendingRegimeTransition).toEqual(pendingTransitions[index]!.pending);
+		});
+		expect(states.some((state) => state.pendingRegimeTransition !== null)).toBe(true);
+		expect(
+			states
+				.filter((state) => state.regime === null)
+				.every((state) => state.pendingRegimeTransition === null),
+		).toBe(true);
+	});
+
+	test('a candidate part-way through confirmation sits beside the settled Regime', () => {
+		// A flat history settles `mixed`; a jump then proposes `bullish`, and two sharp falls replace
+		// it with `bearish` twice.
+		const bars = buildBars([...Array<number>(205).fill(100), 120, 60, 60]);
+		const lastState = calculateInstrumentStates(bars).at(-1)!;
+
+		expect(lastState.regime).toBe('mixed');
+		expect(lastState.pendingRegimeTransition).toEqual({
+			candidate: 'bearish',
+			confirmations: 2,
+			requiredConfirmations: 3,
+		});
+	});
+
 	test('every prefix replays the full-history State at the same session', async () => {
 		const bars = await loadGgalFixture();
 		const states = calculateInstrumentStates(bars);
@@ -185,8 +298,12 @@ describe('calculateInstrumentStates', () => {
 
 			expect(prefixStates.at(-1)).toEqual(states[index]);
 		});
-		// The fixture is long enough for the replay to cover readable long-term distances.
+		// The fixture is long enough for the replay to cover readable long-term distances, both
+		// confirmed swing kinds and pending Regime transitions.
 		expect(states.at(-1)!.priceRelativeToLongTermEmaInPercent).not.toBeNull();
+		expect(states.at(-1)!.lastConfirmedSwingHigh).not.toBeNull();
+		expect(states.at(-1)!.lastConfirmedSwingLow).not.toBeNull();
+		expect(states.some((state) => state.pendingRegimeTransition !== null)).toBe(true);
 	});
 
 	test('a swing confirmed later does not reach back to sessions before confirmation', async () => {

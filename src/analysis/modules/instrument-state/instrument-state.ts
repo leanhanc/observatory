@@ -3,24 +3,34 @@ import {
 	calculateAtr,
 	calculateEma,
 	calculateMarketStructure,
+	calculatePendingRegimeTransitions,
 	calculateRegime,
 	calculateRsi,
+	trackLatestConfirmedSwings,
 } from '#modules/technical-analysis/index.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
 import type {
+	ConfirmedHigh,
+	ConfirmedLow,
 	MarketStructureSession,
 	Regime,
 	StructureClassification,
 } from '#modules/technical-analysis/index.ts';
-import type { InstrumentState, ReadableRegime } from './instrument-state.types.ts';
+import type {
+	ConfirmedSwingLevel,
+	InstrumentState,
+	ReadableRegime,
+} from './instrument-state.types.ts';
 
 const { rsiPeriod, emaPeriod, atrPeriod, longTermEmaPeriod } =
 	ANALYSIS_CONFIGURATION.instrumentState;
 
 /**
- * Describes one Trading Line at the close of each session: Regime, Structure, RSI, the close's
- * distance from its EMA in ATR units, and its distance from its long-term EMA in percent.
+ * Describes one Trading Line at the close of each session: Regime and any pending change of it,
+ * Structure and the last confirmed swing high and low with the close's distance from them, RSI,
+ * the close's distance from its EMA in ATR units, and its distance from its long-term EMA in
+ * percent.
  *
  * Returns one State per bar, in input order. Every bar gets a State; a part
  * that lacks history or a readable input is `null` rather than a fabricated value.
@@ -32,7 +42,9 @@ const { rsiPeriod, emaPeriod, atrPeriod, longTermEmaPeriod } =
 export function calculateInstrumentStates(bars: readonly DailyBar[]): readonly InstrumentState[] {
 	const closes = bars.map((bar) => bar.close);
 	const regimes = calculateRegime(bars);
+	const pendingRegimeTransitions = calculatePendingRegimeTransitions(bars);
 	const structures = calculateMarketStructure(bars);
+	const latestConfirmedSwings = trackLatestConfirmedSwings(structures);
 	const rsiValues = calculateRsi(closes, rsiPeriod);
 	const emaValues = calculateEma(closes, emaPeriod);
 	const atrValues = calculateAtr(bars, atrPeriod);
@@ -41,7 +53,10 @@ export function calculateInstrumentStates(bars: readonly DailyBar[]): readonly I
 	return bars.map((bar, index) => ({
 		sessionDate: bar.sessionDate,
 		regime: toReadableRegime(regimes[index]!.regime),
+		pendingRegimeTransition: pendingRegimeTransitions[index]!.pending,
 		structure: toAvailableStructure(structures[index]!),
+		lastConfirmedSwingHigh: measureSwingLevel(bar.close, latestConfirmedSwings[index]!.high),
+		lastConfirmedSwingLow: measureSwingLevel(bar.close, latestConfirmedSwings[index]!.low),
 		rsi: toAvailableValue(rsiValues[index]!),
 		priceRelativeToEmaInAtr: measurePriceRelativeToEma(
 			bar.close,
@@ -84,13 +99,35 @@ function measurePriceRelativeToEma(
 	return toAvailableValue((close - ema) / atr);
 }
 
-function measurePriceRelativeToLongTermEma(close: number, ema: number | null): number | null {
-	// Validated closes are positive, so a zero average is not expected; dividing by it is undefined.
-	if (ema === null || ema === 0) {
+function measureSwingLevel<Swing extends ConfirmedHigh | ConfirmedLow>(
+	close: number,
+	swing: Swing | null,
+): ConfirmedSwingLevel<Swing> | null {
+	if (swing === null) {
 		return null;
 	}
 
-	return toAvailableValue(((close - ema) / ema) * 100);
+	return {
+		...swing,
+		priceRelativeToSwingInPercent: measurePriceRelativeInPercent(close, swing.price),
+	};
+}
+
+function measurePriceRelativeToLongTermEma(close: number, ema: number | null): number | null {
+	if (ema === null) {
+		return null;
+	}
+
+	return measurePriceRelativeInPercent(close, ema);
+}
+
+function measurePriceRelativeInPercent(close: number, reference: number): number | null {
+	// Validated prices are positive, so a zero reference is not expected; dividing by it is undefined.
+	if (reference === 0) {
+		return null;
+	}
+
+	return toAvailableValue(((close - reference) / reference) * 100);
 }
 
 function toAvailableValue(value: number | null): number | null {

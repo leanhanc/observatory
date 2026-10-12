@@ -1,2 +1,6 @@
 export { calculateInstrumentStates } from './instrument-state.ts';
-export type { InstrumentState, ReadableRegime } from './instrument-state.types.ts';
+export type {
+	ConfirmedSwingLevel,
+	InstrumentState,
+	ReadableRegime,
+} from './instrument-state.types.ts';

@@ -55,3 +55,14 @@ function divideBarPrices(bar: DailyBar, mepRate: number): DailyBar {
 		volume: bar.volume,
 	};
 }
+
+/**
+ * Expresses a MEP-dollar price in pesos at one session's MEP Rate, the reverse of dollarization.
+ * The result describes that session only: the same price has a different peso equivalent at every
+ * other rate, so callers state the session whose rate they pass.
+ *
+ * Precondition, not checked: `mepRate` is positive and finite.
+ */
+export function toPesoEquivalent(valueInMepDollars: number, mepRate: number): number {
+	return valueInMepDollars * mepRate;
+}

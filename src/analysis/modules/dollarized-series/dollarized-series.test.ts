@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { calculateAtr, calculateEma, calculateRsi } from '#modules/technical-analysis/index.ts';
 
-import { calculateMepRates, dollarizeBarHistory } from './index.ts';
+import { calculateMepRates, dollarizeBarHistory, toPesoEquivalent } from './index.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
 
@@ -283,6 +283,30 @@ function measure(bars: readonly DailyBar[]) {
 function largestGap(a: readonly (number | null)[], b: readonly (number | null)[]): number {
 	return Math.max(...a.map((value, index) => Math.abs((value ?? 0) - (b[index] ?? 0))));
 }
+
+describe('toPesoEquivalent', () => {
+	test('expresses a MEP-dollar level in pesos at the stated rate', () => {
+		expect(toPesoEquivalent(4, 1500)).toBe(6000);
+	});
+
+	test('reverses dollarization at the same session rate', () => {
+		const [dollarizedBar] = dollarizeBarHistory(
+			[
+				{
+					sessionDate: '2026-01-02',
+					open: 1000,
+					high: 1100,
+					low: 900,
+					close: 1050,
+					volume: 5,
+				},
+			],
+			[{ sessionDate: '2026-01-02', mepRate: 1000 }],
+		).bars;
+
+		expect(toPesoEquivalent(dollarizedBar!.close, 1000)).toBeCloseTo(1050, 9);
+	});
+});
 
 describe('why dollarize (explanatory examples)', () => {
 	test('a flat asset in dollars stays flat when its peso price follows the MEP rate', () => {

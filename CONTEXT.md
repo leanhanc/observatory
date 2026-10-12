@@ -52,6 +52,10 @@ _Avoid_: Carried Close, no-trade bar
 A visual representation of a Daily Bar in a price chart.
 _Avoid_: Daily Bar when referring to the market-data record
 
+**Peso Equivalent**:
+A MEP-dollar price of a Dollarized Series expressed in pesos at one stated session's MEP Rate, by applying that rate in reverse. It shows a reader of the peso line where a level sits in the prices their broker shows on that session. It is not a peso market price and not a fixed trigger: the same level has a different Peso Equivalent on every session whose MEP Rate differs.
+_Avoid_: Peso level, peso swing, converting with another session's rate
+
 **Bar History**:
 The chronological sequence of Daily Bars for one Trading Line.
 _Avoid_: Candle history, price history

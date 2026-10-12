@@ -1,3 +1,4 @@
+import type { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
 import type { DailyBar } from '#modules/bar-history/index.ts';
 
 type SessionDate = DailyBar['sessionDate'];
@@ -22,4 +23,20 @@ export type RegimeTransitionEvent = RegimeTransitionFields &
 export type RegimeTransitionSession = Readonly<{
 	sessionDate: SessionDate;
 	event: RegimeTransitionEvent | null;
+}>;
+
+/**
+ * A Regime proposal that differs from settled Regime and has not yet gathered the confirmations a
+ * transition needs. It may still be cleared or replaced; it is not an Event.
+ */
+export type PendingRegimeTransition = Readonly<{
+	candidate: RegimeTransitionEvent['to'];
+	/** Matching readable proposals so far, including this session's. */
+	confirmations: 1 | 2;
+	requiredConfirmations: typeof ANALYSIS_CONFIGURATION.regime.transitionConfirmations;
+}>;
+
+export type PendingRegimeTransitionSession = Readonly<{
+	sessionDate: SessionDate;
+	pending: PendingRegimeTransition | null;
 }>;

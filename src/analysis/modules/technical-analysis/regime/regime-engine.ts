@@ -16,7 +16,7 @@ type SessionDate = DailyBar['sessionDate'];
 type PendingProposalSessionDates = readonly [SessionDate] | readonly [SessionDate, SessionDate];
 type ProposalSessionDates = PendingProposalSessionDates | ConfirmingSessionDates;
 
-type PendingRegime = Readonly<{
+export type PendingRegime = Readonly<{
 	regime: ReadableRegime;
 	proposalSessionDates: PendingProposalSessionDates;
 }>;
@@ -26,10 +26,18 @@ export type RegimeTransitionState = Readonly<{
 	pending: PendingRegime | null;
 }>;
 
+export type RegimeProposalSession = Readonly<{
+	sessionDate: SessionDate;
+	/** `null` when a measurement the proposal needs is unavailable. */
+	proposal: ReadableRegime | null;
+}>;
+
 export type RegimeAnalysisSession = Readonly<{
 	sessionDate: SessionDate;
 	regime: Regime;
 	transition: RegimeTransitionEvent | null;
+	/** The candidate after this session, or `null` when there is none or the session is unreadable. */
+	pending: PendingRegime | null;
 }>;
 
 type RegimeTransitionStep = Readonly<{
@@ -43,38 +51,58 @@ export const INITIAL_REGIME_TRANSITION_STATE: RegimeTransitionState = Object.fre
 });
 
 export function analyzeRegime(bars: readonly DailyBar[]): readonly RegimeAnalysisSession[] {
+	const proposals = proposeRegimes(bars);
+	return followRegimeProposals(proposals);
+}
+
+function proposeRegimes(bars: readonly DailyBar[]): readonly RegimeProposalSession[] {
 	const closes = bars.map((bar) => bar.close);
 	const fastEma = calculateEma(closes, ANALYSIS_CONFIGURATION.regime.fastEmaPeriod);
 	const slowEma = calculateEma(closes, ANALYSIS_CONFIGURATION.regime.slowEmaPeriod);
 	const atr = calculateAtr(bars, ANALYSIS_CONFIGURATION.regime.atrPeriod);
 
-	const sessions: RegimeAnalysisSession[] = [];
-	let state = INITIAL_REGIME_TRANSITION_STATE;
-
-	for (const [index, bar] of bars.entries()) {
-		const proposal = proposeRegime(
+	return bars.map((bar, index) => ({
+		sessionDate: bar.sessionDate,
+		proposal: proposeRegime(
 			bar.close,
 			fastEma[index] ?? null,
 			slowEma[index] ?? null,
 			atr[index] ?? null,
-		);
+		),
+	}));
+}
 
-		const step = advanceRegimeTransitionState(state, proposal, bar.sessionDate);
+/**
+ * Walks per-session Regime proposals oldest to newest through the transition engine. Every view of
+ * Regime, its transitions and its pending candidate reads these sessions.
+ */
+export function followRegimeProposals(
+	proposals: readonly RegimeProposalSession[],
+): readonly RegimeAnalysisSession[] {
+	const sessions: RegimeAnalysisSession[] = [];
+	let state = INITIAL_REGIME_TRANSITION_STATE;
+
+	for (const { sessionDate, proposal } of proposals) {
+		const step = advanceRegimeTransitionState(state, proposal, sessionDate);
 		state = step.state;
 
+		// An unreadable session keeps the engine's candidate for later sessions, but it cannot
+		// report a pending change of a Regime it cannot read.
 		if (proposal === null) {
 			sessions.push({
-				sessionDate: bar.sessionDate,
+				sessionDate,
 				regime: 'undefined',
 				transition: step.transition,
+				pending: null,
 			});
 			continue;
 		}
 
 		sessions.push({
-			sessionDate: bar.sessionDate,
+			sessionDate,
 			regime: state.settled ?? proposal,
 			transition: step.transition,
+			pending: state.pending,
 		});
 	}
 

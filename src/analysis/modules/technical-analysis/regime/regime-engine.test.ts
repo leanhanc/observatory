@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 
-import { advanceRegimeTransitionState, INITIAL_REGIME_TRANSITION_STATE } from './regime-engine.ts';
+import {
+	advanceRegimeTransitionState,
+	followRegimeProposals,
+	INITIAL_REGIME_TRANSITION_STATE,
+} from './regime-engine.ts';
 
 import type { RegimeTransitionEvent } from '../regime-transition/regime-transition.types.ts';
 import type { RegimeTransitionState } from './regime-engine.ts';
@@ -123,6 +127,31 @@ describe('Regime transition engine', () => {
 			'2026-01-04',
 			'2026-01-05',
 		]);
+	});
+
+	test('reports no pending candidate on an unreadable session but keeps counting after it', () => {
+		const sessions = followRegimeProposals([
+			{ sessionDate: '2026-01-01', proposal: 'bullish' },
+			{ sessionDate: '2026-01-02', proposal: 'mixed' },
+			{ sessionDate: '2026-01-03', proposal: null },
+			{ sessionDate: '2026-01-04', proposal: 'mixed' },
+			{ sessionDate: '2026-01-05', proposal: 'mixed' },
+		]);
+
+		expect(sessions.map(({ regime, pending }) => ({ regime, pending }))).toEqual([
+			{ regime: 'bullish', pending: null },
+			{
+				regime: 'bullish',
+				pending: { regime: 'mixed', proposalSessionDates: ['2026-01-02'] },
+			},
+			{ regime: 'undefined', pending: null },
+			{
+				regime: 'bullish',
+				pending: { regime: 'mixed', proposalSessionDates: ['2026-01-02', '2026-01-04'] },
+			},
+			{ regime: 'mixed', pending: null },
+		]);
+		expect(sessions.at(-1)!.transition).toMatchObject({ from: 'bullish', to: 'mixed' });
 	});
 
 	test('emits once and does not repeat while the new regime remains settled', () => {

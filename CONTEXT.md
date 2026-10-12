@@ -108,6 +108,10 @@ _Avoid_: Using rising or falling as the canonical regime labels, buy signal, sel
 An Event in which an already established readable Regime changes to a different readable Regime after the required confirming Trading Sessions. The first readable Regime after unavailable history is initial availability, not a Regime Transition.
 _Avoid_: Treating warm-up completion, an unconfirmed proposal, or an unchanged Regime as an Event
 
+**Pending Regime Transition**:
+A readable Regime proposal that differs from the settled Regime and has not yet gathered the required confirming Trading Sessions, together with how many it has. It is part of the Instrument State, not an Event: a proposal equal to the settled Regime clears it, and a different proposal replaces it and restarts the count. It describes how far confirmation has progressed and predicts nothing about whether the transition will happen.
+_Avoid_: Regime Transition, early signal, imminent change
+
 **Structure**:
 The sequence and relationships of confirmed swing highs and lows in price, conventionally described as an uptrend, downtrend, range, or undefined. A directional Structure depends on a confirmed swing level. That level and the current price's distance from it are Evidence about Structure; they are not a separate state beside Structure and Regime. A completed close beyond that level may produce a structure-break Event and makes Structure undefined rather than automatically reversing it.
 _Avoid_: Pattern, signal, prediction, Structural Hold as a separate state

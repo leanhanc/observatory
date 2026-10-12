@@ -1,11 +1,15 @@
-import { calculateMarketStructure } from '../market-structure/index.ts';
+import { calculateMarketStructure, trackLatestConfirmedSwings } from '../market-structure/index.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
-import type { StructureClassification } from '../market-structure/index.ts';
+import type {
+	ConfirmedHigh,
+	ConfirmedLow,
+	LatestConfirmedSwings,
+	StructureClassification,
+} from '../market-structure/index.ts';
 import type { StructureBreakEvent, StructureBreakSession } from './structure-break.types.ts';
 
-type ConfirmedHigh = Extract<StructureBreakEvent, { direction: 'upward' }>['definingSwing'];
-type ConfirmedLow = Extract<StructureBreakEvent, { direction: 'downward' }>['definingSwing'];
+const NO_CONFIRMED_SWINGS: LatestConfirmedSwings = Object.freeze({ high: null, low: null });
 
 /**
  * Detects breaks of directional Structure that existed on the previous completed session.
@@ -15,33 +19,22 @@ export function detectStructureBreakEvents(
 	bars: readonly DailyBar[],
 ): readonly StructureBreakSession[] {
 	const structureSessions = calculateMarketStructure(bars);
-	const sessions: StructureBreakSession[] = [];
-	let latestConfirmedHigh: ConfirmedHigh | null = null;
-	let latestConfirmedLow: ConfirmedLow | null = null;
+	const latestConfirmedSwings = trackLatestConfirmedSwings(structureSessions);
 
-	for (let index = 0; index < bars.length; index += 1) {
-		const bar = bars[index]!;
+	// A break is judged against the Structure and swings known at the previous session, so a swing
+	// confirmed on the current session cannot define a Structure the same close breaks.
+	return bars.map((bar, index) => {
 		const previousStructure = structureSessions[index - 1]?.structure;
+		const previousSwings = latestConfirmedSwings[index - 1] ?? NO_CONFIRMED_SWINGS;
 		const event = detectStructureBreak(
 			previousStructure,
 			bar.close,
-			latestConfirmedHigh,
-			latestConfirmedLow,
+			previousSwings.high,
+			previousSwings.low,
 		);
 
-		sessions.push({ sessionDate: bar.sessionDate, event });
-
-		const currentStructure = structureSessions[index]!;
-		for (const swing of currentStructure.newlyConfirmedSwings) {
-			if (swing.kind === 'high') {
-				latestConfirmedHigh = { ...swing, kind: 'high' };
-			} else {
-				latestConfirmedLow = { ...swing, kind: 'low' };
-			}
-		}
-	}
-
-	return sessions;
+		return { sessionDate: bar.sessionDate, event };
+	});
 }
 
 function detectStructureBreak(

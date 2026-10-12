@@ -1,7 +1,7 @@
 export { calculateAtr } from './atr/index.ts';
 export { calculateEma } from './ema/index.ts';
 export { detectLargeOneSessionMoves } from './large-move/index.ts';
-export { calculateMarketStructure } from './market-structure/index.ts';
+export { calculateMarketStructure, trackLatestConfirmedSwings } from './market-structure/index.ts';
 export { calculateRegime } from './regime/index.ts';
 export { detectRegimeTransitionEvents } from './regime-transition/index.ts';
 export { calculateRsi } from './rsi/index.ts';
@@ -10,7 +10,10 @@ export { calculateTrueRange } from './true-range/index.ts';
 export { detectVolatileSessionEvents } from './volatile-session/index.ts';
 export type { LargeOneSessionMove } from './large-move/index.ts';
 export type {
+	ConfirmedHigh,
+	ConfirmedLow,
 	ConfirmedSwing,
+	LatestConfirmedSwings,
 	MarketStructureSession,
 	StructureClassification,
 } from './market-structure/index.ts';

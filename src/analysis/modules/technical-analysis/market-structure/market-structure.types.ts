@@ -7,6 +7,15 @@ export type ConfirmedSwing = Readonly<{
 	confirmedAtSession: string;
 }>;
 
+export type ConfirmedHigh = ConfirmedSwing & Readonly<{ kind: 'high' }>;
+export type ConfirmedLow = ConfirmedSwing & Readonly<{ kind: 'low' }>;
+
+/** The latest swing of each kind confirmed by a session, or `null` before the first of its kind. */
+export type LatestConfirmedSwings = Readonly<{
+	high: ConfirmedHigh | null;
+	low: ConfirmedLow | null;
+}>;
+
 export type MarketStructureSession = Readonly<{
 	sessionDate: string;
 	structure: StructureClassification;

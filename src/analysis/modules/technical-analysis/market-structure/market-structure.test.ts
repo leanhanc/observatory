@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import { loadGgalFixture } from '../tests/support/index.ts';
-import { calculateMarketStructure } from './index.ts';
+import { buildBars, loadGgalFixture } from '../tests/support/index.ts';
+import { calculateMarketStructure, trackLatestConfirmedSwings } from './index.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
 
@@ -252,3 +252,35 @@ function createBars(
 		volume: 1,
 	}));
 }
+
+describe('trackLatestConfirmedSwings', () => {
+	test('holds each kind from its confirmation session and keeps it until the next one', () => {
+		// The high of 22 occurs at position 3 and is confirmed at 6; the low of 4 occurs at 9 and is
+		// confirmed at 12.
+		const bars = buildBars([10, 11, 12, 20, 12, 11, 10, 9, 8, 5, 8, 9, 10]);
+		const rows = trackLatestConfirmedSwings(calculateMarketStructure(bars));
+
+		expect(rows.slice(0, 6).every((row) => row.high === null)).toBe(true);
+		expect(rows.slice(6).every((row) => row.high?.confirmedAtSession === '2026-01-07')).toBe(
+			true,
+		);
+		expect(rows.slice(0, 12).every((row) => row.low === null)).toBe(true);
+		expect(rows[12]!.low).toEqual({
+			kind: 'low',
+			price: 4,
+			occurredAtSession: '2026-01-10',
+			confirmedAtSession: '2026-01-13',
+		});
+	});
+
+	test('replaces a swing exactly on the session that confirms the next one of its kind', async () => {
+		const structures = calculateMarketStructure(await loadGgalFixture());
+		const rows = trackLatestConfirmedSwings(structures);
+
+		structures.forEach((session, index) => {
+			for (const swing of session.newlyConfirmedSwings) {
+				expect(rows[index]![swing.kind]).toEqual(swing);
+			}
+		});
+	});
+});

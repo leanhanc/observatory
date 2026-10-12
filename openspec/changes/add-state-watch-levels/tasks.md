@@ -1,0 +1,13 @@
+- [x] Read CONTEXT.md and the `technical-analysis`, `instrument-state`, `analysis-run` and `web-app` specs.
+- [x] Draft the proposal, design and the four spec deltas.
+- [x] Add **Pending Regime Transition** to CONTEXT.md.
+- [x] Record the engine's pending candidate per session and expose `calculatePendingRegimeTransitions`; test candidate counts, clearing, replacement, the transition session, unreadable sessions and prefix replay.
+- [x] Add `lastConfirmedSwingHigh`, `lastConfirmedSwingLow` and `pendingRegimeTransition` to the Instrument State; test confirmation timing, `null` before a swing, distance signs, the Structure Break link and prefix replay.
+- [x] Bump the snapshot to schema and prefix `v7`, validate the new parts in `readLatest`, and test the v7 shape and malformed parts.
+- [x] Render the new parts on the line page and test their formatting.
+- [x] Run tests, typecheck, lint, format, strict OpenSpec validation and the web build (the build fails until a v7 snapshot exists; pages were rendered from a local dry-run snapshot).
+- [x] Add **Peso Equivalent** to CONTEXT.md and `toPesoEquivalent` to the dollarized-series module; record `pesoEquivalents` per available line, validate it in `readLatest`, render it on the line page, and test each.
+- [x] Re-run all checks.
+- [x] Review fixes: label peso levels as equivalents with their session and rate, keep the close as a fact; share `trackLatestConfirmedSwings` between Structure Break and the State; cross-check `pesoEquivalents` against `latestState` in `readLatest`; phrase an unevaluated swing distance.
+- [ ] At archive, edit the `instrument-state` Purpose to name the pending Regime transition and the last confirmed swings.
+- [ ] Archive.

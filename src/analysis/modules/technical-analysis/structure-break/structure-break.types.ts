@@ -1,7 +1,4 @@
-import type { ConfirmedSwing } from '../market-structure/index.ts';
-
-type ConfirmedHigh = ConfirmedSwing & Readonly<{ kind: 'high' }>;
-type ConfirmedLow = ConfirmedSwing & Readonly<{ kind: 'low' }>;
+import type { ConfirmedHigh, ConfirmedLow } from '../market-structure/index.ts';
 
 type DownwardStructureBreakEvent = Readonly<{
 	type: 'structure-break';

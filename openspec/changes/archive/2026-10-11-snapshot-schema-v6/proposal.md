@@ -6,7 +6,7 @@ Reading the prerendered line pages raised three gaps in what the snapshot says.
 
 1. **The Event name says more than the Event.** "Volatility expansion" conventionally names a phase of widening ranges. The Event is narrower: one completed session whose True Range, gaps included, is more than 1.8 times the ATR(14) known the session before. It is direction-neutral and each qualifying session is its own fact. "Wide-range session" was also considered and rejected as unclear.
 2. **Prices have no unit.** The run analyzes the Dollarized Series (ADR 0005), so every price and ATR in the snapshot is in MEP dollars, but nothing says so. Only `medianDailyTradedValueUsd` names a unit. A reader of a page sees a close of 7.12 for a stock that trades at thousands of pesos.
-3. **The close is never compared with EMA(200).** Regime compares EMA(50) with EMA(200) inside an ATR band, but never today's close with EMA(200), the most widely watched long-term trend reference. A bullish Regime with the close already below its 200-session average is a situation that deserves a question, and the State cannot show it.
+3. **The close's distance from EMA(200) has no magnitude.** Regime already compares the close with EMA(200): its proposal is bullish only when the close is above EMA(200) by more than half an ATR(14) and EMA(50) is above EMA(200), bearish in the mirror case, and mixed otherwise. That comparison is categorical: it says which side of a band the close is on, not how far. A close 1% above the most widely watched long-term trend reference and one 40% above it read the same, and a reader cannot tell a close that is just clearing the band from one that is stretched far from its average.
 
 ## What Changes
 

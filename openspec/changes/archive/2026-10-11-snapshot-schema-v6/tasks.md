@@ -6,5 +6,5 @@
 - [x] Bump the snapshot to schema and prefix `v6`.
 - [x] Test the new part's known value, warm-up boundary and prefix replay; the snapshot's unit and v6 shape; and the page labels.
 - [x] Run tests, typecheck, lint, format, strict OpenSpec validation and the web build (the build fails until a v6 snapshot exists).
-- [ ] At archive, edit the `instrument-state` Purpose to name the new part.
-- [ ] Archive.
+- [x] At archive, edit the `instrument-state` Purpose to name the new part.
+- [x] Archive.

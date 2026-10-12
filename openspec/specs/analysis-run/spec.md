@@ -52,7 +52,7 @@ The Requested-Through Session SHALL be a completed session. A Requested-Through 
 
 ### Requirement: analysis reuses dollarization and the existing calculations
 
-Each fetched line SHALL be validated before use: an analyzed line by dropping its invalid bars and validating the rest as a chronological Daily Bar history, and a MEP rate source line as a whole. Each analyzed line SHALL be corrected for its confirmed Corporate Actions and then dollarized with the MEP rates calculated from the run's MEP rate source lines, and the resulting Dollarized Series SHALL be analyzed with `calculateInstrumentStates`, `detectRegimeTransitionEvents`, `detectStructureBreakEvents`, `detectVolatilityExpansionEvents` and `detectLargeOneSessionMoves`. The only other measurement the run SHALL calculate is each line's liquidity eligibility, with the liquidity-eligibility module.
+Each fetched line SHALL be validated before use: an analyzed line by dropping its invalid bars and validating the rest as a chronological Daily Bar history, and a MEP rate source line as a whole. Each analyzed line SHALL be corrected for its confirmed Corporate Actions and then dollarized with the MEP rates calculated from the run's MEP rate source lines, and the resulting Dollarized Series SHALL be analyzed with `calculateInstrumentStates`, `detectRegimeTransitionEvents`, `detectStructureBreakEvents`, `detectVolatileSessionEvents` and `detectLargeOneSessionMoves`. The only other measurement the run SHALL calculate is each line's liquidity eligibility, with the liquidity-eligibility module.
 
 The MEP rate source lines SHALL be validated as a chronological Daily Bar history with one exception: a bar whose open is `0` SHALL be accepted when the open is its only invalid field. The MEP Rate reads only each leg's close and volume, and the provider has served traded sessions with a zero open on both AL30 lines. The close SHALL still be positive and within the bar's high–low range. Every accepted zero open SHALL be recorded in the snapshot. Analyzed lines SHALL get no such exception.
 
@@ -89,7 +89,7 @@ The adapter widens a bar's range when its open or close sits slightly outside it
 The snapshot SHALL hold one entry per analyzed Trading Line in `analyzedLines`. For each analyzed Trading Line that could be analyzed and is liquidity-eligible, the entry SHALL have `status: 'available'`, `instrumentId`, `tradingLineId`, and:
 
 - `latestState`: the Instrument State of the last session of the Dollarized Series. Its `sessionDate` MAY be earlier than the Requested-Through Session when the line did not trade, or had no MEP Rate, on later sessions.
-- `events`: every Event detected in the analyzed window, each as `{ sessionDate, event, coincidesWithLargeMove }`, where `event.type` is the Event kind (`regime-transition`, `structure-break` or `volatility-expansion`). Events SHALL be ordered by `sessionDate`; Events of the same session SHALL follow that kind order.
+- `events`: every Event detected in the analyzed window, each as `{ sessionDate, event, coincidesWithLargeMove }`, where `event.type` is the Event kind (`regime-transition`, `structure-break` or `volatile-session`). Events SHALL be ordered by `sessionDate`; Events of the same session SHALL follow that kind order.
 - `largeMoves`: the Large One-Session Moves in the analyzed window.
 - `corporateActions`: the line's Corporate Actions and whether each was applied.
 - `window`: the first and last session dates and the bar count of the Dollarized Series that was analyzed.
@@ -97,16 +97,16 @@ The snapshot SHALL hold one entry per analyzed Trading Line in `analyzedLines`. 
 - `rangeRepairSessions`: the peso-line sessions whose range the adapter widened.
 - `droppedBarSessions`: the peso-line sessions whose invalid bar was dropped.
 
-A State part that cannot be evaluated SHALL be `null`, as in the Instrument State contract. A liquidity-eligible line with too little history for some parts SHALL still have a `latestState`. Eligibility already requires trading on at least 90% of the last 125 market sessions, so this applies to lines with roughly 113 to 200 sessions of history, which is too short for Regime's 200-session average. Missing values SHALL NOT be replaced with `0`.
+A State part that cannot be evaluated SHALL be `null`, as in the Instrument State contract. A liquidity-eligible line with too little history for some parts SHALL still have a `latestState`. Eligibility already requires trading on at least 90% of the last 125 market sessions, so this applies to lines with roughly 113 to 200 sessions of history, which is too short for the 200-session averages of Regime and of price relative to the long-term EMA. Missing values SHALL NOT be replaced with `0`.
 
 #### Scenario: latest State is the final session's State
 
-- **WHEN** a line's Dollarized Series ends on 2026-10-02
-- **THEN** `latestState` equals the Instrument State calculated for 2026-10-02 over that series
+- **WHEN** a line's Dollarized Series ends on a session
+- **THEN** `latestState` equals the Instrument State calculated for that session over that series
 
 #### Scenario: Events from all three detectors
 
-- **WHEN** the window contains a Regime Transition, a Structure Break and a Volatility Expansion
+- **WHEN** the window contains a Regime Transition, a Structure Break and a Volatile Session
 - **THEN** `events` contains each of them with the session date on which it was detected
 
 #### Scenario: short history
@@ -114,22 +114,31 @@ A State part that cannot be evaluated SHALL be `null`, as in the Instrument Stat
 - **WHEN** a liquidity-eligible line has 120 dollarized bars
 - **THEN** its entry is available with a `latestState` whose Regime and Structure are `null`
 - **AND** its RSI and price relative to EMA are numbers
+- **AND** its price relative to the long-term EMA is `null`
 
 ### Requirement: run-level facts are recorded
 
-The snapshot SHALL record `schemaVersion: 5`, `ranAt` as a UTC instant, `requestedThroughSession`, `analysisConfigurationVersion` equal to `ANALYSIS_CONFIGURATION.version`, and `mepRateSource` with both MEP rate source Trading Line IDs, the date of the latest session that had a MEP Rate, `acceptedZeroOpens`: one `{ tradingLineId, sessionDate }` for each MEP rate source bar accepted with a zero open, and `rangeRepairs`: one `{ tradingLineId, sessionDate }` for each MEP rate source bar whose range the adapter widened.
+The snapshot SHALL record `schemaVersion: 6`, `priceUnit`, `ranAt` as a UTC instant, `requestedThroughSession`, `analysisConfigurationVersion` equal to `ANALYSIS_CONFIGURATION.version`, and `mepRateSource` with both MEP rate source Trading Line IDs, the date of the latest session that had a MEP Rate, `acceptedZeroOpens`: one `{ tradingLineId, sessionDate }` for each MEP rate source bar accepted with a zero open, and `rangeRepairs`: one `{ tradingLineId, sessionDate }` for each MEP rate source bar whose range the adapter widened.
 
-The snapshot SHALL also record `corporateActionWatch`: either `{ status: 'available', publishedFrom, publishedThrough, candidates }`, with the candidates from the corporate-action-watch module, or `{ status: 'unavailable', publishedFrom, publishedThrough, message }`. Version 4 differed from version 3 only by this field. Version 5 differs from version 4 only in each line's `corporateActions` records, which carry `correction`, `shareFactor` for a `volume` entry and its statuses, and in `insufficient-liquidity` entries, which also carry `corporateActions`.
+The snapshot SHALL also record `corporateActionWatch`: either `{ status: 'available', publishedFrom, publishedThrough, candidates }`, with the candidates from the corporate-action-watch module, or `{ status: 'unavailable', publishedFrom, publishedThrough, message }`. Version 4 differed from version 3 only by this field. Version 5 differs from version 4 only in each line's `corporateActions` records, which carry `correction`, `shareFactor` for a `volume` entry and its statuses, and in `insufficient-liquidity` entries, which also carry `corporateActions`. Version 6 differs from version 5 in three ways: it adds `priceUnit`; each `latestState` adds `priceRelativeToLongTermEmaInPercent`; and the Event type `volatility-expansion` becomes `volatile-session`, with its `expansionMultiple` field renamed `atrMultiple`.
+
+`priceUnit` SHALL be `mep-dollar`: every price and every price-denominated measurement in the snapshot, such as an Event's `closePrice`, a swing's `price`, `trueRange` and `baselineAtr`, is in MEP dollars, because the run analyzes the Dollarized Series. It is recorded once, at the top level, and not repeated per value. Ratios, percentages and ATR multiples have no unit. `medianDailyTradedValueUsd` names its own unit and is unchanged.
 
 #### Scenario: configuration version is recorded
 
 - **WHEN** a run completes
 - **THEN** the snapshot's `analysisConfigurationVersion` equals `ANALYSIS_CONFIGURATION.version`
 
+#### Scenario: price unit is recorded
+
+- **WHEN** a run completes
+- **THEN** the snapshot's `priceUnit` is `mep-dollar`
+- **AND** no Event or State value carries its own unit
+
 #### Scenario: schema version is recorded
 
 - **WHEN** a run completes
-- **THEN** the snapshot's `schemaVersion` is `5`
+- **THEN** the snapshot's `schemaVersion` is `6`
 
 #### Scenario: the watch is recorded
 
@@ -160,17 +169,17 @@ When an analyzed Trading Line cannot be fetched, has no valid Daily Bar history 
 
 A successful run SHALL write the snapshot as JSON to the S3-compatible bucket used for Bar History under two keys:
 
-- dated: `analysis-snapshots/v5/<requestedThroughSession>/<ranAt>.json`
-- latest: `analysis-snapshots/v5/latest.json`
+- dated: `analysis-snapshots/v6/<requestedThroughSession>/<ranAt>.json`
+- latest: `analysis-snapshots/v6/latest.json`
 
-The `v5` in the key prefix SHALL equal the snapshot's `schemaVersion`, so a reader of one schema never finds another schema's object under the keys it reads. Objects written under an earlier prefix SHALL be left in place.
+The `v6` in the key prefix SHALL equal the snapshot's `schemaVersion`, so a reader of one schema never finds another schema's object under the keys it reads. Objects written under an earlier prefix SHALL be left in place.
 
 The dated object SHALL be written first. `latest` SHALL be written only after the dated object was written. A failed write SHALL fail the run with reason `snapshot-write-failed`. Each successful run SHALL replace `latest`.
 
 #### Scenario: dated and latest objects
 
 - **WHEN** a run for 2026-10-02 completes at 2026-10-04T15:00:00.000Z
-- **THEN** the snapshot is written to `analysis-snapshots/v5/2026-10-02/2026-10-04T15:00:00.000Z.json` and to `analysis-snapshots/v5/latest.json`
+- **THEN** the snapshot is written to `analysis-snapshots/v6/2026-10-02/2026-10-04T15:00:00.000Z.json` and to `analysis-snapshots/v6/latest.json`
 
 #### Scenario: dated write fails
 
@@ -383,7 +392,7 @@ A `volume` correction changes only volume, which only the liquidity gate reads, 
 - **WHEN** the provider serves a line whose prices before an ex-date are twice the corrected level, with half the volume, and the list has a factor-0.5 entry for it
 - **THEN** the line's `corporateActions` lists the entry as `applied`
 - **AND** its Events, Large One-Session Moves and latest State equal those of the same line served already adjusted
-- **AND** no Structure Break, Volatility Expansion or Large One-Session Move is recorded on the ex-date
+- **AND** no Structure Break, Volatile Session or Large One-Session Move is recorded on the ex-date
 
 #### Scenario: the provider already adjusted the history
 
@@ -431,7 +440,7 @@ Each available line SHALL record `largeMoves`: the Large One-Session Moves of it
 
 #### Scenario: an Event on a flagged session
 
-- **WHEN** a line's dollarized close doubles on one session and a Volatility Expansion is detected on it
+- **WHEN** a line's dollarized close doubles on one session and a Volatile Session is detected on it
 - **THEN** `largeMoves` lists that session with `closeRatio` 2
 - **AND** that Event has `coincidesWithLargeMove: true`, and every Event on another session has `false`
 - **AND** the line is available
@@ -629,9 +638,9 @@ The `analyze` command SHALL log the watch once it is reported: an unavailable wa
 
 ### Requirement: the latest snapshot can be read with validation
 
-The bucket-backed snapshot storage SHALL expose `readLatest`, which reads `analysis-snapshots/v5/latest.json` and returns it only after validating it. Validation SHALL cover the fields a reader uses: `schemaVersion` SHALL be `5`, `ranAt` an ISO timestamp, `requestedThroughSession` a real `YYYY-MM-DD` date, and every entry of `analyzedLines` SHALL have string `instrumentId` and `tradingLineId` and one of these shapes:
+The bucket-backed snapshot storage SHALL expose `readLatest`, which reads `analysis-snapshots/v6/latest.json` and returns it only after validating it. Validation SHALL cover the fields a reader uses: `schemaVersion` SHALL be `6`, `priceUnit` SHALL be `mep-dollar`, `ranAt` an ISO timestamp, `requestedThroughSession` a real `YYYY-MM-DD` date, and every entry of `analyzedLines` SHALL have string `instrumentId` and `tradingLineId` and one of these shapes:
 
-- `status` `available`, with a `latestState` whose `regime`, `structure`, `rsi` and `priceRelativeToEmaInAtr` are each `null` or a valid value, and `events` whose entries each have a session date, a `coincidesWithLargeMove` boolean and an `event` that is a regime transition, structure break or volatility expansion with that type's fields;
+- `status` `available`, with a `latestState` whose `regime`, `structure`, `rsi`, `priceRelativeToEmaInAtr` and `priceRelativeToLongTermEmaInPercent` are each `null` or a valid value, and `events` whose entries each have a session date, a `coincidesWithLargeMove` boolean and an `event` that is a regime transition, structure break or volatile session with that type's fields;
 - `status` `unavailable` with reason `insufficient-liquidity`, a `message`, and `liquidity` with a numeric `participation` and a numeric or `null` `medianDailyTradedValueUsd`;
 - `status` `unavailable` with reason `fetch-failed`, `invalid-bars`, `no-provider-bars` or `no-dollarized-bars`, and a `message`.
 
@@ -639,14 +648,19 @@ Other fields SHALL be allowed and not returned.
 
 `readLatest` SHALL NOT throw. It SHALL return a failure with reason `not-found` when the object does not exist, `read-failed` when the bucket read fails otherwise, and `invalid-snapshot` when the object is not JSON or fails validation.
 
+#### Scenario: a v6 snapshot
+
+- **WHEN** `latest.json` holds a v6 snapshot with one available and one unavailable line
+- **THEN** `readLatest` returns its `ranAt`, `requestedThroughSession`, `priceUnit`, both lines' IDs and statuses, the available line's State and Events and the unavailable line's reason, message and liquidity
+
 #### Scenario: a v5 snapshot
 
-- **WHEN** `latest.json` holds a v5 snapshot with one available and one unavailable line
-- **THEN** `readLatest` returns its `ranAt`, `requestedThroughSession`, both lines' IDs and statuses, the available line's State and Events and the unavailable line's reason, message and liquidity
+- **WHEN** `latest.json` holds a snapshot with `schemaVersion` `5`
+- **THEN** `readLatest` fails with reason `invalid-snapshot`
 
 #### Scenario: another schema version
 
-- **WHEN** `latest.json` holds a snapshot with `schemaVersion` `4`
+- **WHEN** `latest.json` holds a snapshot with `schemaVersion` `7`
 - **THEN** `readLatest` fails with reason `invalid-snapshot`
 
 #### Scenario: malformed data

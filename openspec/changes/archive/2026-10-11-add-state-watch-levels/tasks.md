@@ -9,5 +9,5 @@
 - [x] Add **Peso Equivalent** to CONTEXT.md and `toPesoEquivalent` to the dollarized-series module; record `pesoEquivalents` per available line, validate it in `readLatest`, render it on the line page, and test each.
 - [x] Re-run all checks.
 - [x] Review fixes: label peso levels as equivalents with their session and rate, keep the close as a fact; share `trackLatestConfirmedSwings` between Structure Break and the State; cross-check `pesoEquivalents` against `latestState` in `readLatest`; phrase an unevaluated swing distance.
-- [ ] At archive, edit the `instrument-state` Purpose to name the pending Regime transition and the last confirmed swings.
-- [ ] Archive.
+- [x] At archive, edit the `instrument-state` Purpose to name the pending Regime transition and the last confirmed swings.
+- [x] Archive.

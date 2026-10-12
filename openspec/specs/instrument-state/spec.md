@@ -59,7 +59,7 @@ A measured part that cannot be evaluated for a session SHALL be `null`. Unavaila
 
 ### Requirement: Structure part
 
-`structure` SHALL be `null` when Market Structure reports `hasSwingPairs` false for the session, because Structure cannot yet be evaluated. Otherwise it SHALL be the classification `calculateMarketStructure` reports: `uptrend`, `downtrend`, `range`, or the string `undefined`. Once available, `undefined` is a reading meaning the last trend expired, and SHALL NOT be reported as `null`. The State SHALL NOT include the list of newly confirmed swings; the levels Structure hinges on are the separate last confirmed swing parts.
+`structure` SHALL be `null` when Market Structure reports `hasSwingPairs` false for the session, because Structure cannot yet be evaluated. Otherwise it SHALL be the classification `calculateMarketStructure` reports: `uptrend`, `downtrend`, `range`, or the string `undefined`. Once available, `undefined` is a reading meaning the last trend or range expired, and SHALL NOT be reported as `null`. The State SHALL NOT include the list of newly confirmed swings; the levels Structure hinges on are the separate last confirmed swing parts.
 
 #### Scenario: Structure warm-up is unavailable
 

@@ -12,8 +12,10 @@ const { confirmationBars } = ANALYSIS_CONFIGURATION.marketStructure;
 /**
  * Describes confirmed swings and Structure at each completed session.
  * A swing appears only on its confirmation session, three input bars after it occurred.
- * The string `undefined` represents insufficient or invalidated structure; `hasSwingPairs`
- * tells them apart.
+ * A trend ends on a close beyond its defining swing, and a range on a close beyond either of its
+ * latest confirmed swings; Structure then stays `undefined` until a new swing confirms. The
+ * string `undefined` represents insufficient or invalidated structure; `hasSwingPairs` tells them
+ * apart.
  * Expects completed Daily Bars ordered oldest to newest with unique session dates.
  */
 export function calculateMarketStructure(
@@ -24,7 +26,7 @@ export function calculateMarketStructure(
 	let latestHigh: ConfirmedSwing | null = null;
 	let previousLow: ConfirmedSwing | null = null;
 	let latestLow: ConfirmedSwing | null = null;
-	let isTrendExpired = false;
+	let isStructureExpired = false;
 
 	for (let index = 0; index < bars.length; index += 1) {
 		const bar = bars[index]!;
@@ -41,7 +43,7 @@ export function calculateMarketStructure(
 		}
 
 		if (newlyConfirmedSwings.length > 0) {
-			isTrendExpired = false;
+			isStructureExpired = false;
 		}
 
 		const candidateStructure = classifyStructure(
@@ -50,18 +52,18 @@ export function calculateMarketStructure(
 			previousLow,
 			latestLow,
 		);
-		const hasBrokenDefiningSwing = checkIfTrendExpired(
+		const hasLeftConfirmedLevels = checkIfStructureExpired(
 			candidateStructure,
 			bar.close,
 			latestHigh,
 			latestLow,
 		);
 
-		if (hasBrokenDefiningSwing) {
-			isTrendExpired = true;
+		if (hasLeftConfirmedLevels) {
+			isStructureExpired = true;
 		}
 
-		const structure = isTrendExpired ? 'undefined' : candidateStructure;
+		const structure = isStructureExpired ? 'undefined' : candidateStructure;
 		const hasSwingPairs = previousHigh !== null && previousLow !== null;
 		sessions.push({
 			sessionDate: bar.sessionDate,
@@ -162,18 +164,32 @@ function classifyStructure(
 	return 'range';
 }
 
-function checkIfTrendExpired(
+// A trend is defined by one level: an uptrend by its latest swing low, a downtrend by its latest
+// swing high. A range is bounded by both, so a close beyond either side means price has left the
+// area where it last turned. A close exactly on a level keeps the label.
+function checkIfStructureExpired(
 	structure: StructureClassification,
 	close: number,
 	latestHigh: ConfirmedSwing | null,
 	latestLow: ConfirmedSwing | null,
 ): boolean {
-	if (structure === 'uptrend' && latestLow) {
-		return close < latestLow.price;
+	if (!latestHigh || !latestLow) {
+		return false;
 	}
 
-	if (structure === 'downtrend' && latestHigh) {
-		return close > latestHigh.price;
+	const isAboveLatestHigh = close > latestHigh.price;
+	const isBelowLatestLow = close < latestLow.price;
+
+	if (structure === 'uptrend') {
+		return isBelowLatestLow;
+	}
+
+	if (structure === 'downtrend') {
+		return isAboveLatestHigh;
+	}
+
+	if (structure === 'range') {
+		return isAboveLatestHigh || isBelowLatestLow;
 	}
 
 	return false;

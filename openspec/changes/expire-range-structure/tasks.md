@@ -1,0 +1,7 @@
+- [x] Spec deltas for technical-analysis and instrument-state.
+- [x] Expire a `range` in `calculateMarketStructure` on a strict close beyond its last confirmed high or low.
+- [x] Tests: GGAL 2026-09-14..30, holding inside, expiry above and below, equality, re-entry on a new swing, no Event, prefix replay.
+- [x] Bump `ANALYSIS_CONFIGURATION.version` to 6.
+- [x] Update CONTEXT.md Structure and the `undefined` doc comments.
+- [x] Report Structure label counts before and after on a local dry run.
+- [x] Run tests, typecheck, lint, format and `openspec validate --all --strict`.

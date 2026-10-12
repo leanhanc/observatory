@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { detectStructureBreakEvents } from '../structure-break/index.ts';
 import { buildBars, loadGgalFixture } from '../tests/support/index.ts';
 import { calculateMarketStructure, trackLatestConfirmedSwings } from './index.ts';
 
@@ -8,6 +9,10 @@ import type { DailyBar } from '#modules/bar-history/index.ts';
 const risingCloses = [
 	10, 12, 14, 16, 20, 17, 14, 11, 8, 12, 16, 20, 24, 20, 16, 13, 10, 14, 18, 21, 22,
 ];
+
+// Higher highs (20 → 24) with lower lows (8 → 6): a range from position 19, between the confirmed
+// low of 6 and the confirmed high of 24.
+const rangeCloses = risingCloses.map((close, index) => (index === 16 ? 6 : close));
 
 describe('calculateMarketStructure', () => {
 	test('returns one undefined result per short session and no result for empty input', () => {
@@ -69,9 +74,6 @@ describe('calculateMarketStructure', () => {
 	});
 
 	test('uses range for conflicting or equal confirmed pairs', () => {
-		const conflictingCloses = [...risingCloses];
-		conflictingCloses[16] = 6;
-
 		const equalHighCloses = [
 			10, 12, 14, 16, 20, 17, 14, 11, 8, 11, 14, 17, 20, 17, 14, 12, 10, 13, 16, 18, 19,
 		];
@@ -79,9 +81,7 @@ describe('calculateMarketStructure', () => {
 		const equalLowCloses = [...risingCloses];
 		equalLowCloses[16] = 8;
 
-		expect(calculateMarketStructure(createBars(conflictingCloses))[19]?.structure).toBe(
-			'range',
-		);
+		expect(calculateMarketStructure(createBars(rangeCloses))[19]?.structure).toBe('range');
 		expect(calculateMarketStructure(createBars(equalHighCloses))[19]?.structure).toBe('range');
 		expect(calculateMarketStructure(createBars(equalLowCloses))[19]?.structure).toBe('range');
 	});
@@ -210,6 +210,90 @@ describe('calculateMarketStructure', () => {
 
 		expect(calculateMarketStructure(uptrendBars)[20]?.structure).toBe('uptrend');
 		expect(calculateMarketStructure(downtrendBars)[20]?.structure).toBe('downtrend');
+	});
+
+	test('holds a range while the close stays within its confirmed levels, inclusive', () => {
+		const touchesHigh = calculateMarketStructure(createBars([...rangeCloses, 23, 24]));
+		const touchesLow = calculateMarketStructure(createBars([...rangeCloses, 6]));
+
+		expect(touchesHigh.slice(19).map((session) => session.structure)).toEqual(
+			Array(4).fill('range'),
+		);
+		expect(touchesLow[21]?.structure).toBe('range');
+	});
+
+	test('expires a range on a close strictly above its high until a new swing confirms', () => {
+		// The close of 25 leaves the range above its high of 24 and comes back inside; the swing
+		// high of 25 then confirms at position 26, its pairs still disagree and the close of 20 is
+		// within 6 and 25.
+		const sessions = calculateMarketStructure(
+			createBars([...rangeCloses, 23, 24, 25, 22, 21, 20]),
+		);
+
+		expect(sessions[22]?.structure).toBe('range');
+		expect(sessions[23]?.structure).toBe('undefined');
+		expect(sessions[24]?.structure).toBe('undefined');
+		expect(sessions[25]?.structure).toBe('undefined');
+		expect(sessions[25]?.newlyConfirmedSwings).toEqual([]);
+		expect(sessions[26]?.newlyConfirmedSwings).toMatchObject([{ kind: 'high', price: 25 }]);
+		expect(sessions[26]?.structure).toBe('range');
+		expect(sessions.slice(19).every((session) => session.hasSwingPairs)).toBe(true);
+	});
+
+	test('expires a range on a close strictly below its low', () => {
+		const sessions = calculateMarketStructure(createBars([...rangeCloses, 6, 5]));
+
+		expect(sessions[21]?.structure).toBe('range');
+		expect(sessions[22]?.newlyConfirmedSwings).toEqual([]);
+		expect(sessions[22]?.structure).toBe('undefined');
+		expect(sessions[22]?.hasSwingPairs).toBe(true);
+	});
+
+	test('does not expire a range on a wick beyond either level', () => {
+		const closes = [...rangeCloses, 20];
+		const highs = closes.map((close, index) => (index === 21 ? 30 : close));
+		const lows = closes.map((close, index) => (index === 21 ? 2 : close));
+
+		expect(calculateMarketStructure(createBars(closes, highs, lows))[21]?.structure).toBe(
+			'range',
+		);
+	});
+
+	test('produces no Structure Break Event when a range expires', () => {
+		const bars = createBars([...rangeCloses, 23, 24, 25, 22, 21, 20, 6, 5]);
+		const sessions = calculateMarketStructure(bars);
+
+		expect(sessions[23]?.structure).toBe('undefined');
+		expect(sessions[28]?.structure).toBe('undefined');
+		expect(detectStructureBreakEvents(bars).every((session) => session.event === null)).toBe(
+			true,
+		);
+	});
+
+	test('matches every replayed prefix through a range expiry and its re-entry', () => {
+		const bars = createBars([...rangeCloses, 23, 24, 25, 22, 21, 20, 6, 5]);
+		const full = calculateMarketStructure(bars);
+
+		for (let length = 1; length <= bars.length; length += 1) {
+			const prefix = calculateMarketStructure(bars.slice(0, length));
+			expect(prefix.at(-1)).toEqual(full[length - 1]);
+		}
+	});
+
+	test('keeps GGAL undefined after its September 2026 break while the close falls below the range', async () => {
+		// On 2026-09-14 a close of 6840 below the 6870 swing low ends the uptrend. On 2026-09-15 a
+		// lower high of 7265 confirms while the lows 6701.958 → 6870 still rise, but the close of
+		// 6725 is already below 6870, so no range forms; no swing confirms through 2026-09-30.
+		const sessions = calculateMarketStructure(await loadGgalFixture());
+		const september = sessions.filter(
+			(session) => session.sessionDate >= '2026-09-14' && session.sessionDate <= '2026-09-30',
+		);
+		const rangeFormation = september.find((session) => session.sessionDate === '2026-09-15');
+
+		expect(september).toHaveLength(13);
+		expect(rangeFormation?.newlyConfirmedSwings).toMatchObject([{ kind: 'high', price: 7265 }]);
+		expect(september.every((session) => session.structure === 'undefined')).toBe(true);
+		expect(september.every((session) => session.hasSwingPairs)).toBe(true);
 	});
 
 	test('does not mutate input bars', () => {

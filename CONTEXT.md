@@ -117,7 +117,7 @@ A readable Regime proposal that differs from the settled Regime and has not yet 
 _Avoid_: Regime Transition, early signal, imminent change
 
 **Structure**:
-The sequence and relationships of confirmed swing highs and lows in price, conventionally described as an uptrend, downtrend, range, or undefined. A directional Structure depends on a confirmed swing level. That level and the current price's distance from it are Evidence about Structure; they are not a separate state beside Structure and Regime. A completed close beyond that level may produce a structure-break Event and makes Structure undefined rather than automatically reversing it.
+The sequence and relationships of confirmed swing highs and lows in price, conventionally described as an uptrend, downtrend, range, or undefined. A directional Structure depends on a confirmed swing level. That level and the current price's distance from it are Evidence about Structure; they are not a separate state beside Structure and Regime. A completed close beyond that level may produce a structure-break Event and makes Structure undefined rather than automatically reversing it. A range means the last two confirmed highs and the last two confirmed lows disagree on direction while the close stays within the last confirmed high and low; a completed close beyond either makes Structure undefined, with no Event, until a new swing confirms.
 _Avoid_: Pattern, signal, prediction, Structural Hold as a separate state
 
 **Confirmed Swing**:

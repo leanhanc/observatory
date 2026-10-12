@@ -8,7 +8,7 @@
  * separate conventions.
  */
 export const ANALYSIS_CONFIGURATION = {
-	version: 5,
+	version: 6,
 	regime: {
 		fastEmaPeriod: 50,
 		slowEmaPeriod: 200,

@@ -36,7 +36,7 @@ export type InstrumentState = Readonly<{
 	pendingRegimeTransition: PendingRegimeTransition | null;
 	/**
 	 * Market Structure's classification, or `null` before two confirmed swings of each kind exist.
-	 * Once available, `undefined` is a reading: the last trend expired.
+	 * Once available, `undefined` is a reading: the last trend or range expired.
 	 */
 	structure: StructureClassification | null;
 	/** `null` until a swing high has been confirmed; never an unconfirmed candidate. */

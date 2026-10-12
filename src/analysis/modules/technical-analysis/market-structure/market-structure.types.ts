@@ -22,7 +22,7 @@ export type MarketStructureSession = Readonly<{
 	/**
 	 * Whether two confirmed swings of each kind exist by this session. While false, Structure
 	 * cannot be evaluated and its `undefined` means not enough history; once true it stays true,
-	 * and `undefined` means an expired trend.
+	 * and `undefined` means an expired trend or range.
 	 */
 	hasSwingPairs: boolean;
 	newlyConfirmedSwings: readonly ConfirmedSwing[];

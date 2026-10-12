@@ -1,4 +1,11 @@
-import type { SnapshotEvent, SnapshotPriceUnit } from '#web/lib/utils/snapshot-pages/index.ts';
+import type {
+	AvailableLine,
+	SnapshotEvent,
+	SnapshotPriceUnit,
+} from '#web/lib/utils/snapshot-pages/index.ts';
+
+type SnapshotState = AvailableLine['latestState'];
+type PesoEquivalents = AvailableLine['pesoEquivalents'];
 
 const numberFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 
@@ -35,6 +42,62 @@ export function formatEvaluatedPercent(value: number | null): string {
 /** Labels a price or an ATR with the unit the snapshot declares for every price in it. */
 export function formatPrice(value: number, priceUnit: SnapshotPriceUnit): string {
 	return `${formatNumber(value)} ${PRICE_UNIT_LABELS[priceUnit]}`;
+}
+
+/**
+ * Shows a Regime candidate still gathering confirmations. `null` means there is no candidate, which
+ * is a reading, not a gap.
+ */
+export function formatPendingRegimeTransition(
+	pending: SnapshotState['pendingRegimeTransition'],
+): string {
+	if (pending === null) {
+		return 'none';
+	}
+
+	const { candidate, confirmations, requiredConfirmations } = pending;
+	return `${candidate}, ${confirmations} of ${requiredConfirmations} confirmations`;
+}
+
+/** Shows a last confirmed swing level and the close's distance from it. */
+export function formatSwingLevel(
+	swing: SnapshotState['lastConfirmedSwingHigh'] | SnapshotState['lastConfirmedSwingLow'],
+	priceUnit: SnapshotPriceUnit,
+): string {
+	if (swing === null) {
+		return 'none confirmed yet';
+	}
+
+	const price = formatPrice(swing.price, priceUnit);
+	const level = `${price} (occurred ${swing.occurredAtSession}, confirmed ${swing.confirmedAtSession})`;
+
+	if (swing.priceRelativeToSwingInPercent === null) {
+		return `${level}, distance from the close not evaluated`;
+	}
+
+	const distance = formatEvaluatedPercent(swing.priceRelativeToSwingInPercent);
+	return `${level}, close ${distance} from it`;
+}
+
+/** Labels a peso amount from the snapshot's peso equivalents, which name their own unit. */
+export function formatPesos(value: number): string {
+	return `${formatNumber(value)} pesos`;
+}
+
+/**
+ * Shows a swing level's peso equivalent with the session and MEP Rate it was converted at, since
+ * the same level has another peso equivalent at every other rate.
+ */
+export function formatPesoSwingLevel(
+	value: number | null,
+	pesoEquivalents: Pick<PesoEquivalents, 'sessionDate' | 'mepRate'>,
+): string {
+	if (value === null) {
+		return 'none confirmed yet';
+	}
+
+	const { sessionDate, mepRate } = pesoEquivalents;
+	return `≈ ${formatPesos(value)}, its equivalent at the ${sessionDate} MEP rate of ${formatNumber(mepRate)} pesos per MEP dollar`;
 }
 
 /** The snapshot has no median for a line that did not trade in the liquidity window. */

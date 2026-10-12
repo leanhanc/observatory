@@ -50,6 +50,7 @@ export type AnalyzedLine =
 				barCount: number;
 			}>;
 			sessionsWithoutMepRate: readonly string[];
+			pesoEquivalents: PesoEquivalents;
 	  }> &
 			BarRepairs)
 	| Readonly<{
@@ -97,6 +98,20 @@ type BarRepairs = Readonly<{
 	droppedBarSessions: readonly string[];
 }>;
 
+/**
+ * The latest State's session in pesos, for a reader who trades the peso line. Levels are converted
+ * at that one session's MEP Rate; at another session's rate the same level has another peso price.
+ */
+export type PesoEquivalents = Readonly<{
+	sessionDate: string;
+	/** Pesos per MEP dollar on `sessionDate`: the rate that dollarized that session's bar. */
+	mepRate: number;
+	/** The line's corrected peso close on `sessionDate`: a market fact, not a conversion. */
+	close: number;
+	lastConfirmedSwingHigh: number | null;
+	lastConfirmedSwingLow: number | null;
+}>;
+
 /** One session of one Trading Line, used to report bars the run accepted with a defect. */
 export type TradingLineSession = Readonly<{
 	tradingLineId: string;
@@ -107,7 +122,7 @@ export type TradingLineSession = Readonly<{
 export type PriceUnit = 'mep-dollar';
 
 export type AnalysisSnapshot = Readonly<{
-	schemaVersion: 6;
+	schemaVersion: 7;
 	priceUnit: PriceUnit;
 	ranAt: string;
 	requestedThroughSession: string;

@@ -19,6 +19,7 @@ import {
 	MEP_RATE_SOURCE,
 	calculateMepRates,
 	dollarizeBarHistory,
+	toPesoEquivalent,
 	validateMepRateSourceBars,
 } from '#modules/dollarized-series/index.ts';
 import { instrumentCatalog } from '#modules/instrument-catalog/index.ts';
@@ -51,6 +52,7 @@ import type {
 import type { CorporateAction } from '#modules/corporate-actions/index.ts';
 import type { MepRateSession } from '#modules/dollarized-series/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
+import type { InstrumentState } from '#modules/instrument-state/index.ts';
 import type { LiquidityWindow } from '#modules/liquidity-eligibility/index.ts';
 import type { LargeOneSessionMove } from '#modules/technical-analysis/index.ts';
 import type {
@@ -64,6 +66,7 @@ import type {
 	AnalysisSnapshotStorage,
 	AnalyzedLine,
 	AnalyzedLineFailureReason,
+	PesoEquivalents,
 	TradingLineSession,
 } from './analysis-run.types.ts';
 
@@ -277,7 +280,7 @@ async function runAnalysis(
 	);
 
 	const snapshot = {
-		schemaVersion: 6,
+		schemaVersion: 7,
 		priceUnit: SNAPSHOT_PRICE_UNIT,
 		ranAt,
 		requestedThroughSession,
@@ -849,13 +852,13 @@ function analyzeTradingLine(
 		};
 	}
 
-	const states = calculateInstrumentStates(bars);
+	const latestState = calculateInstrumentStates(bars).at(-1)!;
 	const largeMoves = detectLargeOneSessionMoves(bars);
 
 	return {
 		status: 'available',
 		...identity,
-		latestState: states.at(-1)!,
+		latestState,
 		events: collectEvents(bars, largeMoves),
 		largeMoves,
 		corporateActions: correction.outcomes,
@@ -865,8 +868,44 @@ function analyzeTradingLine(
 			barCount: bars.length,
 		},
 		sessionsWithoutMepRate: dollarizedSeries.sessionsWithoutMepRate,
+		pesoEquivalents: projectLatestStateToPesos(latestState, correction.bars, mepRates),
 		...barRepairs,
 	};
+}
+
+/**
+ * Expresses the latest State's close and watch levels in pesos at that session's MEP Rate. It is
+ * the rate that dollarized the session's close, so the close's distance from each level is the same
+ * in pesos as in MEP dollars.
+ */
+function projectLatestStateToPesos(
+	latestState: InstrumentState,
+	pesoBars: readonly DailyBar[],
+	mepRates: readonly MepRateSession[],
+): PesoEquivalents {
+	const { sessionDate, lastConfirmedSwingHigh, lastConfirmedSwingLow } = latestState;
+	// The State's session has a dollarized bar, so it has both a peso bar and a MEP Rate.
+	const { mepRate } = mepRates.find((rate) => rate.sessionDate === sessionDate)!;
+	const pesoBar = pesoBars.find((bar) => bar.sessionDate === sessionDate)!;
+
+	return {
+		sessionDate,
+		mepRate,
+		close: pesoBar.close,
+		lastConfirmedSwingHigh: convertSwingPrice(lastConfirmedSwingHigh, mepRate),
+		lastConfirmedSwingLow: convertSwingPrice(lastConfirmedSwingLow, mepRate),
+	};
+}
+
+function convertSwingPrice(
+	swing: Readonly<{ price: number }> | null,
+	mepRate: number,
+): number | null {
+	if (swing === null) {
+		return null;
+	}
+
+	return toPesoEquivalent(swing.price, mepRate);
 }
 
 /**

@@ -135,12 +135,52 @@ describe('createAnalysisRunner', () => {
 		expect(findClose(ggalPesoBars)).not.toBe(findClose(ggalDollarBars));
 	});
 
+	test('expresses the latest close and watch levels in pesos at that session’s MEP Rate', async () => {
+		const { result } = await runWithProvider(createHealthyProvider());
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const { lastConfirmedSwingHigh, lastConfirmedSwingLow } = ggal.latestState;
+		const mepRate = selectMepRate('2026-09-30');
+
+		expect(ggal.pesoEquivalents).toEqual({
+			sessionDate: '2026-09-30',
+			mepRate,
+			close: ggalPesoBars.at(-1)!.close,
+			lastConfirmedSwingHigh: lastConfirmedSwingHigh!.price * mepRate,
+			lastConfirmedSwingLow: lastConfirmedSwingLow!.price * mepRate,
+		});
+		// One rate for the close and the level keeps the distance the State reports in MEP dollars.
+		const pesoDistance =
+			((ggal.pesoEquivalents.close - ggal.pesoEquivalents.lastConfirmedSwingHigh!) /
+				ggal.pesoEquivalents.lastConfirmedSwingHigh!) *
+			100;
+		expect(pesoDistance).toBeCloseTo(lastConfirmedSwingHigh!.priceRelativeToSwingInPercent!, 9);
+	});
+
+	test('converts a line that stopped trading at its own last session’s rate, not the latest', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			GGAL: ggalPesoBars.filter((bar) => bar.sessionDate < '2026-09-15'),
+		};
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+
+		expect(result.ok && result.snapshot.mepRateSource.latestRateSessionDate).toBe('2026-09-30');
+		expect(ggal.pesoEquivalents.sessionDate).toBe(ggal.latestState.sessionDate);
+		expect(ggal.pesoEquivalents.sessionDate < '2026-09-15').toBe(true);
+		expect(ggal.pesoEquivalents.mepRate).toBe(2048);
+		expect(ggal.pesoEquivalents.lastConfirmedSwingLow).toBe(
+			ggal.latestState.lastConfirmedSwingLow!.price * 2048,
+		);
+	});
+
 	test('gives a short history a State with unavailable parts as null', async () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 		const shortLine = selectAvailableLine(result, 'new-stock-byma-ars');
 
 		expect(shortLine.window.barCount).toBe(120);
 		expect(shortLine.latestState.regime).toBeNull();
+		expect(shortLine.latestState.pendingRegimeTransition).toBeNull();
+		expect(shortLine.pesoEquivalents.lastConfirmedSwingHigh).toBeNull();
 		expect(shortLine.latestState.structure).toBeNull();
 		expect(shortLine.latestState.rsi).toBeNumber();
 		expect(shortLine.latestState.priceRelativeToEmaInAtr).toBeNumber();
@@ -151,7 +191,7 @@ describe('createAnalysisRunner', () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 
 		expect(result.ok && result.snapshot).toMatchObject({
-			schemaVersion: 6,
+			schemaVersion: 7,
 			priceUnit: 'mep-dollar',
 			ranAt: RAN_AT,
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,

@@ -117,7 +117,7 @@ A readable Regime proposal that differs from the settled Regime and has not yet 
 _Avoid_: Regime Transition, early signal, imminent change
 
 **Regime Tipping Close**:
-The close beyond which, as of one Trading Session, the price half of Regime's rule would propose a directional Regime: above the 200-session average plus half an ATR for bullish, below it minus half an ATR for bearish. The rule also needs the 50-session average on the same side of the 200-session average, so the close alone may not be enough, and a proposal still needs its confirming sessions before Regime changes. It is a condition of Observatory's own rule as of that session, approximate for later sessions because each close moves the averages and the ATR.
+A tipping point of the Regime rule. It is the approximate close at which the price meets its half of the rule: half a typical daily move (ATR) above the 200-session average for bullish, or that far below it for bearish. Crossing it is not enough by itself. The 50-session average must be on the same side, and the change must hold for the confirming sessions. It moves a little every session, because each close moves the averages and the ATR.
 _Avoid_: Target, trigger price, breakout level
 
 **Structure**:
@@ -129,11 +129,11 @@ A local high or low of a completed Trading Session that becomes knowable only af
 _Avoid_: Current price, unconfirmed turning point
 
 **Support**:
-The last confirmed swing low while the close is at or above it: the last place price stopped falling. It describes where price turned before; it does not say price will turn there again. A close strictly below it means there is no confirmed Support until a new swing low confirms.
+The last place price stopped falling: the last confirmed swing low, while the close is at or above it. It says where price turned before, not that it will turn there again. Once a close is below it, there is no confirmed Support until a new swing low confirms.
 _Avoid_: Floor that will hold, "it will turn there again", buy zone
 
 **Resistance**:
-The last confirmed swing high while the close is at or below it: the last place price stopped rising. It describes where price turned before; it does not say price will turn there again. A close strictly above it means there is no confirmed Resistance until a new swing high confirms.
+The last place price stopped rising: the last confirmed swing high, while the close is at or below it. It says where price turned before, not that it will turn there again. Once a close is above it, there is no confirmed Resistance until a new swing high confirms.
 _Avoid_: Ceiling that will hold, "it will turn there again", sell zone
 
 **Volatile Session**:
@@ -141,7 +141,7 @@ A direction-neutral Event in which one completed Trading Session's True Range, i
 _Avoid_: Volatility Expansion, wide-range session, bullish or bearish signal, continuation, reversal, opportunity, price target
 
 **Period Return**:
-The percent change of a line's close in MEP dollars over a fixed window of Market Sessions ending at its latest State's session, such as 21 Market Sessions for about a month. It measures how far the close moved over the window, not why, and is unavailable rather than zero when the history does not reach back that far.
+How much the close moved over a recent stretch, in percent, measured in MEP dollars: about a month, three months or a year of Market Sessions (the windows are set in the Analysis Configuration), counted back from the latest State's session. It says how far, not why. When the history is too short, it is unavailable, never zero.
 _Avoid_: Performance, gain, distance below a level when referring to the whole move
 
 **Corporate Action**:
@@ -161,11 +161,11 @@ A named combination of Features and Instrument State that Observatory recognizes
 _Avoid_: Signal, prediction, opportunity
 
 **Below the Last Confirmed Low in a Bearish Regime**:
-A Situation in which Regime is bearish and the close is strictly below the last confirmed swing low, so nothing in confirmed data marks where the fall last stopped. It ends when a new swing low confirms, the close returns to or above the low, or Regime stops being bearish. It describes a fall without confirmed Support; it does not say the fall will continue or end.
+A fall with no confirmed floor yet. Regime is bearish and the close is below the last confirmed swing low, so nothing confirmed marks where the fall stopped. It ends when a new swing low confirms, when the close gets back to the low, or when Regime stops being bearish. It describes the fall; it does not say whether it continues.
 _Avoid_: Falling knife as a label, "don't catch it", oversold
 
 **Above the Last Confirmed High in a Bullish Regime**:
-The mirror Situation: Regime is bullish and the close is strictly above the last confirmed swing high, so nothing in confirmed data marks where the rise last stopped. It ends when a new swing high confirms, the close returns to or below the high, or Regime stops being bullish. It describes a rise without confirmed Resistance; it does not say the rise will continue or end.
+A rise with no confirmed ceiling yet, the mirror of the falling Situation. Regime is bullish and the close is above the last confirmed swing high, so nothing confirmed marks where the rise stopped. It ends when a new swing high confirms, when the close gets back to the high, or when Regime stops being bullish. It describes the rise; it does not say whether it continues.
 _Avoid_: Breakout signal, overbought, "it will keep rising"
 
 **Event**:

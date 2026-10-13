@@ -281,7 +281,7 @@ async function runAnalysis(
 	);
 
 	const snapshot = {
-		schemaVersion: 8,
+		schemaVersion: 9,
 		priceUnit: SNAPSHOT_PRICE_UNIT,
 		ranAt,
 		requestedThroughSession,
@@ -855,13 +855,12 @@ function analyzeTradingLine(
 
 	const latestState = calculateInstrumentStates(bars).at(-1)!;
 	const largeMoves = detectLargeOneSessionMoves(bars);
-	const marketSessionDates = mepRates.map((rate) => rate.sessionDate);
 
 	return {
 		status: 'available',
 		...identity,
 		latestState,
-		periodReturns: calculatePeriodReturns(bars, marketSessionDates),
+		periodReturns: calculatePeriodReturns(bars),
 		events: collectEvents(bars, largeMoves),
 		largeMoves,
 		corporateActions: correction.outcomes,

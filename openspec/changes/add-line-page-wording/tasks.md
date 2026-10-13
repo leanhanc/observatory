@@ -1,0 +1,11 @@
+- [x] Copy the approved wording table into design.md.
+- [x] Spec deltas for instrument-state, analysis-run and web-app.
+- [x] `ANALYSIS_CONFIGURATION.situations.noiseBandAtrMultiplier`, version 8.
+- [x] `isBeyondNoiseBand` on each Situation, with tests: the boundary at exactly half an ATR, `null` ATR, the flag changing within a run without restarting it, the definition on GGAL, and prefix replay.
+- [x] ADR 0011: one line on the flag.
+- [x] Snapshot schema v9: writer, `readLatest` schema, prefix `v9`, with tests.
+- [x] `es-ar-formatting`, `line-wording` and `line-identity` helpers, with tests; `line-formatting` removed.
+- [x] Line page in the table's order and tiers with `<details>`; the not-found page in Spanish; the published-output guard unchanged.
+- [x] Dry run through 2026-10-09 and a local build from it; pages checked in the browser.
+- [x] Run tests, typecheck, lint, format and `openspec validate --all --strict`.
+- [ ] Lean reviews the diff; with his OK, the Analysis Run writes the first v9 snapshot, then the web service redeploys.

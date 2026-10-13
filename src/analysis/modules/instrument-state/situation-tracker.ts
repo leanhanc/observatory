@@ -1,6 +1,23 @@
+import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
+import { compareBeyondRoundingNoise } from '#modules/technical-analysis/index.ts';
+
 import type { InstrumentState, Situation } from './instrument-state.types.ts';
 
 type StateParts = Omit<InstrumentState, 'situations'>;
+
+// Omits fields from each Situation type separately, so each type keeps its own level.
+type SituationWithout<Keys extends keyof Situation> = Situation extends infer Each
+	? Each extends Situation
+		? Omit<Each, Keys>
+		: never
+	: never;
+
+/** A Situation whose run is known, before its session's noise band is measured. */
+export type TrackedSituation = SituationWithout<'isBeyondNoiseBand'>;
+
+type RecognizedSituation = SituationWithout<'activeSinceSession' | 'isBeyondNoiseBand'>;
+
+const { noiseBandAtrMultiplier } = ANALYSIS_CONFIGURATION.situations;
 
 /**
  * Lists the Situations active at each session, in input order. Each Situation is a conjunction of
@@ -12,11 +29,13 @@ type StateParts = Omit<InstrumentState, 'situations'>;
  * on the far side of the new swing, so a newer confirmed swing always ends the Situation. A run
  * still restarts if its swing changes, so its start never belongs to another level.
  */
-export function trackSituations(states: readonly StateParts[]): readonly (readonly Situation[])[] {
-	let previousSituations: readonly Situation[] = [];
+export function trackSituations(
+	states: readonly StateParts[],
+): readonly (readonly TrackedSituation[])[] {
+	let previousSituations: readonly TrackedSituation[] = [];
 
 	return states.map((state) => {
-		const situations = recognizeSituations(state).map((situation): Situation => ({
+		const situations = recognizeSituations(state).map((situation): TrackedSituation => ({
 			...situation,
 			activeSinceSession:
 				findContinuedRunStart(previousSituations, situation) ?? state.sessionDate,
@@ -26,13 +45,6 @@ export function trackSituations(states: readonly StateParts[]): readonly (readon
 		return situations;
 	});
 }
-
-// A Situation before its run start is known; distributed over the union so each type keeps its level.
-type RecognizedSituation = Situation extends infer Each
-	? Each extends Situation
-		? Omit<Each, 'activeSinceSession'>
-		: never
-	: never;
 
 function recognizeSituations(state: StateParts): readonly RecognizedSituation[] {
 	const { regime, lastConfirmedSwingLow, lastConfirmedSwingHigh } = state;
@@ -62,7 +74,7 @@ function recognizeSituations(state: StateParts): readonly RecognizedSituation[] 
 }
 
 function findContinuedRunStart(
-	previousSituations: readonly Situation[],
+	previousSituations: readonly TrackedSituation[],
 	situation: RecognizedSituation,
 ): string | null {
 	const previous = previousSituations.find(({ type }) => type === situation.type);
@@ -73,4 +85,33 @@ function findContinuedRunStart(
 	}
 
 	return previous.activeSinceSession;
+}
+
+/**
+ * Whether the session's close is past the Situation's level by more than the noise band: half its
+ * ATR(14), the margin Regime treats as noise around EMA200. A close exactly at the band's edge is
+ * not beyond it. Returns `null` while ATR(14) is unavailable, rather than guessing a band.
+ *
+ * The result selects wording only. ADR 0011 keeps Situations threshold-free, so it never decides
+ * whether a Situation is active.
+ */
+export function checkIfBeyondNoiseBand(
+	situation: TrackedSituation,
+	close: number,
+	atr: number | null,
+): boolean | null {
+	if (atr === null) {
+		return null;
+	}
+
+	const { kind, price } = situation.level;
+	const noiseBand = noiseBandAtrMultiplier * atr;
+
+	// Compared with the band's edge, beyond Regime's rounding tolerance, so a close on the edge is
+	// not beyond it whichever side the level is on.
+	if (kind === 'low') {
+		return compareBeyondRoundingNoise(close, price - noiseBand) === -1;
+	}
+
+	return compareBeyondRoundingNoise(close, price + noiseBand) === 1;
 }

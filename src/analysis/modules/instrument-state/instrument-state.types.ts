@@ -44,17 +44,22 @@ export type SituationType =
  * A Situation active at the session: a named conjunction of State parts, with no threshold of its
  * own. `level` is the confirmed swing the close is beyond. `activeSinceSession` is the first
  * session of the current unbroken run of sessions on which it holds; an interruption restarts it.
+ * `isBeyondNoiseBand` says whether the close is past `level` by more than the noise band, half the
+ * session's ATR(14), and is `null` while ATR(14) is unavailable. It selects wording only: it is not
+ * a condition of the Situation and does not affect `activeSinceSession`.
  */
 export type Situation =
 	| Readonly<{
 			type: 'below-last-confirmed-low-in-bearish-regime';
 			activeSinceSession: DailyBar['sessionDate'];
 			level: ConfirmedLow;
+			isBeyondNoiseBand: boolean | null;
 	  }>
 	| Readonly<{
 			type: 'above-last-confirmed-high-in-bullish-regime';
 			activeSinceSession: DailyBar['sessionDate'];
 			level: ConfirmedHigh;
+			isBeyondNoiseBand: boolean | null;
 	  }>;
 
 /**

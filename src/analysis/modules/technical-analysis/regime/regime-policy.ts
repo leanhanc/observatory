@@ -1,5 +1,7 @@
 import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
 
+import { compareBeyondRoundingNoise } from '../utils/rounding-noise/index.ts';
+
 import type { Regime } from './regime.types.ts';
 
 type ReadableRegime = Exclude<Regime, 'undefined'>;
@@ -16,8 +18,6 @@ export type RegimeBand = Readonly<{
 	lowerEdge: number;
 	averageAlignment: AverageAlignment;
 }>;
-
-const ROUNDING_ULPS = 8;
 
 /**
  * Proposes a readable Regime from the completed session's price, EMA, and ATR evidence.
@@ -73,24 +73,4 @@ export function measureRegimeBand(
 		lowerEdge: ema200 - margin,
 		averageAlignment: compareBeyondRoundingNoise(ema50, ema200),
 	};
-}
-
-/**
- * Compares two measurements while treating scale-relative floating-point drift as equality.
- * This guards indicator arithmetic and does not introduce a market-analysis threshold.
- */
-function compareBeyondRoundingNoise(value: number, threshold: number): -1 | 0 | 1 {
-	// EMA arithmetic can drift by a few ulps even on a mathematically flat series.
-	const scale = Math.max(Math.abs(value), Math.abs(threshold));
-	const roundingTolerance = ROUNDING_ULPS * Number.EPSILON * scale;
-
-	if (value > threshold + roundingTolerance) {
-		return 1;
-	}
-
-	if (value < threshold - roundingTolerance) {
-		return -1;
-	}
-
-	return 0;
 }

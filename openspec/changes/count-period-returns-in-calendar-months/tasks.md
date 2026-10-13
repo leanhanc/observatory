@@ -1,0 +1,8 @@
+- [x] Spec deltas for period-returns and analysis-run; web wording updated in `add-line-page-wording`.
+- [x] `windowMonths: [1, 3, 12]` in the Analysis Configuration.
+- [x] `calculatePeriodReturns(bars)` over calendar months, with tests: a start on a session, a start on a non-session, a month end, a calendar year rather than 252 sessions, short history, zero change, causality.
+- [x] Snapshot `windowMonths` and its validation, with tests.
+- [x] CONTEXT.md: Period Return.
+- [x] Dry run and the GLD comparison against the broker.
+- [x] Run tests, typecheck, lint, format and `openspec validate --all --strict`.
+- [ ] Archive after `add-line-page-wording`.

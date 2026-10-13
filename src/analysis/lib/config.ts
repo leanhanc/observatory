@@ -8,7 +8,7 @@
  * separate conventions.
  */
 export const ANALYSIS_CONFIGURATION = {
-	version: 7,
+	version: 8,
 	regime: {
 		fastEmaPeriod: 50,
 		slowEmaPeriod: 200,
@@ -31,10 +31,17 @@ export const ANALYSIS_CONFIGURATION = {
 		// convention, not by reuse.
 		longTermEmaPeriod: 200,
 	},
-	// About one month, three months and one year. Windows count Market Sessions, so every line's
-	// window spans the same dates.
+	// A Situation's close is beyond the noise band when its distance past the level exceeds this
+	// multiple of the State's ATR(14). Equal to Regime's band by convention, not by reuse: the same
+	// half a typical daily move that Regime treats as noise around EMA200. It only marks a Situation
+	// for wording and is never one of its conditions (ADR 0011).
+	situations: {
+		noiseBandAtrMultiplier: 0.5,
+	},
+	// One month, three months and one year, counted in calendar months as brokers count them. A
+	// session count would drift: BYMA trades fewer sessions a year than the 252 of the US convention.
 	periodReturns: {
-		windowMarketSessions: [21, 63, 252],
+		windowMonths: [1, 3, 12],
 	},
 	// A Trading Line is analyzed only when, over the last `windowSessions` market sessions, it
 	// traded on at least `minimumParticipation` of them and its median traded value in MEP dollars

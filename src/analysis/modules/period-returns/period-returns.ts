@@ -4,62 +4,55 @@ import type { DailyBar } from '#modules/bar-history/index.ts';
 import type { PeriodReturn } from './period-returns.types.ts';
 
 /**
- * Measures how far the last bar's close moved over each configured window of Market Sessions:
- * about one month, three months and one year. For peso lines, pass the Dollarized Series, so the
- * change is in MEP dollars.
+ * Measures how far the last bar's close moved over each configured window of calendar months: one
+ * month, three months and one year. For peso lines, pass the Dollarized Series, so the change is in
+ * MEP dollars.
  *
- * Windows count Market Sessions rather than the line's bars, so a window spans the same dates for
- * every line. When the line did not trade on a window's start session, the start close is its last
- * close before it, which was already known on that session.
+ * A window starts on the anchor's date minus its months; a day the target month lacks becomes that
+ * month's last day. The start close is the line's last close on or before that date, the close
+ * already known on it when the date was not a session or the line did not trade.
  *
- * Expects validated Daily Bars and Market Session dates, each ordered oldest to newest.
+ * Expects validated Daily Bars ordered oldest to newest.
  */
-export function calculatePeriodReturns(
-	bars: readonly DailyBar[],
-	marketSessionDates: readonly string[],
-): readonly PeriodReturn[] {
-	const { windowMarketSessions } = ANALYSIS_CONFIGURATION.periodReturns;
+export function calculatePeriodReturns(bars: readonly DailyBar[]): readonly PeriodReturn[] {
+	const { windowMonths } = ANALYSIS_CONFIGURATION.periodReturns;
 	const anchorBar = bars.at(-1);
-	const anchorPosition = anchorBar ? marketSessionDates.indexOf(anchorBar.sessionDate) : -1;
 
-	// Dollarized bars exist only on Market Sessions, so an anchor outside them is not expected.
-	if (anchorBar === undefined || anchorPosition < 0) {
-		return windowMarketSessions.map(createUnavailableReturn);
+	if (anchorBar === undefined) {
+		return windowMonths.map(createUnavailableReturn);
 	}
 
-	return windowMarketSessions.map((window) => {
-		const startSessionDate = marketSessionDates[anchorPosition - window];
+	const anchorDate = Temporal.PlainDate.from(anchorBar.sessionDate);
 
-		if (startSessionDate === undefined) {
-			return createUnavailableReturn(window);
-		}
-
-		return measureReturn(bars, anchorBar, startSessionDate, window);
+	return windowMonths.map((months) => {
+		// `subtract` constrains by default, so 31 March minus one month is 28 or 29 February.
+		const startDate = anchorDate.subtract({ months }).toString();
+		return measureReturn(bars, anchorBar, startDate, months);
 	});
 }
 
 function measureReturn(
 	bars: readonly DailyBar[],
 	anchorBar: DailyBar,
-	startSessionDate: string,
-	windowMarketSessions: number,
+	startDate: string,
+	windowMonths: number,
 ): PeriodReturn {
-	const startBar = bars.findLast((bar) => bar.sessionDate <= startSessionDate);
+	const startBar = bars.findLast((bar) => bar.sessionDate <= startDate);
 
 	// Validated prices are positive, so a zero start close is not expected; dividing by it is undefined.
 	if (startBar === undefined || startBar.close === 0) {
-		return createUnavailableReturn(windowMarketSessions);
+		return createUnavailableReturn(windowMonths);
 	}
 
 	const percentChange = ((anchorBar.close - startBar.close) / startBar.close) * 100;
 
 	if (!Number.isFinite(percentChange)) {
-		return createUnavailableReturn(windowMarketSessions);
+		return createUnavailableReturn(windowMonths);
 	}
 
-	return { windowMarketSessions, fromSessionDate: startBar.sessionDate, percentChange };
+	return { windowMonths, fromSessionDate: startBar.sessionDate, percentChange };
 }
 
-function createUnavailableReturn(windowMarketSessions: number): PeriodReturn {
-	return { windowMarketSessions, fromSessionDate: null, percentChange: null };
+function createUnavailableReturn(windowMonths: number): PeriodReturn {
+	return { windowMonths, fromSessionDate: null, percentChange: null };
 }

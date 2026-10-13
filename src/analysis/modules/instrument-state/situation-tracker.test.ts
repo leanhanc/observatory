@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 
+import { calculateAtr } from '#modules/technical-analysis/index.ts';
 import { buildBars, loadGgalFixture } from '#modules/technical-analysis/tests/support/index.ts';
 
 import { calculateInstrumentStates } from './instrument-state.ts';
-import { trackSituations } from './situation-tracker.ts';
+import { checkIfBeyondNoiseBand, trackSituations } from './situation-tracker.ts';
 
 import type { InstrumentState } from './instrument-state.types.ts';
 
@@ -36,20 +37,43 @@ describe('Situations in the Instrument State', () => {
 					occurredAtSession: states[TAIL_START + 2]!.sessionDate,
 					confirmedAtSession: states[TAIL_START + 5]!.sessionDate,
 				},
+				isBeyondNoiseBand: false,
 			},
 		]);
 	});
 
 	test('persists with the same start and level while the close stays below that low', () => {
 		const states = calculateFallingStates();
-		const start = states[TAIL_START + 7]!.situations[0]!;
+		const { isBeyondNoiseBand: _startFlag, ...start } = states[TAIL_START + 7]!.situations[0]!;
 		// Positions 10 to 12 follow the next low's occurrence, before it is confirmed. A reader that
 		// used that low from its occurrence would see the close above it and end the Situation.
 		const persistingStates = states.slice(TAIL_START + 8, TAIL_START + 13);
 
-		expect(persistingStates.map((state) => state.situations)).toEqual(
-			persistingStates.map(() => [start]),
+		expect(
+			persistingStates.map((state) =>
+				state.situations.map(({ isBeyondNoiseBand: _flag, ...situation }) => situation),
+			),
+		).toEqual(persistingStates.map(() => [start]));
+	});
+
+	test('flags the close beyond the noise band per session without restarting the run', () => {
+		const states = calculateFallingStates();
+		const atrValues = calculateAtr(buildBars([...FALL, ...FALL_TAIL]), 14);
+		const runStates = states.slice(TAIL_START + 7, TAIL_START + 13);
+		const closes = FALL_TAIL.slice(7, 13);
+
+		// The run starts 1 below the low of 167, within half an ATR, and falls further from it.
+		expect(runStates.map((state) => state.situations[0]!.isBeyondNoiseBand)).toEqual(
+			runStates.map((_, index) => {
+				const atr = atrValues[TAIL_START + 7 + index]!;
+				return 167 - closes[index]! > 0.5 * atr;
+			}),
 		);
+		expect(runStates[0]!.situations[0]!.isBeyondNoiseBand).toBe(false);
+		expect(runStates.at(-1)!.situations[0]!.isBeyondNoiseBand).toBe(true);
+		expect(
+			new Set(runStates.map((state) => state.situations[0]!.activeSinceSession)).size,
+		).toBe(1);
 	});
 
 	test('ends on the session a newer low confirms, even though the close is still below the older one', () => {
@@ -118,6 +142,25 @@ describe('Situations in the Instrument State', () => {
 			]);
 		}
 		expect(states.some((state) => state.situations.length > 0)).toBe(true);
+	});
+
+	test("every flag on GGAL compares the distance past the level with half that session's ATR(14)", async () => {
+		const bars = await loadGgalFixture();
+		const states = calculateInstrumentStates(bars);
+		const atrValues = calculateAtr(bars, 14);
+		const flags = states.flatMap((state, index) =>
+			state.situations.map((situation) => {
+				const close = bars[index]!.close;
+				const { kind, price } = situation.level;
+				const distancePastLevel = kind === 'low' ? price - close : close - price;
+				const expected = distancePastLevel > 0.5 * atrValues[index]!;
+				return { actual: situation.isBeyondNoiseBand, expected };
+			}),
+		);
+
+		expect(flags.map(({ actual }) => actual)).toEqual(flags.map(({ expected }) => expected));
+		expect(flags.some(({ actual }) => actual === true)).toBe(true);
+		expect(flags.some(({ actual }) => actual === false)).toBe(true);
 	});
 
 	test('is never active during warm-up', async () => {
@@ -193,6 +236,48 @@ describe('trackSituations', () => {
 		]);
 
 		expect(situations).toEqual([[], []]);
+	});
+
+	describe('checkIfBeyondNoiseBand', () => {
+		const belowLow = {
+			type: BELOW_LOW,
+			activeSinceSession: '2026-03-10',
+			level: low,
+		} as const;
+		const aboveHigh = {
+			type: ABOVE_HIGH,
+			activeSinceSession: '2026-03-10',
+			level: { ...low, kind: 'high', price: 20 },
+		} as const;
+
+		test('a close exactly half an ATR past the level is not beyond the band', () => {
+			expect(checkIfBeyondNoiseBand(belowLow, 9, 2)).toBe(false);
+			expect(checkIfBeyondNoiseBand(aboveHigh, 21, 2)).toBe(false);
+		});
+
+		test('an edge that floating point puts a hair past the close is still on the edge', () => {
+			// 0.1 + 0.3 and 0.7 − 0.3 are both 0.4 only up to rounding, on opposite sides of it.
+			const nearHigh = { ...aboveHigh, level: { ...aboveHigh.level, price: 0.1 } };
+			const nearLow = { ...belowLow, level: { ...belowLow.level, price: 0.7 } };
+
+			expect(checkIfBeyondNoiseBand(nearHigh, 0.4, 0.6)).toBe(false);
+			expect(checkIfBeyondNoiseBand(nearLow, 0.4, 0.6)).toBe(false);
+		});
+
+		test('a close further than half an ATR past the level is beyond the band', () => {
+			expect(checkIfBeyondNoiseBand(belowLow, 8.99, 2)).toBe(true);
+			expect(checkIfBeyondNoiseBand(aboveHigh, 21.01, 2)).toBe(true);
+		});
+
+		test('measures each side away from its own level', () => {
+			// A high's band is above it: a close below the high is never beyond it.
+			expect(checkIfBeyondNoiseBand(aboveHigh, 18, 2)).toBe(false);
+			expect(checkIfBeyondNoiseBand(belowLow, 12, 2)).toBe(false);
+		});
+
+		test('is null, not false, while ATR(14) is unavailable', () => {
+			expect(checkIfBeyondNoiseBand(belowLow, 1, null)).toBeNull();
+		});
 	});
 
 	function buildStateParts(

@@ -1,158 +1,117 @@
 import {
-	formatEvaluatedPercent,
-	formatEvaluatedValue,
-	formatPendingRegimeTransition,
-	formatPeriodReturn,
-	formatPesoSwingLevel,
-	formatPesos,
-	formatResistance,
-	formatSituation,
-	formatSupport,
-	formatSwingLevel,
-	formatTippingClose,
-} from '#web/lib/utils/line-formatting/index.ts';
+	describeLevels,
+	describeLongTermDistance,
+	describeMomentum,
+	describePattern,
+	describeRawEvidence,
+	describePendingTransition,
+	describePeriodReturns,
+	describeShortTermStretch,
+	describeSwingDates,
+	describeTippingPoints,
+	describeTrend,
+} from '#web/lib/utils/line-wording/index.ts';
 
-import { EventDetails } from './event-details.tsx';
+import { PhraseText } from './phrase-text.tsx';
+import { RecentChanges } from './recent-changes.tsx';
 
-import type { AvailableLine, SnapshotPriceUnit } from '#web/lib/utils/snapshot-pages/index.ts';
+import type { PriceContext } from '#web/lib/utils/line-wording/index.ts';
+import type { AvailableLine } from '#web/lib/utils/snapshot-pages/index.ts';
 
-type AvailableLineDetailsProps = { line: AvailableLine; priceUnit: SnapshotPriceUnit };
+type AvailableLineDetailsProps = { line: AvailableLine; context: PriceContext };
 
-export function AvailableLineDetails({ line, priceUnit }: AvailableLineDetailsProps) {
-	const {
-		sessionDate,
-		regime,
-		pendingRegimeTransition,
-		regimeTippingCloses,
-		structure,
-		lastConfirmedSwingHigh,
-		lastConfirmedSwingLow,
-		rsi,
-		priceRelativeToEmaInAtr,
-		priceRelativeToLongTermEmaInPercent,
-		situations,
-	} = line.latestState;
-	const { pesoEquivalents, periodReturns } = line;
-	const pesoTippingCloses = pesoEquivalents.regimeTippingCloses;
-	const hasEvents = line.events.length > 0;
-	const hasSituations = situations.length > 0;
-	const hasTippingCloses = regimeTippingCloses !== null && pesoTippingCloses !== null;
+/**
+ * Sections 1 to 5 of the line page: what the line is doing, its support and resistance, what would
+ * change it, its last changes and the detail. Tier 2 is open and collapsible, tier 3 is collapsed.
+ */
+export function AvailableLineDetails({ line, context }: AvailableLineDetailsProps) {
+	const { latestState: state, pesoEquivalents, periodReturns } = line;
+	const longTermDistance = describeLongTermDistance(state.priceRelativeToLongTermEmaInPercent);
+	const pendingTransition = describePendingTransition(state.pendingRegimeTransition);
+	const momentum = describeMomentum(state.rsi);
 
 	return (
 		<>
-			<h2>Change of the close in MEP dollars, as of {sessionDate}</h2>
+			<section>
+				<h2>Qué está haciendo</h2>
+				<p>
+					<PhraseText phrase={describeTrend(state.regime)} />
+				</p>
+				<p>
+					<PhraseText phrase={describePeriodReturns(periodReturns, context.priceUnit)} />
+				</p>
+				{longTermDistance !== null && (
+					<details open>
+						<summary>Media móvil de 200 ruedas</summary>
+						<p>
+							<PhraseText phrase={longTermDistance} />
+						</p>
+					</details>
+				)}
+			</section>
+			<section>
+				<h2>Soporte y resistencia</h2>
+				<ul>
+					{describeLevels(state, pesoEquivalents, context).map((phrase, index) => (
+						<li key={index}>
+							<PhraseText phrase={phrase} />
+						</li>
+					))}
+				</ul>
+			</section>
+			<section>
+				<h2>Qué observar</h2>
+				<p>
+					<PhraseText phrase={describePattern(state, pesoEquivalents, context)} />
+				</p>
+				{describeTippingPoints(state, pesoEquivalents, context).map((phrase, index) => (
+					<p key={index}>
+						<PhraseText phrase={phrase} />
+					</p>
+				))}
+				{pendingTransition !== null && (
+					<p>
+						<PhraseText phrase={pendingTransition} />
+					</p>
+				)}
+			</section>
+			<RecentChanges line={line} priceUnit={context.priceUnit} />
+			<section>
+				<h2>Detalle</h2>
+				{momentum !== null && (
+					<details open>
+						<summary>Momentum</summary>
+						<p>
+							<PhraseText phrase={momentum} />
+						</p>
+					</details>
+				)}
+				<details>
+					<summary>Más detalle</summary>
+					<DetailList line={line} context={context} />
+				</details>
+			</section>
+		</>
+	);
+}
+
+function DetailList({ line, context }: AvailableLineDetailsProps) {
+	const shortTermStretch = describeShortTermStretch(line.latestState.priceRelativeToEmaInAtr);
+	const swingDates = describeSwingDates(line.latestState);
+
+	return (
+		<>
+			{shortTermStretch !== null && (
+				<p>
+					<PhraseText phrase={shortTermStretch} />
+				</p>
+			)}
+			{swingDates !== null && <p>{swingDates}</p>}
 			<ul>
-				{periodReturns.map((periodReturn) => (
-					<li key={periodReturn.windowMarketSessions}>
-						{formatPeriodReturn(periodReturn)}
-					</li>
+				{describeRawEvidence(line, context).map((fact) => (
+					<li key={fact}>{fact}</li>
 				))}
 			</ul>
-			<h2>Situations</h2>
-			{hasSituations ? (
-				<ul>
-					{situations.map((situation) => (
-						<li key={situation.type}>
-							{formatSituation(situation, line.latestState, priceUnit)}
-						</li>
-					))}
-				</ul>
-			) : (
-				<p>None active.</p>
-			)}
-			<h2>Support and resistance</h2>
-			<ul>
-				<li>Last confirmed swing low: {formatSupport(lastConfirmedSwingLow)}</li>
-				<li>Last confirmed swing high: {formatResistance(lastConfirmedSwingHigh)}</li>
-			</ul>
-			<h2>Regime tipping closes as of {sessionDate}</h2>
-			{hasTippingCloses ? (
-				<>
-					<ul>
-						<li>
-							Bullish proposal needs{' '}
-							{formatTippingClose(
-								'bullish',
-								regimeTippingCloses,
-								{ ...pesoEquivalents, regimeTippingCloses: pesoTippingCloses },
-								priceUnit,
-							)}
-						</li>
-						<li>
-							Bearish proposal needs{' '}
-							{formatTippingClose(
-								'bearish',
-								regimeTippingCloses,
-								{ ...pesoEquivalents, regimeTippingCloses: pesoTippingCloses },
-								priceUnit,
-							)}
-						</li>
-					</ul>
-					<p>
-						These are conditions of Observatory's Regime rule as of this session, not
-						targets. Each later close moves the averages and the ATR, so later sessions
-						have slightly different values, and a proposal changes Regime only after its
-						confirming sessions.
-					</p>
-				</>
-			) : (
-				<p>Not evaluated.</p>
-			)}
-			<h2>State at the close of {sessionDate}</h2>
-			<ul>
-				<li>Regime: {formatEvaluatedValue(regime)}</li>
-				<li>
-					Pending Regime transition:{' '}
-					{formatPendingRegimeTransition(pendingRegimeTransition)}
-				</li>
-				<li>Structure: {formatEvaluatedValue(structure)}</li>
-				<li>
-					Last confirmed swing high: {formatSwingLevel(lastConfirmedSwingHigh, priceUnit)}
-				</li>
-				<li>
-					Last confirmed swing low: {formatSwingLevel(lastConfirmedSwingLow, priceUnit)}
-				</li>
-				<li>RSI: {formatEvaluatedValue(rsi)}</li>
-				<li>
-					Price relative to EMA, in ATRs: {formatEvaluatedValue(priceRelativeToEmaInAtr)}
-				</li>
-				<li>
-					Price relative to the long-term EMA:{' '}
-					{formatEvaluatedPercent(priceRelativeToLongTermEmaInPercent)}
-				</li>
-			</ul>
-			<h3>In pesos</h3>
-			<ul>
-				<li>
-					Close on {pesoEquivalents.sessionDate}: {formatPesos(pesoEquivalents.close)}
-				</li>
-				<li>
-					Last confirmed swing high:{' '}
-					{formatPesoSwingLevel(pesoEquivalents.lastConfirmedSwingHigh, pesoEquivalents)}
-				</li>
-				<li>
-					Last confirmed swing low:{' '}
-					{formatPesoSwingLevel(pesoEquivalents.lastConfirmedSwingLow, pesoEquivalents)}
-				</li>
-			</ul>
-			<p>
-				Swing levels are found on prices in MEP dollars. Their peso equivalents move with
-				the MEP rate and are not prices at which the line turned in pesos.
-			</p>
-			<h2>Events</h2>
-			{hasEvents ? (
-				<ul>
-					{line.events.map((snapshotEvent, index) => (
-						<li
-							key={`${snapshotEvent.sessionDate}-${snapshotEvent.event.type}-${index}`}
-						>
-							<EventDetails snapshotEvent={snapshotEvent} priceUnit={priceUnit} />
-						</li>
-					))}
-				</ul>
-			) : (
-				<p>No Events.</p>
-			)}
 		</>
 	);
 }

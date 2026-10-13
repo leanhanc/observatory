@@ -40,7 +40,7 @@ export type AnalyzedLine =
 			instrumentId: string;
 			tradingLineId: string;
 			latestState: InstrumentState;
-			/** The close's change over each configured window of Market Sessions, as of `latestState`. */
+			/** The close's change over each configured window of calendar months, as of `latestState`. */
 			periodReturns: readonly PeriodReturn[];
 			events: readonly AnalysisSnapshotEvent[];
 			/** Large One-Session Moves of the corrected Dollarized Series, in session order. */
@@ -127,7 +127,7 @@ export type TradingLineSession = Readonly<{
 export type PriceUnit = 'mep-dollar';
 
 export type AnalysisSnapshot = Readonly<{
-	schemaVersion: 8;
+	schemaVersion: 9;
 	priceUnit: PriceUnit;
 	ranAt: string;
 	requestedThroughSession: string;

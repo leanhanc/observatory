@@ -10,7 +10,7 @@ import {
 	trackLatestConfirmedSwings,
 } from '#modules/technical-analysis/index.ts';
 
-import { trackSituations } from './situation-tracker.ts';
+import { checkIfBeyondNoiseBand, trackSituations } from './situation-tracker.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
 import type {
@@ -74,9 +74,18 @@ export function calculateInstrumentStates(bars: readonly DailyBar[]): readonly I
 			longTermEmaValues[index]!,
 		),
 	}));
-	const situations = trackSituations(stateParts);
+	const trackedSituations = trackSituations(stateParts);
 
-	return stateParts.map((parts, index) => ({ ...parts, situations: situations[index]! }));
+	return stateParts.map((parts, index) => {
+		const close = bars[index]!.close;
+		const atr = atrValues[index]!;
+		const situations = trackedSituations[index]!.map((situation) => ({
+			...situation,
+			isBeyondNoiseBand: checkIfBeyondNoiseBand(situation, close, atr),
+		}));
+
+		return { ...parts, situations };
+	});
 }
 
 function toReadableRegime(regime: Regime): ReadableRegime | null {

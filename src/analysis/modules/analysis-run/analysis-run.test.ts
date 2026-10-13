@@ -201,45 +201,23 @@ describe('createAnalysisRunner', () => {
 		]);
 	});
 
-	test('counts period-return windows in the run’s Market Sessions, not the line’s bars', async () => {
-		// GGAL skips five of the last 21 Market Sessions, so 21 of its bars reach five sessions further
-		// back than 21 Market Sessions.
-		const skippedSessions = new Set(
-			sessionDates.slice(-20, -10).filter((_, index) => index % 2 === 0),
-		);
-		const tradedDollarBars = ggalDollarBars.filter(
-			(bar) => !skippedSessions.has(bar.sessionDate),
-		);
-		const provider = {
-			...createHealthyProvider(),
-			GGAL: ggalPesoBars.filter((bar) => !skippedSessions.has(bar.sessionDate)),
-		};
-		const { result } = await runWithProvider(provider);
-		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
-		const barDates = tradedDollarBars.map((bar) => bar.sessionDate);
-		const returnsCountingBars = calculatePeriodReturns(tradedDollarBars, barDates);
-
-		expect(skippedSessions.size).toBe(5);
-		expect(ggal.periodReturns[0]!.fromSessionDate).toBe(sessionDates.at(-22)!);
-		expect(returnsCountingBars[0]!.fromSessionDate).not.toBe(sessionDates.at(-22)!);
-		expect(ggal.periodReturns).toEqual(calculatePeriodReturns(tradedDollarBars, sessionDates));
-	});
-
-	test('measures period returns over the run’s Market Sessions, as of the latest State', async () => {
+	test('measures period returns over the Dollarized Series, as of the latest State', async () => {
 		const provider = {
 			...createHealthyProvider(),
 			GGAL: ggalPesoBars.filter((bar) => bar.sessionDate < '2026-09-15'),
 		};
 		const { result } = await runWithProvider(provider);
 		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
-		const anchorPosition = sessionDates.indexOf(ggal.latestState.sessionDate);
 		const truncatedDollarBars = ggalDollarBars.filter((bar) => bar.sessionDate < '2026-09-15');
+		const anchorDate = Temporal.PlainDate.from(ggal.latestState.sessionDate);
+		const monthStartDate = anchorDate.subtract({ months: 1 }).toString();
+		const monthStartBar = truncatedDollarBars.findLast(
+			(bar) => bar.sessionDate <= monthStartDate,
+		)!;
 
 		// The MEP calendar continues past the line's last bar; the windows count back from that bar.
-		expect(ggal.periodReturns).toEqual(
-			calculatePeriodReturns(truncatedDollarBars, sessionDates),
-		);
-		expect(ggal.periodReturns[0]!.fromSessionDate).toBe(sessionDates[anchorPosition - 21]!);
+		expect(ggal.periodReturns).toEqual(calculatePeriodReturns(truncatedDollarBars));
+		expect(ggal.periodReturns[0]!.fromSessionDate).toBe(monthStartBar.sessionDate);
 		expect(
 			ggal.periodReturns.every((periodReturn) => periodReturn.percentChange !== null),
 		).toBe(true);
@@ -249,7 +227,7 @@ describe('createAnalysisRunner', () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 
 		expect(result.ok && result.snapshot).toMatchObject({
-			schemaVersion: 8,
+			schemaVersion: 9,
 			priceUnit: 'mep-dollar',
 			ranAt: RAN_AT,
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,

@@ -10,4 +10,6 @@ The alternative was to require a margin, for example a close more than half an A
 
 A Situation is evaluated per session and is active only while its conjunction holds. Its start session is replayed causally from the line's States, and an interruption restarts it; no Situation latches. Because each conjunction reads the latest confirmed swing, a newer confirmed swing ends a Situation built on an older one.
 
+The snapshot also flags whether each active Situation's close is past its level by more than half an ATR(14), Regime's noise band; that flag only selects reader-facing wording and is never a condition of the Situation.
+
 A noise margin may be revisited once the Evidence layer can test whether one changes what a Situation describes. Adding it would be a new Analysis Configuration version and a new definition, not a fix.

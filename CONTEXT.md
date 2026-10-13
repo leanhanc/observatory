@@ -141,7 +141,7 @@ A direction-neutral Event in which one completed Trading Session's True Range, i
 _Avoid_: Volatility Expansion, wide-range session, bullish or bearish signal, continuation, reversal, opportunity, price target
 
 **Period Return**:
-How much the close moved over a recent stretch, in percent, measured in MEP dollars: about a month, three months or a year of Market Sessions (the windows are set in the Analysis Configuration), counted back from the latest State's session. It says how far, not why. When the history is too short, it is unavailable, never zero.
+How much the close moved over a recent stretch, in percent, measured in MEP dollars: one month, three months or one year, counted in calendar months back from the latest State's session (the windows are set in the Analysis Configuration). It starts from the last close on or before that date. It says how far, not why. When the history is too short, it is unavailable, never zero.
 _Avoid_: Performance, gain, distance below a level when referring to the whole move
 
 **Corporate Action**:

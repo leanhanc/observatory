@@ -1,4 +1,9 @@
-<html lang="en">
+---
+// Line pages and the not-found page are in Spanish; the home page is still in English.
+const { lang = 'es' } = Astro.props as { lang?: 'es' | 'en' };
+---
+
+<html lang={lang}>
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />

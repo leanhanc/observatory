@@ -4,7 +4,7 @@ import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
 import { checkIfIsoDateIsValid } from '#lib/utils/validation/index.ts';
 
 const messages = {
-	invalidSchemaVersion: 'Schema version must be 8.',
+	invalidSchemaVersion: 'Schema version must be 9.',
 	invalidSessionDate: 'Value must be a real YYYY-MM-DD date.',
 	invalidTimestamp: 'Value must be an ISO timestamp.',
 	invalidType: 'Value has an invalid type or shape.',
@@ -83,6 +83,7 @@ const situationSchema = v.variant(
 				type: v.literal('below-last-confirmed-low-in-bearish-regime'),
 				activeSinceSession: sessionDateSchema,
 				level: confirmedLowSchema,
+				isBeyondNoiseBand: v.nullable(v.boolean(messages.invalidType)),
 			},
 			messages.invalidType,
 		),
@@ -91,6 +92,7 @@ const situationSchema = v.variant(
 				type: v.literal('above-last-confirmed-high-in-bullish-regime'),
 				activeSinceSession: sessionDateSchema,
 				level: confirmedHighSchema,
+				isBeyondNoiseBand: v.nullable(v.boolean(messages.invalidType)),
 			},
 			messages.invalidType,
 		),
@@ -101,7 +103,7 @@ const situationSchema = v.variant(
 const periodReturnSchema = v.pipe(
 	v.object(
 		{
-			windowMarketSessions: v.pipe(
+			windowMonths: v.pipe(
 				numberSchema,
 				v.integer(messages.invalidType),
 				v.gtValue(0, messages.invalidType),
@@ -312,7 +314,7 @@ const analyzedLineSchema = v.pipe(
  */
 export const analysisSnapshotOverviewSchema = v.object(
 	{
-		schemaVersion: v.literal(8, messages.invalidSchemaVersion),
+		schemaVersion: v.literal(9, messages.invalidSchemaVersion),
 		priceUnit: v.picklist(['mep-dollar'], messages.invalidType),
 		ranAt: v.pipe(stringSchema, v.isoTimestamp(messages.invalidTimestamp)),
 		requestedThroughSession: sessionDateSchema,

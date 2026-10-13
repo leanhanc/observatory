@@ -6,6 +6,7 @@ import {
 	calculateMarketStructure,
 	calculatePendingRegimeTransitions,
 	calculateRegime,
+	calculateRegimeTippingCloses,
 	calculateRsi,
 	detectStructureBreakEvents,
 } from '#modules/technical-analysis/index.ts';
@@ -45,8 +46,10 @@ describe('calculateInstrumentStates', () => {
 			'priceRelativeToEmaInAtr',
 			'priceRelativeToLongTermEmaInPercent',
 			'regime',
+			'regimeTippingCloses',
 			'rsi',
 			'sessionDate',
+			'situations',
 			'structure',
 		]);
 	});
@@ -218,6 +221,65 @@ describe('calculateInstrumentStates', () => {
 			9,
 		);
 		expect(lastState.lastConfirmedSwingLow!.priceRelativeToSwingInPercent).toBe(150);
+		expect(lastState.lastConfirmedSwingLow!.closePosition).toBe('at-or-above');
+		expect(lastState.lastConfirmedSwingHigh!.closePosition).toBe('at-or-below');
+	});
+
+	test('a close exactly on a level counts as Support or Resistance', () => {
+		// The low of 4 confirms on the close of 10; the next closes sit exactly on the low (4 + 1 is
+		// the bar's low, so the close is 4) and then exactly on the high of 22.
+		const atLowState = calculateInstrumentStates(
+			buildBars([10, 11, 12, 20, 12, 11, 10, 9, 8, 5, 8, 9, 10, 4]),
+		).at(-1)!;
+		const atHighState = calculateInstrumentStates(
+			buildBars([10, 11, 12, 20, 12, 11, 10, 9, 8, 5, 8, 9, 10, 22]),
+		).at(-1)!;
+
+		expect(atLowState.lastConfirmedSwingLow).toMatchObject({
+			price: 4,
+			closePosition: 'at-or-above',
+		});
+		expect(atHighState.lastConfirmedSwingHigh).toMatchObject({
+			price: 22,
+			closePosition: 'at-or-below',
+		});
+	});
+
+	test('a close just beyond a level is on its far side, with no tolerance', () => {
+		const belowLowState = calculateInstrumentStates(
+			buildBars([10, 11, 12, 20, 12, 11, 10, 9, 8, 5, 8, 9, 10, 3.999]),
+		).at(-1)!;
+
+		expect(belowLowState.lastConfirmedSwingLow!.closePosition).toBe('below');
+		expect(belowLowState.lastConfirmedSwingHigh!.closePosition).toBe('at-or-below');
+	});
+
+	test('a close between a high confirmed below a later low is beyond both levels', () => {
+		// The high of 22 confirms first; after a gap up, a low of 38 confirms, and the close of 30
+		// sits between them.
+		const lastState = calculateInstrumentStates(
+			buildBars([10, 11, 12, 20, 12, 11, 10, 50, 50, 50, 39, 50, 50, 50, 30]),
+		).at(-1)!;
+
+		expect(lastState.lastConfirmedSwingHigh).toMatchObject({
+			price: 22,
+			closePosition: 'above',
+		});
+		expect(lastState.lastConfirmedSwingLow).toMatchObject({
+			price: 38,
+			closePosition: 'below',
+		});
+	});
+
+	test('reports the Regime tipping closes of the same session, and none without a Regime', async () => {
+		const bars = await loadGgalFixture();
+		const tippingCloses = calculateRegimeTippingCloses(bars);
+		const states = calculateInstrumentStates(bars);
+
+		states.forEach((state, index) => {
+			expect(state.regimeTippingCloses).toEqual(tippingCloses[index]!.tippingCloses);
+			expect(state.regimeTippingCloses === null).toBe(state.regime === null);
+		});
 	});
 
 	test('the last confirmed swing changes exactly on each confirmation session', async () => {
@@ -230,7 +292,11 @@ describe('calculateInstrumentStates', () => {
 		expect(confirmations.length).toBeGreaterThan(4);
 		for (const { swing, index } of confirmations) {
 			const part = swing.kind === 'high' ? 'lastConfirmedSwingHigh' : 'lastConfirmedSwingLow';
-			const { priceRelativeToSwingInPercent, ...confirmedSwing } = states[index]![part]!;
+			const {
+				priceRelativeToSwingInPercent,
+				closePosition: _position,
+				...confirmedSwing
+			} = states[index]![part]!;
 
 			expect(confirmedSwing).toEqual(swing);
 			expect(states[index - 1]![part]?.confirmedAtSession).not.toBe(swing.confirmedAtSession);

@@ -28,6 +28,7 @@ import {
 	evaluateLiquidityEligibility,
 	selectLiquidityWindow,
 } from '#modules/liquidity-eligibility/index.ts';
+import { calculatePeriodReturns } from '#modules/period-returns/index.ts';
 import {
 	detectLargeOneSessionMoves,
 	detectRegimeTransitionEvents,
@@ -280,7 +281,7 @@ async function runAnalysis(
 	);
 
 	const snapshot = {
-		schemaVersion: 7,
+		schemaVersion: 8,
 		priceUnit: SNAPSHOT_PRICE_UNIT,
 		ranAt,
 		requestedThroughSession,
@@ -854,11 +855,13 @@ function analyzeTradingLine(
 
 	const latestState = calculateInstrumentStates(bars).at(-1)!;
 	const largeMoves = detectLargeOneSessionMoves(bars);
+	const marketSessionDates = mepRates.map((rate) => rate.sessionDate);
 
 	return {
 		status: 'available',
 		...identity,
 		latestState,
+		periodReturns: calculatePeriodReturns(bars, marketSessionDates),
 		events: collectEvents(bars, largeMoves),
 		largeMoves,
 		corporateActions: correction.outcomes,
@@ -874,16 +877,17 @@ function analyzeTradingLine(
 }
 
 /**
- * Expresses the latest State's close and watch levels in pesos at that session's MEP Rate. It is
- * the rate that dollarized the session's close, so the close's distance from each level is the same
- * in pesos as in MEP dollars.
+ * Expresses the latest State's close, watch levels and Regime tipping closes in pesos at that
+ * session's MEP Rate. It is the rate that dollarized the session's close, so the close's distance
+ * from each level is the same in pesos as in MEP dollars.
  */
 function projectLatestStateToPesos(
 	latestState: InstrumentState,
 	pesoBars: readonly DailyBar[],
 	mepRates: readonly MepRateSession[],
 ): PesoEquivalents {
-	const { sessionDate, lastConfirmedSwingHigh, lastConfirmedSwingLow } = latestState;
+	const { sessionDate, lastConfirmedSwingHigh, lastConfirmedSwingLow, regimeTippingCloses } =
+		latestState;
 	// The State's session has a dollarized bar, so it has both a peso bar and a MEP Rate.
 	const { mepRate } = mepRates.find((rate) => rate.sessionDate === sessionDate)!;
 	const pesoBar = pesoBars.find((bar) => bar.sessionDate === sessionDate)!;
@@ -894,6 +898,21 @@ function projectLatestStateToPesos(
 		close: pesoBar.close,
 		lastConfirmedSwingHigh: convertSwingPrice(lastConfirmedSwingHigh, mepRate),
 		lastConfirmedSwingLow: convertSwingPrice(lastConfirmedSwingLow, mepRate),
+		regimeTippingCloses: convertTippingCloses(regimeTippingCloses, mepRate),
+	};
+}
+
+function convertTippingCloses(
+	tippingCloses: InstrumentState['regimeTippingCloses'],
+	mepRate: number,
+): PesoEquivalents['regimeTippingCloses'] {
+	if (tippingCloses === null) {
+		return null;
+	}
+
+	return {
+		bullishCloseAbove: toPesoEquivalent(tippingCloses.bullish.closeAbove, mepRate),
+		bearishCloseBelow: toPesoEquivalent(tippingCloses.bearish.closeBelow, mepRate),
 	};
 }
 

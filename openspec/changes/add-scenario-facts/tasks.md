@@ -1,0 +1,11 @@
+- [x] Spec deltas for instrument-state, technical-analysis, period-returns, analysis-run and web-app.
+- [x] CONTEXT.md: Support, Resistance, Regime Tipping Close, Period Return, and the two Situations.
+- [x] ADR 0011: Situations are threshold-free conjunctions on the current State.
+- [x] `closePosition` on the State's last confirmed swings, with tests.
+- [x] `measureRegimeBand` in regime-policy, read by `proposeRegime` and `calculateRegimeTippingCloses`; the State's `regimeTippingCloses`, with tests.
+- [x] `period-returns` module and `ANALYSIS_CONFIGURATION.periodReturns`, version 7, with tests.
+- [x] `situations` in the State, with tests: start, persistence, end by a new swing, end by a return, end by Regime, never during warm-up, prefix replay, and no use of an unconfirmed or stale swing.
+- [x] Snapshot schema v8: writer, `readLatest` schema, prefix `v8`, `pesoEquivalents.regimeTippingCloses`, with tests.
+- [x] Line page with plain labels, with tests; the published-output guard unchanged.
+- [x] Dry run: counts of close position × Regime and of each Situation.
+- [x] Run tests, typecheck, lint, format and `openspec validate --all --strict`.

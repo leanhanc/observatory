@@ -2,7 +2,7 @@ export { calculateAtr } from './atr/index.ts';
 export { calculateEma } from './ema/index.ts';
 export { detectLargeOneSessionMoves } from './large-move/index.ts';
 export { calculateMarketStructure, trackLatestConfirmedSwings } from './market-structure/index.ts';
-export { calculateRegime } from './regime/index.ts';
+export { calculateRegime, calculateRegimeTippingCloses } from './regime/index.ts';
 export {
 	calculatePendingRegimeTransitions,
 	detectRegimeTransitionEvents,
@@ -20,7 +20,12 @@ export type {
 	MarketStructureSession,
 	StructureClassification,
 } from './market-structure/index.ts';
-export type { Regime, RegimeSession } from './regime/index.ts';
+export type {
+	Regime,
+	RegimeSession,
+	RegimeTippingCloses,
+	RegimeTippingClosesSession,
+} from './regime/index.ts';
 export type {
 	PendingRegimeTransition,
 	PendingRegimeTransitionSession,

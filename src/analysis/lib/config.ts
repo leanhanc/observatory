@@ -8,7 +8,7 @@
  * separate conventions.
  */
 export const ANALYSIS_CONFIGURATION = {
-	version: 6,
+	version: 7,
 	regime: {
 		fastEmaPeriod: 50,
 		slowEmaPeriod: 200,
@@ -30,6 +30,11 @@ export const ANALYSIS_CONFIGURATION = {
 		// The most widely watched long-term trend reference. Equal to Regime's slow EMA by
 		// convention, not by reuse.
 		longTermEmaPeriod: 200,
+	},
+	// About one month, three months and one year. Windows count Market Sessions, so every line's
+	// window spans the same dates.
+	periodReturns: {
+		windowMarketSessions: [21, 63, 252],
 	},
 	// A Trading Line is analyzed only when, over the last `windowSessions` market sessions, it
 	// traded on at least `minimumParticipation` of them and its median traded value in MEP dollars

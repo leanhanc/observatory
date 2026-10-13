@@ -1,2 +1,8 @@
 export { calculateRegime } from './regime.ts';
-export type { Regime, RegimeSession } from './regime.types.ts';
+export { calculateRegimeTippingCloses } from './regime-tipping-closes.ts';
+export type {
+	Regime,
+	RegimeSession,
+	RegimeTippingCloses,
+	RegimeTippingClosesSession,
+} from './regime.types.ts';

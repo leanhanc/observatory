@@ -32,6 +32,14 @@ export type RegimeProposalSession = Readonly<{
 	proposal: ReadableRegime | null;
 }>;
 
+export type RegimeInputSession = Readonly<{
+	sessionDate: SessionDate;
+	close: number;
+	ema50: number | null;
+	ema200: number | null;
+	atr14: number | null;
+}>;
+
 export type RegimeAnalysisSession = Readonly<{
 	sessionDate: SessionDate;
 	regime: Regime;
@@ -56,6 +64,14 @@ export function analyzeRegime(bars: readonly DailyBar[]): readonly RegimeAnalysi
 }
 
 function proposeRegimes(bars: readonly DailyBar[]): readonly RegimeProposalSession[] {
+	return measureRegimeInputs(bars).map(({ sessionDate, close, ema50, ema200, atr14 }) => ({
+		sessionDate,
+		proposal: proposeRegime(close, ema50, ema200, atr14),
+	}));
+}
+
+/** The close and the averages and range Regime's rule reads, per session, with the configured periods. */
+export function measureRegimeInputs(bars: readonly DailyBar[]): readonly RegimeInputSession[] {
 	const closes = bars.map((bar) => bar.close);
 	const fastEma = calculateEma(closes, ANALYSIS_CONFIGURATION.regime.fastEmaPeriod);
 	const slowEma = calculateEma(closes, ANALYSIS_CONFIGURATION.regime.slowEmaPeriod);
@@ -63,12 +79,10 @@ function proposeRegimes(bars: readonly DailyBar[]): readonly RegimeProposalSessi
 
 	return bars.map((bar, index) => ({
 		sessionDate: bar.sessionDate,
-		proposal: proposeRegime(
-			bar.close,
-			fastEma[index] ?? null,
-			slowEma[index] ?? null,
-			atr[index] ?? null,
-		),
+		close: bar.close,
+		ema50: fastEma[index] ?? null,
+		ema200: slowEma[index] ?? null,
+		atr14: atr[index] ?? null,
 	}));
 }
 

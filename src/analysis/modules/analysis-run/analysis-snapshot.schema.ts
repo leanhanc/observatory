@@ -4,12 +4,16 @@ import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
 import { checkIfIsoDateIsValid } from '#lib/utils/validation/index.ts';
 
 const messages = {
-	invalidSchemaVersion: 'Schema version must be 7.',
+	invalidSchemaVersion: 'Schema version must be 8.',
 	invalidSessionDate: 'Value must be a real YYYY-MM-DD date.',
 	invalidTimestamp: 'Value must be an ISO timestamp.',
 	invalidType: 'Value has an invalid type or shape.',
 	inconsistentPesoEquivalents:
-		'Peso equivalents must describe the latest State: its session and its confirmed swings.',
+		'Peso equivalents must describe the latest State: its session, its confirmed swings and its Regime tipping closes.',
+	inconsistentSituations:
+		'Each Situation must agree with the latest State: its Regime and the swing the close is beyond.',
+	inconsistentPeriodReturn:
+		'A period return must have both its start session and change, or neither.',
 } as const;
 
 const stringSchema = v.string(messages.invalidType);
@@ -37,6 +41,83 @@ const confirmedSwingFieldEntries = {
 	priceRelativeToSwingInPercent: v.nullable(numberSchema),
 };
 
+const confirmedLowSchema = v.object(
+	{
+		kind: v.literal('low', messages.invalidType),
+		price: numberSchema,
+		occurredAtSession: sessionDateSchema,
+		confirmedAtSession: sessionDateSchema,
+	},
+	messages.invalidType,
+);
+
+const confirmedHighSchema = v.object(
+	{
+		kind: v.literal('high', messages.invalidType),
+		price: numberSchema,
+		occurredAtSession: sessionDateSchema,
+		confirmedAtSession: sessionDateSchema,
+	},
+	messages.invalidType,
+);
+
+const regimeTippingClosesSchema = v.object(
+	{
+		bullish: v.object(
+			{ closeAbove: numberSchema, isFastEmaAligned: v.boolean(messages.invalidType) },
+			messages.invalidType,
+		),
+		bearish: v.object(
+			{ closeBelow: numberSchema, isFastEmaAligned: v.boolean(messages.invalidType) },
+			messages.invalidType,
+		),
+	},
+	messages.invalidType,
+);
+
+const situationSchema = v.variant(
+	'type',
+	[
+		v.object(
+			{
+				type: v.literal('below-last-confirmed-low-in-bearish-regime'),
+				activeSinceSession: sessionDateSchema,
+				level: confirmedLowSchema,
+			},
+			messages.invalidType,
+		),
+		v.object(
+			{
+				type: v.literal('above-last-confirmed-high-in-bullish-regime'),
+				activeSinceSession: sessionDateSchema,
+				level: confirmedHighSchema,
+			},
+			messages.invalidType,
+		),
+	],
+	messages.invalidType,
+);
+
+const periodReturnSchema = v.pipe(
+	v.object(
+		{
+			windowMarketSessions: v.pipe(
+				numberSchema,
+				v.integer(messages.invalidType),
+				v.gtValue(0, messages.invalidType),
+			),
+			fromSessionDate: v.nullable(sessionDateSchema),
+			percentChange: v.nullable(numberSchema),
+		},
+		messages.invalidType,
+	),
+	v.check(
+		(periodReturn) =>
+			(periodReturn.fromSessionDate === null) === (periodReturn.percentChange === null),
+		messages.inconsistentPeriodReturn,
+	),
+);
+
 const pendingRegimeTransitionSchema = v.object(
 	{
 		candidate: regimeSchema,
@@ -54,24 +135,34 @@ const latestStateSchema = v.object(
 		sessionDate: sessionDateSchema,
 		regime: v.nullable(regimeSchema),
 		pendingRegimeTransition: v.nullable(pendingRegimeTransitionSchema),
+		regimeTippingCloses: v.nullable(regimeTippingClosesSchema),
 		structure: v.nullable(
 			v.picklist(['uptrend', 'downtrend', 'range', 'undefined'], messages.invalidType),
 		),
 		lastConfirmedSwingHigh: v.nullable(
 			v.object(
-				{ kind: v.literal('high', messages.invalidType), ...confirmedSwingFieldEntries },
+				{
+					kind: v.literal('high', messages.invalidType),
+					...confirmedSwingFieldEntries,
+					closePosition: v.picklist(['at-or-below', 'above'], messages.invalidType),
+				},
 				messages.invalidType,
 			),
 		),
 		lastConfirmedSwingLow: v.nullable(
 			v.object(
-				{ kind: v.literal('low', messages.invalidType), ...confirmedSwingFieldEntries },
+				{
+					kind: v.literal('low', messages.invalidType),
+					...confirmedSwingFieldEntries,
+					closePosition: v.picklist(['at-or-above', 'below'], messages.invalidType),
+				},
 				messages.invalidType,
 			),
 		),
 		rsi: v.nullable(numberSchema),
 		priceRelativeToEmaInAtr: v.nullable(numberSchema),
 		priceRelativeToLongTermEmaInPercent: v.nullable(numberSchema),
+		situations: v.pipe(v.array(situationSchema, messages.invalidType), v.readonly()),
 	},
 	messages.invalidType,
 );
@@ -125,6 +216,12 @@ const pesoEquivalentsSchema = v.object(
 		close: numberSchema,
 		lastConfirmedSwingHigh: v.nullable(numberSchema),
 		lastConfirmedSwingLow: v.nullable(numberSchema),
+		regimeTippingCloses: v.nullable(
+			v.object(
+				{ bullishCloseAbove: numberSchema, bearishCloseBelow: numberSchema },
+				messages.invalidType,
+			),
+		),
 	},
 	messages.invalidType,
 );
@@ -151,6 +248,10 @@ const analyzedLineVariantSchema = v.variant(
 				status: v.literal('available'),
 				...lineIdentityEntries,
 				latestState: latestStateSchema,
+				periodReturns: v.pipe(
+					v.array(periodReturnSchema, messages.invalidType),
+					v.readonly(),
+				),
 				pesoEquivalents: pesoEquivalentsSchema,
 				events: v.pipe(v.array(snapshotEventSchema, messages.invalidType), v.readonly()),
 			},
@@ -202,6 +303,7 @@ const analyzedLineVariantSchema = v.variant(
 const analyzedLineSchema = v.pipe(
 	analyzedLineVariantSchema,
 	v.check(checkIfPesoEquivalentsMatchState, messages.inconsistentPesoEquivalents),
+	v.check(checkIfSituationsMatchState, messages.inconsistentSituations),
 );
 
 /**
@@ -210,7 +312,7 @@ const analyzedLineSchema = v.pipe(
  */
 export const analysisSnapshotOverviewSchema = v.object(
 	{
-		schemaVersion: v.literal(7, messages.invalidSchemaVersion),
+		schemaVersion: v.literal(8, messages.invalidSchemaVersion),
 		priceUnit: v.picklist(['mep-dollar'], messages.invalidType),
 		ranAt: v.pipe(stringSchema, v.isoTimestamp(messages.invalidTimestamp)),
 		requestedThroughSession: sessionDateSchema,
@@ -236,6 +338,46 @@ function checkIfPesoEquivalentsMatchState(line: AnalyzedLineOverview): boolean {
 	const hasMatchingLow =
 		(pesoEquivalents.lastConfirmedSwingLow === null) ===
 		(latestState.lastConfirmedSwingLow === null);
+	const hasMatchingTippingCloses =
+		(pesoEquivalents.regimeTippingCloses === null) ===
+		(latestState.regimeTippingCloses === null);
 
-	return isSameSession && hasMatchingHigh && hasMatchingLow;
+	return isSameSession && hasMatchingHigh && hasMatchingLow && hasMatchingTippingCloses;
+}
+
+type SwingOverview = Readonly<{
+	price: number;
+	occurredAtSession: string;
+	confirmedAtSession: string;
+}>;
+
+// A Situation is a conjunction of State parts, so one the State's own parts contradict means the
+// snapshot cannot be trusted.
+function checkIfSituationsMatchState(line: AnalyzedLineOverview): boolean {
+	if (line.status !== 'available') {
+		return true;
+	}
+
+	const { latestState } = line;
+	return latestState.situations.every((situation) => {
+		if (situation.type === 'below-last-confirmed-low-in-bearish-regime') {
+			const low = latestState.lastConfirmedSwingLow;
+			const isBelowLow =
+				low?.closePosition === 'below' && checkIfSameSwing(low, situation.level);
+			return latestState.regime === 'bearish' && isBelowLow;
+		}
+
+		const high = latestState.lastConfirmedSwingHigh;
+		const isAboveHigh =
+			high?.closePosition === 'above' && checkIfSameSwing(high, situation.level);
+		return latestState.regime === 'bullish' && isAboveHigh;
+	});
+}
+
+function checkIfSameSwing(stateSwing: SwingOverview, level: SwingOverview): boolean {
+	return (
+		stateSwing.price === level.price &&
+		stateSwing.occurredAtSession === level.occurredAtSession &&
+		stateSwing.confirmedAtSession === level.confirmedAtSession
+	);
 }

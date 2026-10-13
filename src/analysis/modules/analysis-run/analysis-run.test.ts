@@ -5,6 +5,7 @@ import { RELEVANT_FACTS_URL, watchRules } from '#modules/corporate-action-watch/
 import { dollarizeBarHistory } from '#modules/dollarized-series/index.ts';
 import { createInstrumentCatalog } from '#modules/instrument-catalog/instrument-catalog.ts';
 import { calculateInstrumentStates } from '#modules/instrument-state/index.ts';
+import { calculatePeriodReturns } from '#modules/period-returns/index.ts';
 import { loadGgalFixture } from '#modules/technical-analysis/tests/support/index.ts';
 
 import { createAnalysisRunner } from './analysis-run.ts';
@@ -138,7 +139,8 @@ describe('createAnalysisRunner', () => {
 	test('expresses the latest close and watch levels in pesos at that session’s MEP Rate', async () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
-		const { lastConfirmedSwingHigh, lastConfirmedSwingLow } = ggal.latestState;
+		const { lastConfirmedSwingHigh, lastConfirmedSwingLow, regimeTippingCloses } =
+			ggal.latestState;
 		const mepRate = selectMepRate('2026-09-30');
 
 		expect(ggal.pesoEquivalents).toEqual({
@@ -147,6 +149,10 @@ describe('createAnalysisRunner', () => {
 			close: ggalPesoBars.at(-1)!.close,
 			lastConfirmedSwingHigh: lastConfirmedSwingHigh!.price * mepRate,
 			lastConfirmedSwingLow: lastConfirmedSwingLow!.price * mepRate,
+			regimeTippingCloses: {
+				bullishCloseAbove: regimeTippingCloses!.bullish.closeAbove * mepRate,
+				bearishCloseBelow: regimeTippingCloses!.bearish.closeBelow * mepRate,
+			},
 		});
 		// One rate for the close and the level keeps the distance the State reports in MEP dollars.
 		const pesoDistance =
@@ -185,13 +191,65 @@ describe('createAnalysisRunner', () => {
 		expect(shortLine.latestState.rsi).toBeNumber();
 		expect(shortLine.latestState.priceRelativeToEmaInAtr).toBeNumber();
 		expect(shortLine.latestState.priceRelativeToLongTermEmaInPercent).toBeNull();
+		expect(shortLine.latestState.regimeTippingCloses).toBeNull();
+		expect(shortLine.pesoEquivalents.regimeTippingCloses).toBeNull();
+		expect(shortLine.latestState.situations).toEqual([]);
+		expect(shortLine.periodReturns.map((periodReturn) => periodReturn.percentChange)).toEqual([
+			expect.any(Number),
+			expect.any(Number),
+			null,
+		]);
+	});
+
+	test('counts period-return windows in the run’s Market Sessions, not the line’s bars', async () => {
+		// GGAL skips five of the last 21 Market Sessions, so 21 of its bars reach five sessions further
+		// back than 21 Market Sessions.
+		const skippedSessions = new Set(
+			sessionDates.slice(-20, -10).filter((_, index) => index % 2 === 0),
+		);
+		const tradedDollarBars = ggalDollarBars.filter(
+			(bar) => !skippedSessions.has(bar.sessionDate),
+		);
+		const provider = {
+			...createHealthyProvider(),
+			GGAL: ggalPesoBars.filter((bar) => !skippedSessions.has(bar.sessionDate)),
+		};
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const barDates = tradedDollarBars.map((bar) => bar.sessionDate);
+		const returnsCountingBars = calculatePeriodReturns(tradedDollarBars, barDates);
+
+		expect(skippedSessions.size).toBe(5);
+		expect(ggal.periodReturns[0]!.fromSessionDate).toBe(sessionDates.at(-22)!);
+		expect(returnsCountingBars[0]!.fromSessionDate).not.toBe(sessionDates.at(-22)!);
+		expect(ggal.periodReturns).toEqual(calculatePeriodReturns(tradedDollarBars, sessionDates));
+	});
+
+	test('measures period returns over the run’s Market Sessions, as of the latest State', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			GGAL: ggalPesoBars.filter((bar) => bar.sessionDate < '2026-09-15'),
+		};
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const anchorPosition = sessionDates.indexOf(ggal.latestState.sessionDate);
+		const truncatedDollarBars = ggalDollarBars.filter((bar) => bar.sessionDate < '2026-09-15');
+
+		// The MEP calendar continues past the line's last bar; the windows count back from that bar.
+		expect(ggal.periodReturns).toEqual(
+			calculatePeriodReturns(truncatedDollarBars, sessionDates),
+		);
+		expect(ggal.periodReturns[0]!.fromSessionDate).toBe(sessionDates[anchorPosition - 21]!);
+		expect(
+			ggal.periodReturns.every((periodReturn) => periodReturn.percentChange !== null),
+		).toBe(true);
 	});
 
 	test('records run-level facts and the Analysis Configuration version', async () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 
 		expect(result.ok && result.snapshot).toMatchObject({
-			schemaVersion: 7,
+			schemaVersion: 8,
 			priceUnit: 'mep-dollar',
 			ranAt: RAN_AT,
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,

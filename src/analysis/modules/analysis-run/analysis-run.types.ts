@@ -4,6 +4,7 @@ import type { CorporateAction, CorporateActionOutcome } from '#modules/corporate
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type { InstrumentState } from '#modules/instrument-state/index.ts';
 import type { LiquidityMeasures } from '#modules/liquidity-eligibility/index.ts';
+import type { PeriodReturn } from '#modules/period-returns/index.ts';
 import type {
 	LargeOneSessionMove,
 	RegimeTransitionEvent,
@@ -39,6 +40,8 @@ export type AnalyzedLine =
 			instrumentId: string;
 			tradingLineId: string;
 			latestState: InstrumentState;
+			/** The close's change over each configured window of Market Sessions, as of `latestState`. */
+			periodReturns: readonly PeriodReturn[];
 			events: readonly AnalysisSnapshotEvent[];
 			/** Large One-Session Moves of the corrected Dollarized Series, in session order. */
 			largeMoves: readonly LargeOneSessionMove[];
@@ -110,6 +113,8 @@ export type PesoEquivalents = Readonly<{
 	close: number;
 	lastConfirmedSwingHigh: number | null;
 	lastConfirmedSwingLow: number | null;
+	/** The State's Regime tipping closes at `mepRate`, or `null` while Regime is unavailable. */
+	regimeTippingCloses: Readonly<{ bullishCloseAbove: number; bearishCloseBelow: number }> | null;
 }>;
 
 /** One session of one Trading Line, used to report bars the run accepted with a defect. */
@@ -122,7 +127,7 @@ export type TradingLineSession = Readonly<{
 export type PriceUnit = 'mep-dollar';
 
 export type AnalysisSnapshot = Readonly<{
-	schemaVersion: 7;
+	schemaVersion: 8;
 	priceUnit: PriceUnit;
 	ranAt: string;
 	requestedThroughSession: string;

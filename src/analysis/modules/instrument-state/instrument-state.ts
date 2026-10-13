@@ -5,9 +5,12 @@ import {
 	calculateMarketStructure,
 	calculatePendingRegimeTransitions,
 	calculateRegime,
+	calculateRegimeTippingCloses,
 	calculateRsi,
 	trackLatestConfirmedSwings,
 } from '#modules/technical-analysis/index.ts';
+
+import { trackSituations } from './situation-tracker.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
 import type {
@@ -18,7 +21,8 @@ import type {
 	StructureClassification,
 } from '#modules/technical-analysis/index.ts';
 import type {
-	ConfirmedSwingLevel,
+	ConfirmedHighLevel,
+	ConfirmedLowLevel,
 	InstrumentState,
 	ReadableRegime,
 } from './instrument-state.types.ts';
@@ -27,10 +31,10 @@ const { rsiPeriod, emaPeriod, atrPeriod, longTermEmaPeriod } =
 	ANALYSIS_CONFIGURATION.instrumentState;
 
 /**
- * Describes one Trading Line at the close of each session: Regime and any pending change of it,
- * Structure and the last confirmed swing high and low with the close's distance from them, RSI,
- * the close's distance from its EMA in ATR units, and its distance from its long-term EMA in
- * percent.
+ * Describes one Trading Line at the close of each session: Regime, any pending change of it and
+ * the closes its price condition needs, Structure and the last confirmed swing high and low with
+ * the close's distance and position relative to them, RSI, the close's distance from its EMA in
+ * ATR units, its distance from its long-term EMA in percent, and the active Situations.
  *
  * Returns one State per bar, in input order. Every bar gets a State; a part
  * that lacks history or a readable input is `null` rather than a fabricated value.
@@ -43,6 +47,7 @@ export function calculateInstrumentStates(bars: readonly DailyBar[]): readonly I
 	const closes = bars.map((bar) => bar.close);
 	const regimes = calculateRegime(bars);
 	const pendingRegimeTransitions = calculatePendingRegimeTransitions(bars);
+	const regimeTippingCloses = calculateRegimeTippingCloses(bars);
 	const structures = calculateMarketStructure(bars);
 	const latestConfirmedSwings = trackLatestConfirmedSwings(structures);
 	const rsiValues = calculateRsi(closes, rsiPeriod);
@@ -50,13 +55,14 @@ export function calculateInstrumentStates(bars: readonly DailyBar[]): readonly I
 	const atrValues = calculateAtr(bars, atrPeriod);
 	const longTermEmaValues = calculateEma(closes, longTermEmaPeriod);
 
-	return bars.map((bar, index) => ({
+	const stateParts = bars.map((bar, index) => ({
 		sessionDate: bar.sessionDate,
 		regime: toReadableRegime(regimes[index]!.regime),
 		pendingRegimeTransition: pendingRegimeTransitions[index]!.pending,
+		regimeTippingCloses: regimeTippingCloses[index]!.tippingCloses,
 		structure: toAvailableStructure(structures[index]!),
-		lastConfirmedSwingHigh: measureSwingLevel(bar.close, latestConfirmedSwings[index]!.high),
-		lastConfirmedSwingLow: measureSwingLevel(bar.close, latestConfirmedSwings[index]!.low),
+		lastConfirmedSwingHigh: measureHighLevel(bar.close, latestConfirmedSwings[index]!.high),
+		lastConfirmedSwingLow: measureLowLevel(bar.close, latestConfirmedSwings[index]!.low),
 		rsi: toAvailableValue(rsiValues[index]!),
 		priceRelativeToEmaInAtr: measurePriceRelativeToEma(
 			bar.close,
@@ -68,6 +74,9 @@ export function calculateInstrumentStates(bars: readonly DailyBar[]): readonly I
 			longTermEmaValues[index]!,
 		),
 	}));
+	const situations = trackSituations(stateParts);
+
+	return stateParts.map((parts, index) => ({ ...parts, situations: situations[index]! }));
 }
 
 function toReadableRegime(regime: Regime): ReadableRegime | null {
@@ -99,10 +108,9 @@ function measurePriceRelativeToEma(
 	return toAvailableValue((close - ema) / atr);
 }
 
-function measureSwingLevel<Swing extends ConfirmedHigh | ConfirmedLow>(
-	close: number,
-	swing: Swing | null,
-): ConfirmedSwingLevel<Swing> | null {
+// A close exactly at a level counts as on its side, as it preserves a trend or a range. The
+// comparison is exact, as Market Structure's is.
+function measureLowLevel(close: number, swing: ConfirmedLow | null): ConfirmedLowLevel | null {
 	if (swing === null) {
 		return null;
 	}
@@ -110,6 +118,19 @@ function measureSwingLevel<Swing extends ConfirmedHigh | ConfirmedLow>(
 	return {
 		...swing,
 		priceRelativeToSwingInPercent: measurePriceRelativeInPercent(close, swing.price),
+		closePosition: close < swing.price ? 'below' : 'at-or-above',
+	};
+}
+
+function measureHighLevel(close: number, swing: ConfirmedHigh | null): ConfirmedHighLevel | null {
+	if (swing === null) {
+		return null;
+	}
+
+	return {
+		...swing,
+		priceRelativeToSwingInPercent: measurePriceRelativeInPercent(close, swing.price),
+		closePosition: close > swing.price ? 'above' : 'at-or-below',
 	};
 }
 

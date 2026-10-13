@@ -2,9 +2,14 @@ import {
 	formatEvaluatedPercent,
 	formatEvaluatedValue,
 	formatPendingRegimeTransition,
+	formatPeriodReturn,
 	formatPesoSwingLevel,
 	formatPesos,
+	formatResistance,
+	formatSituation,
+	formatSupport,
 	formatSwingLevel,
+	formatTippingClose,
 } from '#web/lib/utils/line-formatting/index.ts';
 
 import { EventDetails } from './event-details.tsx';
@@ -18,18 +23,81 @@ export function AvailableLineDetails({ line, priceUnit }: AvailableLineDetailsPr
 		sessionDate,
 		regime,
 		pendingRegimeTransition,
+		regimeTippingCloses,
 		structure,
 		lastConfirmedSwingHigh,
 		lastConfirmedSwingLow,
 		rsi,
 		priceRelativeToEmaInAtr,
 		priceRelativeToLongTermEmaInPercent,
+		situations,
 	} = line.latestState;
-	const { pesoEquivalents } = line;
+	const { pesoEquivalents, periodReturns } = line;
+	const pesoTippingCloses = pesoEquivalents.regimeTippingCloses;
 	const hasEvents = line.events.length > 0;
+	const hasSituations = situations.length > 0;
+	const hasTippingCloses = regimeTippingCloses !== null && pesoTippingCloses !== null;
 
 	return (
 		<>
+			<h2>Change of the close in MEP dollars, as of {sessionDate}</h2>
+			<ul>
+				{periodReturns.map((periodReturn) => (
+					<li key={periodReturn.windowMarketSessions}>
+						{formatPeriodReturn(periodReturn)}
+					</li>
+				))}
+			</ul>
+			<h2>Situations</h2>
+			{hasSituations ? (
+				<ul>
+					{situations.map((situation) => (
+						<li key={situation.type}>
+							{formatSituation(situation, line.latestState, priceUnit)}
+						</li>
+					))}
+				</ul>
+			) : (
+				<p>None active.</p>
+			)}
+			<h2>Support and resistance</h2>
+			<ul>
+				<li>Last confirmed swing low: {formatSupport(lastConfirmedSwingLow)}</li>
+				<li>Last confirmed swing high: {formatResistance(lastConfirmedSwingHigh)}</li>
+			</ul>
+			<h2>Regime tipping closes as of {sessionDate}</h2>
+			{hasTippingCloses ? (
+				<>
+					<ul>
+						<li>
+							Bullish proposal needs{' '}
+							{formatTippingClose(
+								'bullish',
+								regimeTippingCloses,
+								{ ...pesoEquivalents, regimeTippingCloses: pesoTippingCloses },
+								priceUnit,
+							)}
+						</li>
+						<li>
+							Bearish proposal needs{' '}
+							{formatTippingClose(
+								'bearish',
+								regimeTippingCloses,
+								{ ...pesoEquivalents, regimeTippingCloses: pesoTippingCloses },
+								priceUnit,
+							)}
+						</li>
+					</ul>
+					<p>
+						These are conditions of Observatory's Regime rule as of this session, not
+						targets. Each later close moves the averages and the ATR, so later sessions
+						have slightly different values, and a proposal changes Regime only after its
+						confirming sessions.
+					</p>
+				</>
+			) : (
+				<p>Not evaluated.</p>
+			)}
 			<h2>State at the close of {sessionDate}</h2>
 			<ul>
 				<li>Regime: {formatEvaluatedValue(regime)}</li>

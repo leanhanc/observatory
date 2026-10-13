@@ -4,23 +4,58 @@ import type {
 	ConfirmedLow,
 	PendingRegimeTransition,
 	Regime,
+	RegimeTippingCloses,
 	StructureClassification,
 } from '#modules/technical-analysis/index.ts';
 
 export type ReadableRegime = Exclude<Regime, 'undefined'>;
 
+/** How far the session's close is from a confirmed swing, unrounded. */
+type SwingDistance = Readonly<{
+	/**
+	 * `(close − price) / price × 100`, unrounded: positive when the close is above the swing,
+	 * negative below.
+	 */
+	priceRelativeToSwingInPercent: number | null;
+}>;
+
 /**
- * The latest confirmed swing of one kind and how far the session's close is from it: Evidence
- * about Structure, with the fields of a Structure Break's defining swing.
+ * The latest confirmed swing low and where the close is relative to it: Evidence about Structure,
+ * with the fields of a Structure Break's defining swing. It is Support while the close is
+ * `at-or-above` it; equality counts as Support.
  */
-export type ConfirmedSwingLevel<Swing extends ConfirmedHigh | ConfirmedLow> = Swing &
-	Readonly<{
-		/**
-		 * `(close − price) / price × 100`, unrounded: positive when the close is above the swing,
-		 * negative below.
-		 */
-		priceRelativeToSwingInPercent: number | null;
-	}>;
+export type ConfirmedLowLevel = ConfirmedLow &
+	SwingDistance &
+	Readonly<{ closePosition: 'at-or-above' | 'below' }>;
+
+/**
+ * The latest confirmed swing high and where the close is relative to it. It is Resistance while the
+ * close is `at-or-below` it; equality counts as Resistance.
+ */
+export type ConfirmedHighLevel = ConfirmedHigh &
+	SwingDistance &
+	Readonly<{ closePosition: 'at-or-below' | 'above' }>;
+
+export type SituationType =
+	| 'below-last-confirmed-low-in-bearish-regime'
+	| 'above-last-confirmed-high-in-bullish-regime';
+
+/**
+ * A Situation active at the session: a named conjunction of State parts, with no threshold of its
+ * own. `level` is the confirmed swing the close is beyond. `activeSinceSession` is the first
+ * session of the current unbroken run of sessions on which it holds; an interruption restarts it.
+ */
+export type Situation =
+	| Readonly<{
+			type: 'below-last-confirmed-low-in-bearish-regime';
+			activeSinceSession: DailyBar['sessionDate'];
+			level: ConfirmedLow;
+	  }>
+	| Readonly<{
+			type: 'above-last-confirmed-high-in-bullish-regime';
+			activeSinceSession: DailyBar['sessionDate'];
+			level: ConfirmedHigh;
+	  }>;
 
 /**
  * What is true about one Trading Line at the close of one session.
@@ -35,14 +70,19 @@ export type InstrumentState = Readonly<{
 	 */
 	pendingRegimeTransition: PendingRegimeTransition | null;
 	/**
+	 * The closes Regime's price condition needs as of this session, or `null` while Regime is
+	 * unavailable. Conditions of Observatory's rule, not targets; approximate for later sessions.
+	 */
+	regimeTippingCloses: RegimeTippingCloses | null;
+	/**
 	 * Market Structure's classification, or `null` before two confirmed swings of each kind exist.
 	 * Once available, `undefined` is a reading: the last trend or range expired.
 	 */
 	structure: StructureClassification | null;
 	/** `null` until a swing high has been confirmed; never an unconfirmed candidate. */
-	lastConfirmedSwingHigh: ConfirmedSwingLevel<ConfirmedHigh> | null;
+	lastConfirmedSwingHigh: ConfirmedHighLevel | null;
 	/** `null` until a swing low has been confirmed; never an unconfirmed candidate. */
-	lastConfirmedSwingLow: ConfirmedSwingLevel<ConfirmedLow> | null;
+	lastConfirmedSwingLow: ConfirmedLowLevel | null;
 	rsi: number | null;
 	/** `(close − EMA) / ATR`: how far the close sits from its average, in typical daily ranges. */
 	priceRelativeToEmaInAtr: number | null;
@@ -51,4 +91,6 @@ export type InstrumentState = Readonly<{
 	 * long-term average, in percent of it. `null` until that average is readable.
 	 */
 	priceRelativeToLongTermEmaInPercent: number | null;
+	/** The active Situations, in a fixed order; empty when none is active. */
+	situations: readonly Situation[];
 }>;

@@ -116,6 +116,10 @@ _Avoid_: Treating warm-up completion, an unconfirmed proposal, or an unchanged R
 A readable Regime proposal that differs from the settled Regime and has not yet gathered the required confirming Trading Sessions, together with how many it has. It is part of the Instrument State, not an Event: a proposal equal to the settled Regime clears it, and a different proposal replaces it and restarts the count. It describes how far confirmation has progressed and predicts nothing about whether the transition will happen.
 _Avoid_: Regime Transition, early signal, imminent change
 
+**Regime Tipping Close**:
+The close beyond which, as of one Trading Session, the price half of Regime's rule would propose a directional Regime: above the 200-session average plus half an ATR for bullish, below it minus half an ATR for bearish. The rule also needs the 50-session average on the same side of the 200-session average, so the close alone may not be enough, and a proposal still needs its confirming sessions before Regime changes. It is a condition of Observatory's own rule as of that session, approximate for later sessions because each close moves the averages and the ATR.
+_Avoid_: Target, trigger price, breakout level
+
 **Structure**:
 The sequence and relationships of confirmed swing highs and lows in price, conventionally described as an uptrend, downtrend, range, or undefined. A directional Structure depends on a confirmed swing level. That level and the current price's distance from it are Evidence about Structure; they are not a separate state beside Structure and Regime. A completed close beyond that level may produce a structure-break Event and makes Structure undefined rather than automatically reversing it. A range means the last two confirmed highs and the last two confirmed lows disagree on direction while the close stays within the last confirmed high and low; a completed close beyond either makes Structure undefined, with no Event, until a new swing confirms.
 _Avoid_: Pattern, signal, prediction, Structural Hold as a separate state
@@ -124,9 +128,21 @@ _Avoid_: Pattern, signal, prediction, Structural Hold as a separate state
 A local high or low of a completed Trading Session that becomes knowable only after the required number of later completed Trading Sessions. Its occurrence session and confirmation session are distinct.
 _Avoid_: Current price, unconfirmed turning point
 
+**Support**:
+The last confirmed swing low while the close is at or above it: the last place price stopped falling. It describes where price turned before; it does not say price will turn there again. A close strictly below it means there is no confirmed Support until a new swing low confirms.
+_Avoid_: Floor that will hold, "it will turn there again", buy zone
+
+**Resistance**:
+The last confirmed swing high while the close is at or below it: the last place price stopped rising. It describes where price turned before; it does not say price will turn there again. A close strictly above it means there is no confirmed Resistance until a new swing high confirms.
+_Avoid_: Ceiling that will hold, "it will turn there again", sell zone
+
 **Volatile Session**:
 A direction-neutral Event in which one completed Trading Session's True Range, including the gap from the previous close, is unusually large relative to the line's average range (ATR) known before that session. "Volatile" is relative to the line's own recent range, not an absolute level: a calm line can have a Volatile Session that would be an ordinary day for a turbulent one. Each qualifying session is a separate historical fact; it does not mark the start of a phase of widening ranges.
 _Avoid_: Volatility Expansion, wide-range session, bullish or bearish signal, continuation, reversal, opportunity, price target
+
+**Period Return**:
+The percent change of a line's close in MEP dollars over a fixed window of Market Sessions ending at its latest State's session, such as 21 Market Sessions for about a month. It measures how far the close moved over the window, not why, and is unavailable rather than zero when the history does not reach back that far.
+_Avoid_: Performance, gain, distance below a level when referring to the whole move
 
 **Corporate Action**:
 An issuer's decision, such as a split, a reverse split, a share distribution or a change of a CEDEAR's ratio, that changes the number of shares or CEDEARs and moves the price in inverse proportion, without changing what a holding is worth. A price step it causes is bookkeeping, not market behavior.
@@ -143,6 +159,14 @@ _Avoid_: Corporate Action when nothing has been confirmed, signal, alert
 **Situation**:
 A named combination of Features and Instrument State that Observatory recognizes as worth describing.
 _Avoid_: Signal, prediction, opportunity
+
+**Below the Last Confirmed Low in a Bearish Regime**:
+A Situation in which Regime is bearish and the close is strictly below the last confirmed swing low, so nothing in confirmed data marks where the fall last stopped. It ends when a new swing low confirms, the close returns to or above the low, or Regime stops being bearish. It describes a fall without confirmed Support; it does not say the fall will continue or end.
+_Avoid_: Falling knife as a label, "don't catch it", oversold
+
+**Above the Last Confirmed High in a Bullish Regime**:
+The mirror Situation: Regime is bullish and the close is strictly above the last confirmed swing high, so nothing in confirmed data marks where the rise last stopped. It ends when a new swing high confirms, the close returns to or below the high, or Regime stops being bullish. It describes a rise without confirmed Resistance; it does not say the rise will continue or end.
+_Avoid_: Breakout signal, overbought, "it will keep rising"
 
 **Event**:
 A precise change that occurred in an Instrument's state or measurable market behavior, such as a structure break or new period high.

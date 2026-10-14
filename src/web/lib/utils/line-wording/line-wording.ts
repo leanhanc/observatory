@@ -244,8 +244,9 @@ function describeHighLevel(
 /**
  * The pattern (Structure). A trending pattern reads as the close that would break it: the last
  * confirmed swing a Structure Break reads, the high in a downtrend and the low in an uptrend. A break
- * leaves the pattern unclear rather than reversing it, and it does not change the trend (Regime), so
- * the sentence says the trend would stay as it is.
+ * leaves the pattern unclear rather than reversing it, and it never changes the trend (Regime) on its
+ * own. The sentence says so without naming the current trend: the break level can lie beyond a trend
+ * tipping point, where "the trend would stay as it is" would contradict the tipping-point line.
  */
 export function describePattern(
 	state: SnapshotState,
@@ -253,8 +254,7 @@ export function describePattern(
 	context: PriceContext,
 ): Phrase {
 	const { structure, regime, lastConfirmedSwingHigh: high, lastConfirmedSwingLow: low } = state;
-	const trendText =
-		regime === null ? '' : ` La tendencia seguiría siendo ${TREND_NAMES[regime]}.`;
+	const trendText = regime === null ? '' : ' Por sí solo, no cambia la tendencia.';
 
 	if (structure === null) {
 		return [
@@ -434,12 +434,21 @@ function describeStructureBreak(
 	const swingName = definingSwing.kind === 'low' ? 'mínimo' : 'máximo';
 	const side = direction === 'downward' ? 'por debajo' : 'por encima';
 	const swingDates = `del ${formatShortDate(definingSwing.occurredAtSession)}, confirmado el ${formatShortDate(definingSwing.confirmedAtSession)}`;
+	// The reader compares the leading figures, so a close that crossed the level by less than their
+	// rounding reads as "apenas" beyond it instead of beyond an equal-looking price.
+	const closeFigure = formatLeadingFigure(closePrice, pesoEquivalents.closePrice, context);
+	const swingFigure = formatLeadingFigure(
+		definingSwing.price,
+		pesoEquivalents.definingSwingPrice,
+		context,
+	);
+	const crossing = closeFigure === swingFigure ? `apenas ${side}` : side;
 
 	return [
 		{ strong: `${date} · Se rompió el patrón ${PATTERN_NAMES[priorStructure]}.` },
 		' Cerró en ',
 		...describeLevelPrice(closePrice, pesoEquivalents.closePrice, context),
-		`, ${side} del último ${swingName} confirmado: `,
+		`, ${crossing} del último ${swingName} confirmado: `,
 		...describeLevelPrice(definingSwing.price, pesoEquivalents.definingSwingPrice, context),
 		`, ${swingDates}.`,
 	];
@@ -573,11 +582,24 @@ function describeLevelPrice(
 	pesoPrice: number | null,
 	context: PriceContext,
 ): Phrase {
-	const analyzedPrice = formatPrice(price, context.priceUnit);
+	const leadingFigure = formatLeadingFigure(price, pesoPrice, context);
 
 	if (!context.isPesoLine || pesoPrice === null) {
-		return [{ strong: analyzedPrice }];
+		return [{ strong: leadingFigure }];
 	}
 
-	return [{ strong: formatPesos(pesoPrice) }, ` (${analyzedPrice})`];
+	return [{ strong: leadingFigure }, ` (${formatPrice(price, context.priceUnit)})`];
+}
+
+/** The figure a level's price leads with: its peso equivalent on a peso line, else the analyzed price. */
+function formatLeadingFigure(
+	price: number,
+	pesoPrice: number | null,
+	context: PriceContext,
+): string {
+	if (!context.isPesoLine || pesoPrice === null) {
+		return formatPrice(price, context.priceUnit);
+	}
+
+	return formatPesos(pesoPrice);
 }

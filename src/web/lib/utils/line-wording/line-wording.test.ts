@@ -231,21 +231,21 @@ describe('describeLevels', () => {
 });
 
 describe('describePattern', () => {
-	test('a downtrend breaks with a close above the last confirmed high, leaving the trend as it is', () => {
+	test('a downtrend breaks with a close above the last confirmed high, which alone does not change the trend', () => {
 		const phrase = describePattern(ggalState, ggalPesoEquivalents, PESO_LINE);
 
 		expect(toText(phrase)).toBe(
-			`Un cierre por encima de 6.223${NBSP}pesos (US$${NBSP}4,04) rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. La tendencia seguiría siendo bajista.`,
+			`Un cierre por encima de 6.223${NBSP}pesos (US$${NBSP}4,04) rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
 		);
 		expect(phrase).toContainEqual({ strong: `6.223${NBSP}pesos` });
 		expect(phrase).toContainEqual({ strong: 'patrón descendente' });
 	});
 
-	test('an uptrend breaks with a close below the last confirmed low and names the current trend', () => {
+	test('an uptrend breaks with a close below the last confirmed low', () => {
 		const uptrendState: SnapshotState = { ...ggalState, structure: 'uptrend', regime: 'mixed' };
 
 		expect(toText(describePattern(uptrendState, ggalPesoEquivalents, PESO_LINE))).toBe(
-			`Un cierre por debajo de 5.662${NBSP}pesos (US$${NBSP}3,68) rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos. La tendencia seguiría siendo indefinida.`,
+			`Un cierre por debajo de 5.662${NBSP}pesos (US$${NBSP}3,68) rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos. Por sí solo, no cambia la tendencia.`,
 		);
 	});
 
@@ -259,8 +259,34 @@ describe('describePattern', () => {
 
 	test('a line not traded in pesos names the analyzed price alone', () => {
 		expect(toText(describePattern(ggalState, ggalPesoEquivalents, DOLLAR_LINE))).toBe(
-			`Un cierre por encima de US$${NBSP}4,04 rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. La tendencia seguiría siendo bajista.`,
+			`Un cierre por encima de US$${NBSP}4,04 rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
 		);
+	});
+
+	test('a break level beyond a tipping point does not claim the trend stays as it is (PAMP)', () => {
+		// PAMP on 13 Oct 2026: a mixed trend in a downtrend whose break level, 5.336 pesos, lies above
+		// the bullish tipping point, 5.288 pesos. Closes there would also be closes that turn the
+		// trend, so the pattern line must not say the trend stays mixed.
+		const pampState: SnapshotState = {
+			...ggalState,
+			regime: 'mixed',
+			lastConfirmedSwingHigh: { ...ggalState.lastConfirmedSwingHigh!, price: 3.465 },
+			regimeTippingCloses: {
+				bullish: { closeAbove: 3.4337, isFastEmaAligned: true },
+				bearish: { closeBelow: 3.3308, isFastEmaAligned: false },
+			},
+		};
+		const pampPesoEquivalents: AvailableLine['pesoEquivalents'] = {
+			...ggalPesoEquivalents,
+			lastConfirmedSwingHigh: 5336,
+			regimeTippingCloses: { bullishCloseAbove: 5288, bearishCloseBelow: 5129 },
+		};
+		const patternText = toText(describePattern(pampState, pampPesoEquivalents, PESO_LINE));
+
+		expect(patternText).toBe(
+			`Un cierre por encima de 5.336${NBSP}pesos (US$${NBSP}3,47) rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
+		);
+		expect(patternText).not.toContain('seguiría siendo');
 	});
 
 	test('a trending pattern without its break level reads without a break sentence', () => {
@@ -404,6 +430,72 @@ describe('describeEvent', () => {
 
 		expect(toText(describeEvent(structureBreak, PESO_LINE))).toContain(
 			`Se rompió el patrón descendente. Cerró en 6.314${NBSP}pesos (US$${NBSP}4,10), por encima del último máximo confirmado: 6.222${NBSP}pesos (US$${NBSP}4,04), del 6${NBSP}oct`,
+		);
+	});
+
+	test('a close that crossed by less than the rounding reads as "apenas" beyond the level (PAMP)', () => {
+		// PAMP's break of 8 May 2026: it closed at 4.702,50 pesos against a low of 4.703,45, and both
+		// print as 4.703.
+		const pampNarrowBreak: SnapshotEvent = {
+			sessionDate: '2026-05-08',
+			event: {
+				type: 'structure-break',
+				direction: 'downward',
+				priorStructure: 'uptrend',
+				definingSwing: {
+					kind: 'low',
+					price: 3.2960425316087654,
+					occurredAtSession: '2026-04-27',
+					confirmedAtSession: '2026-04-30',
+				},
+				closePrice: 3.295373923338624,
+				pesoEquivalents: {
+					mepRate: 1427.0004282960952,
+					closePrice: 4702.5,
+					definingSwingPrice: 4703.454104287854,
+				},
+			},
+			coincidesWithLargeMove: false,
+		};
+
+		expect(toText(describeEvent(pampNarrowBreak, PESO_LINE))).toBe(
+			`8${NBSP}may · Se rompió el patrón ascendente. Cerró en 4.703${NBSP}pesos (US$${NBSP}3,30), apenas por debajo del último mínimo confirmado: 4.703${NBSP}pesos (US$${NBSP}3,30), del 27${NBSP}abr, confirmado el 30${NBSP}abr.`,
+		);
+	});
+
+	test('"apenas" follows the leading figures: pesos on a peso line, dollars otherwise', () => {
+		// YPF's break of 13 Oct 2026: 8.330 against 8.328 pesos, but US$ 5,41 for both.
+		const ypfBreak: SnapshotEvent = {
+			sessionDate: '2026-10-13',
+			event: {
+				type: 'structure-break',
+				direction: 'upward',
+				priorStructure: 'downtrend',
+				definingSwing: { ...swingHigh, price: 5.4085 },
+				closePrice: 5.4097,
+				pesoEquivalents: { mepRate: 1539.8, closePrice: 8330, definingSwingPrice: 8328.0 },
+			},
+			coincidesWithLargeMove: false,
+		};
+		// Equal pesos with different dollars: a close of US$ 3,2949 against a high of US$ 3,2951.
+		const pesoOnlyCollision: SnapshotEvent = {
+			...ypfBreak,
+			event: {
+				...ypfBreak.event,
+				definingSwing: { ...swingHigh, price: 3.2949 },
+				closePrice: 3.2951,
+				pesoEquivalents: { mepRate: 1427, closePrice: 4702.9, definingSwingPrice: 4702.6 },
+			} as SnapshotEvent['event'],
+		};
+
+		expect(toText(describeEvent(ypfBreak, PESO_LINE))).toContain(
+			`Cerró en 8.330${NBSP}pesos (US$${NBSP}5,41), por encima del último máximo confirmado`,
+		);
+		expect(toText(describeEvent(ypfBreak, DOLLAR_LINE))).toContain(
+			`Cerró en US$${NBSP}5,41, apenas por encima del último máximo confirmado`,
+		);
+		expect(toText(describeEvent(pesoOnlyCollision, PESO_LINE))).toContain(
+			`Cerró en 4.703${NBSP}pesos (US$${NBSP}3,30), apenas por encima del último máximo confirmado: 4.703${NBSP}pesos (US$${NBSP}3,29)`,
 		);
 	});
 

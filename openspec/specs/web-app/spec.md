@@ -165,7 +165,7 @@ For an available line, the page SHALL render:
 - **Period returns** on one line, each window named ("en un mes", "en tres meses", "en un año" for windows of 1, 3 and 12 months) with its signed percent change, and "(en dólares MEP)" for `priceUnit` `mep-dollar`. A `null` change SHALL show as "— … (sin historia suficiente)".
 - **Distance from the 200-session average** from `priceRelativeToLongTermEmaInPercent`, as "El cierre está x % por debajo|por encima de su media móvil de 200 ruedas.", omitted when `null`.
 - **Support and resistance** as described in the Situation label requirement, with "Todavía no hay máximos ni mínimos confirmados." when neither swing is confirmed, and "Todavía no hay un mínimo confirmado." or "Todavía no hay un máximo confirmado." when only one is.
-- **Pattern** from `structure`, naming what its level changes. A `downtrend` SHALL read "Un cierre por encima de <level> rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos.", with the last confirmed swing high as the level, and an `uptrend` "Un cierre por debajo de <level> rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos.", with the last confirmed swing low. Either SHALL add "La tendencia seguiría siendo <alcista|bajista|indefinida>." naming the current `regime`, and nothing when `regime` is `null`. A break makes Structure undefined and does not change Regime, so the page SHALL NOT say that a close reverses the pattern or the trend. A trending pattern without its level SHALL read "Patrón descendente: máximos y mínimos cada vez más bajos." or "Patrón ascendente: máximos y mínimos cada vez más altos." The other patterns name no level: "Patrón lateral:", "Sin patrón claro:" for `undefined`, and "Sin patrón todavía:" for `null`, each with the table's sentence.
+- **Pattern** from `structure`, naming what its level changes. A `downtrend` SHALL read "Un cierre por encima de <level> rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos.", with the last confirmed swing high as the level, and an `uptrend` "Un cierre por debajo de <level> rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos.", with the last confirmed swing low. Either SHALL add "Por sí solo, no cambia la tendencia." while `regime` is readable, and nothing when `regime` is `null`. A break makes Structure undefined and does not change Regime, so the page SHALL NOT say that a close reverses the pattern or the trend. It SHALL NOT name the trend the line would keep either: the break level can lie beyond a trend tipping point, where closes would also change the trend. A trending pattern without its level SHALL read "Patrón descendente: máximos y mínimos cada vez más bajos." or "Patrón ascendente: máximos y mínimos cada vez más altos." The other patterns name no level: "Patrón lateral:", "Sin patrón claro:" for `undefined`, and "Sin patrón todavía:" for `null`, each with the table's sentence.
 - **Trend tipping points** as described in their requirement.
 - **Trend change in progress** from `pendingRegimeTransition`: "Posible cambio a tendencia <alcista|bajista|indefinida> en curso (n de m ruedas).", and nothing when `null`.
 - **Recent changes** as described in their requirement.
@@ -173,7 +173,7 @@ For an available line, the page SHALL render:
 
 Events SHALL be worded as:
 
-- Structure Break: "<date> · Se rompió el patrón ascendente." for a prior `uptrend` or "descendente" for a prior `downtrend`, then "Cerró en <close>, por debajo del último mínimo confirmado: <level>, del <date>, confirmado el <date>." or the mirror with "por encima del último máximo confirmado". The close and the level SHALL be written as the levels are, from the Event's own `pesoEquivalents` on a peso line, as described in the peso requirement.
+- Structure Break: "<date> · Se rompió el patrón ascendente." for a prior `uptrend` or "descendente" for a prior `downtrend`, then "Cerró en <close>, por debajo del último mínimo confirmado: <level>, del <date>, confirmado el <date>." or the mirror with "por encima del último máximo confirmado". When the close and the level have the same leading figure, as the reader sees it (the peso figure on a peso line, otherwise the analyzed price), the side SHALL read "apenas por debajo" or "apenas por encima", so the close does not appear beyond an equal price. The close and the level SHALL be written as the levels are, from the Event's own `pesoEquivalents` on a peso line, as described in the peso requirement.
 - Regime Transition: "<date> · Tendencia: <from> → <to>. Se confirmó tras n ruedas (<confirming dates>)."
 - Volatile Session: "<date> · Rueda volátil: el rango del día fue x veces su rango diario típico."
 - An Event that coincides with a Large One-Session Move SHALL add "⚠ Movimiento inusual en una sola rueda; suele deberse a un split u otro evento corporativo."
@@ -185,7 +185,7 @@ For an unavailable line it SHALL render "Sin analizar: opera muy poco volumen." 
 - **WHEN** GGAL's State on 2026-10-09 is `bearish` and `downtrend`, its last confirmed swing low is 3.68 with the close 4.9% above it and `closePosition` `at-or-above`, its last confirmed swing high is 4.04 with the close 4.5% below it and `closePosition` `at-or-below`, its peso equivalents are 5,662 and 6,223, its returns are −16.5%, −24.9% and +18.5%, and it is 17.8% below its 200-session average
 - **THEN** its page shows "Tendencia bajista.", "−16,5 % en un mes · −24,9 % en tres meses · +18,5 % en un año (en dólares MEP)" and "El cierre está 17,8 % por debajo de su media móvil de 200 ruedas."
 - **AND** "Soporte en 5.662 pesos (US$ 3,68): el cierre está 4,9 % por encima." and "Resistencia en 6.223 pesos (US$ 4,04): el cierre está 4,5 % por debajo."
-- **AND** "Un cierre por encima de 6.223 pesos (US$ 4,04) rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. La tendencia seguiría siendo bajista."
+- **AND** "Un cierre por encima de 6.223 pesos (US$ 4,04) rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia."
 
 #### Scenario: a short history
 
@@ -219,12 +219,29 @@ For an unavailable line it SHALL render "Sin analizar: opera muy poco volumen." 
 #### Scenario: a rising pattern in a mixed trend
 
 - **WHEN** a line's State is `mixed` and `uptrend`, and its last confirmed swing low is 3.68 MEP dollars with peso equivalent 5,662
-- **THEN** its page shows "Un cierre por debajo de 5.662 pesos (US$ 3,68) rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos. La tendencia seguiría siendo indefinida."
+- **THEN** its page shows "Un cierre por debajo de 5.662 pesos (US$ 3,68) rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos. Por sí solo, no cambia la tendencia."
 
 #### Scenario: a pattern without a level to break
 
 - **WHEN** a line's Structure is `range` or `undefined`
 - **THEN** its page shows "Patrón lateral:" or "Sin patrón claro:" with the table's sentence and no "rompería" sentence
+
+#### Scenario: a break level beyond a trend tipping point (PAMP)
+
+- **WHEN** PAMP's State on 2026-10-13 is `mixed` and `downtrend`, its last confirmed swing high has a peso equivalent of 5,336, and its bullish tipping close has a peso equivalent of 5,288
+- **THEN** its page shows "Un cierre por encima de 5.336 pesos (US$ 3,47) rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia."
+- **AND** it does not say that the trend would stay "indefinida"
+
+#### Scenario: a Structure Break that crossed by less than the rounding (PAMP)
+
+- **WHEN** PAMP's downward Structure Break on 2026-05-08 from an `uptrend` has a peso close of 4,702.50 and a defining swing low of 4,703.45 in pesos, which both read 4.703, and 3.2954 and 3.2960 MEP dollars, which both read 3,30
+- **THEN** its page shows "8 may · Se rompió el patrón ascendente. Cerró en 4.703 pesos (US$ 3,30), apenas por debajo del último mínimo confirmado: 4.703 pesos (US$ 3,30), del 27 abr, confirmado el 30 abr."
+
+#### Scenario: "apenas" follows the leading figure
+
+- **WHEN** an upward Structure Break has a peso close of 8,330 and a high of 8,328 in pesos, both 5,41 in MEP dollars
+- **THEN** on a peso line it reads "por encima del último máximo confirmado", since 8.330 and 8.328 differ
+- **AND** on a line not traded in pesos it reads "apenas por encima del último máximo confirmado", since both read US$ 5,41
 
 ### Requirement: line pages are in Spanish with es-AR formats
 

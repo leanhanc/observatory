@@ -1,0 +1,5 @@
+- [x] Spec delta for web-app: the pattern line's trend clause and "apenas" for colliding Structure Break figures.
+- [x] `line-wording`: `describePattern`, `describeStructureBreak` and `formatLeadingFigure`, with tests that fail under the old wording.
+- [x] Run tests, typecheck, lint, format and `openspec validate --all --strict`; a local build checked on PAMP.
+- [x] Lean reviews the diff.
+- [x] Archive.

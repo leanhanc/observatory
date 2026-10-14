@@ -11,19 +11,17 @@ const CONFIGURED_ENVIRONMENT = {
 	OBSERVATORY_WEB_SERVICE_ID: 'web-service-id',
 	OBSERVATORY_WEB_ENVIRONMENT_ID: 'production-environment-id',
 };
+const RUN_COMMIT_SHA = 'd0beb8f5c55b36df7d674d55965a23b8d54ad69b';
 const SNAPSHOT_STILL_WRITTEN = 'The snapshot is written; the site shows it after its next deploy.';
 
 describe('web redeploy', () => {
-	test('requests a deploy of the web service with the project token and logs its ID', async () => {
+	test('requests a deploy of the web service at the run commit and logs its ID', async () => {
 		const { entries, requests } = await redeployWith(
-			CONFIGURED_ENVIRONMENT,
+			{ ...CONFIGURED_ENVIRONMENT, RAILWAY_GIT_COMMIT_SHA: RUN_COMMIT_SHA },
 			answerJson({ data: { serviceInstanceDeployV2: 'deployment-1' } }),
 		);
 		const [request] = requests;
-		const body = JSON.parse(request!.init.body as string) as {
-			query: string;
-			variables: object;
-		};
+		const body = readDeployBody(request!);
 		const headers = new Headers(request!.init.headers);
 
 		expect(requests).toHaveLength(1);
@@ -32,19 +30,58 @@ describe('web redeploy', () => {
 		expect(request!.init.signal).toBeInstanceOf(AbortSignal);
 		expect(headers.get('Project-Access-Token')).toBe(TOKEN_SENTINEL);
 		expect(headers.get('Authorization')).toBeNull();
-		expect(body.query).toContain('serviceInstanceDeployV2(');
+		expect(body.query).toContain('commitSha: $commitSha)');
 		expect(body.variables).toEqual({
 			serviceId: 'web-service-id',
 			environmentId: 'production-environment-id',
+			commitSha: RUN_COMMIT_SHA,
 		});
 		expect(entries).toEqual([
 			{
 				level: 'info',
-				message: 'Web redeploy requested: deployment deployment-1.',
-				fields: { event: 'web-redeploy-requested', deploymentId: 'deployment-1' },
+				message: `Web redeploy requested: deployment deployment-1, at commit ${RUN_COMMIT_SHA}.`,
+				fields: {
+					event: 'web-redeploy-requested',
+					deploymentId: 'deployment-1',
+					commitSha: RUN_COMMIT_SHA,
+				},
 			},
 		]);
 	});
+
+	test.each([
+		['is not set', CONFIGURED_ENVIRONMENT],
+		['is blank', { ...CONFIGURED_ENVIRONMENT, RAILWAY_GIT_COMMIT_SHA: ' ' }],
+	])(
+		'requests an unpinned deploy and says so when the run commit %s',
+		async (_case, environment) => {
+			const { entries, requests } = await redeployWith(
+				environment,
+				answerJson({ data: { serviceInstanceDeployV2: 'deployment-1' } }),
+			);
+			const body = readDeployBody(requests[0]!);
+
+			expect(requests).toHaveLength(1);
+			expect(body.query).toContain('serviceInstanceDeployV2(');
+			expect(body.query).not.toContain('commitSha');
+			expect(body.variables).toEqual({
+				serviceId: 'web-service-id',
+				environmentId: 'production-environment-id',
+			});
+			expect(entries).toEqual([
+				{
+					level: 'info',
+					message:
+						'Web redeploy requested: deployment deployment-1, not pinned to a commit (RAILWAY_GIT_COMMIT_SHA is not set).',
+					fields: {
+						event: 'web-redeploy-requested',
+						deploymentId: 'deployment-1',
+						commitSha: null,
+					},
+				},
+			]);
+		},
+	);
 
 	test('sends nothing and names the missing variables when it is not configured', async () => {
 		const { entries, requests } = await redeployWith(
@@ -94,6 +131,24 @@ describe('web redeploy', () => {
 				fields: {
 					event: 'web-redeploy-failed',
 					reason: 'Railway answered: Not Authorized.',
+				},
+			},
+		]);
+	});
+
+	test('warns when Railway does not know the run commit', async () => {
+		const { entries } = await redeployWith(
+			{ ...CONFIGURED_ENVIRONMENT, RAILWAY_GIT_COMMIT_SHA: RUN_COMMIT_SHA },
+			answerJson({ data: null, errors: [{ message: 'Commit not found' }] }),
+		);
+
+		expect(entries).toEqual([
+			{
+				level: 'warn',
+				message: `Web redeploy failed: Railway answered: Commit not found. ${SNAPSHOT_STILL_WRITTEN}`,
+				fields: {
+					event: 'web-redeploy-failed',
+					reason: 'Railway answered: Commit not found.',
 				},
 			},
 		]);
@@ -177,6 +232,10 @@ async function redeployWith(
 	await redeployWebService({ environment, log, fetchFromRailway });
 
 	return { entries, requests };
+}
+
+function readDeployBody(request: RecordedRequest): Readonly<{ query: string; variables: object }> {
+	return JSON.parse(request.init.body as string) as { query: string; variables: object };
 }
 
 function answerJson(body: object): FetchFromRailway {

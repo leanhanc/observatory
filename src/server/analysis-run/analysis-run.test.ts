@@ -558,7 +558,7 @@ describe('Analysis Run command logging', () => {
 		[
 			'requested',
 			Response.json({ data: { serviceInstanceDeployV2: 'deployment-1' } }),
-			'info Web redeploy requested: deployment deployment-1.',
+			'info Web redeploy requested: deployment deployment-1, not pinned to a commit (RAILWAY_GIT_COMMIT_SHA is not set).',
 		],
 		[
 			'refused',

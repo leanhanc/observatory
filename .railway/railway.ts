@@ -4,6 +4,12 @@ import { bucket, defineRailway, github, preserve, project, ref, service } from '
 // its build or start reads; tests are read by neither.
 const SHARED_WATCH_PATTERNS = ['/src/analysis/**', '/package.json', '/bun.lock', '/tsconfig.json'];
 const TEST_FILES_WATCH_PATTERN = '!/src/**/*.test.ts';
+const WEB_WATCH_PATTERNS = [
+	'/src/web/**',
+	'/src/server/bar-history-storage-configuration/**',
+	'/astro.config.ts',
+	'/Caddyfile',
+];
 
 /**
  * The Observatory project on Railway. `railway config plan` previews changes to the linked
@@ -32,10 +38,7 @@ export default defineRailway(() => {
 			buildCommand: 'bun run build',
 			watchPatterns: [
 				...SHARED_WATCH_PATTERNS,
-				'/src/web/**',
-				'/src/server/bar-history-storage-configuration/**',
-				'/astro.config.ts',
-				'/Caddyfile',
+				...WEB_WATCH_PATTERNS,
 				TEST_FILES_WATCH_PATTERN,
 			],
 		},
@@ -50,7 +53,14 @@ export default defineRailway(() => {
 		build: {
 			// A no-op, so Railpack skips the package `build` (the site); Bun runs the source as is.
 			buildCommand: 'true',
-			watchPatterns: [...SHARED_WATCH_PATTERNS, '/src/server/**', TEST_FILES_WATCH_PATTERN],
+			// Also watches the web's paths: the run deploys `web` at its own commit, which must not
+			// predate a web-only push.
+			watchPatterns: [
+				...SHARED_WATCH_PATTERNS,
+				...WEB_WATCH_PATTERNS,
+				'/src/server/**',
+				TEST_FILES_WATCH_PATTERN,
+			],
 		},
 		// Runs the script directly: `bun run` would add its own stderr lines, which Railway shows as errors.
 		start: 'bun src/server/analysis-run/analysis-run.ts',
@@ -60,7 +70,8 @@ export default defineRailway(() => {
 		},
 		env: {
 			...storageEnvironment,
-			// After writing the snapshot, the run deploys `web` so that its build renders it. The
+			// After writing the snapshot, the run deploys `web` at its own commit so that its build renders
+			// it. Railway sets `RAILWAY_GIT_COMMIT_SHA` on deploys triggered from GitHub. The
 			// project token is set by hand in Railway and kept by `preserve()`.
 			OBSERVATORY_RAILWAY_TOKEN: preserve(),
 			OBSERVATORY_WEB_SERVICE_ID: web.env.RAILWAY_SERVICE_ID,

@@ -1,0 +1,7 @@
+- [x] Spec delta for the web redeploy requirement.
+- [x] Pass `RAILWAY_GIT_COMMIT_SHA` as `commitSha`; log the commit or that the deploy is not pinned.
+- [x] Tests: the request carries the commit when set, omits it when not, and the log says which.
+- [x] `analysis-run` watches the web's paths in `.railway/railway.ts`.
+- [x] Run tests, typecheck and `openspec validate --all`.
+- [ ] Lean applies the Railway config and reviews the change.
+- [ ] Archive.

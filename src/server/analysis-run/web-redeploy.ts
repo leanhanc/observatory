@@ -4,9 +4,15 @@ import type { AnalysisRunLog } from './analysis-run.ts';
 
 const RAILWAY_API_URL = 'https://backboard.railway.com/graphql/v2';
 const RAILWAY_REQUEST_TIMEOUT_MS = 20_000;
-// Deploys the commit the service already deploys, with a new build: the build reads the new
-// snapshot. Returns the deployment ID.
-const DEPLOY_MUTATION = `mutation deployWeb($serviceId: String!, $environmentId: String!) {
+// Deploys `web` at the run's commit, whose code wrote the snapshot, so the build reads the snapshot
+// schema its code expects. Railway rejects a commit its connected repository does not have.
+// Returns the deployment ID.
+const DEPLOY_AT_COMMIT_MUTATION = `mutation deployWebAtCommit($serviceId: String!, $environmentId: String!, $commitSha: String!) {
+	serviceInstanceDeployV2(serviceId: $serviceId, environmentId: $environmentId, commitSha: $commitSha)
+}`;
+// Without a commit, Railway deploys the commit of the service's last successful deployment, which
+// predates a schema bump whose web build failed.
+const DEPLOY_CURRENT_COMMIT_MUTATION = `mutation deployWeb($serviceId: String!, $environmentId: String!) {
 	serviceInstanceDeployV2(serviceId: $serviceId, environmentId: $environmentId)
 }`;
 const REQUIRED_ENVIRONMENT_VARIABLES = [
@@ -38,6 +44,9 @@ type DeployResult = Readonly<{ ok: true; deploymentId: string } | { ok: false; r
  * just wrote, and logs the outcome. Never throws: a missing variable or a failed request is a
  * warning, because the snapshot is already written.
  *
+ * Pins the deploy to the run's commit, `RAILWAY_GIT_COMMIT_SHA`, which Railway sets on deploys
+ * triggered from GitHub. Without it, the deploy is not pinned and the log says so.
+ *
  * Reads a project token from `OBSERVATORY_RAILWAY_TOKEN` and the IDs from
  * `OBSERVATORY_WEB_SERVICE_ID` and `OBSERVATORY_WEB_ENVIRONMENT_ID`. The token is sent only in the
  * request header and never logged.
@@ -56,10 +65,14 @@ export async function redeployWebService(request: WebRedeployRequest): Promise<v
 		return;
 	}
 
+	const runCommitSha = environment.RAILWAY_GIT_COMMIT_SHA?.trim() ?? '';
+	const hasRunCommit = runCommitSha !== '';
+	const commitSha = hasRunCommit ? runCommitSha : null;
 	const result = await requestDeploy(fetchFromRailway, {
 		token: environment.OBSERVATORY_RAILWAY_TOKEN!,
 		serviceId: environment.OBSERVATORY_WEB_SERVICE_ID!,
 		environmentId: environment.OBSERVATORY_WEB_ENVIRONMENT_ID!,
+		commitSha,
 	});
 
 	if (!result.ok) {
@@ -70,27 +83,41 @@ export async function redeployWebService(request: WebRedeployRequest): Promise<v
 		return;
 	}
 
+	const deployedCommit =
+		commitSha === null
+			? 'not pinned to a commit (RAILWAY_GIT_COMMIT_SHA is not set)'
+			: `at commit ${commitSha}`;
+
 	log.info(
-		{ event: 'web-redeploy-requested', deploymentId: result.deploymentId },
-		`Web redeploy requested: deployment ${result.deploymentId}.`,
+		{ event: 'web-redeploy-requested', deploymentId: result.deploymentId, commitSha },
+		`Web redeploy requested: deployment ${result.deploymentId}, ${deployedCommit}.`,
 	);
 }
 
 async function requestDeploy(
 	fetchFromRailway: FetchFromRailway,
-	target: Readonly<{ token: string; serviceId: string; environmentId: string }>,
+	target: Readonly<{
+		token: string;
+		serviceId: string;
+		environmentId: string;
+		commitSha: string | null;
+	}>,
 ): Promise<DeployResult> {
-	const { token, serviceId, environmentId } = target;
+	const { token, serviceId, environmentId, commitSha } = target;
+	const deployRequest =
+		commitSha === null
+			? { query: DEPLOY_CURRENT_COMMIT_MUTATION, variables: { serviceId, environmentId } }
+			: {
+					query: DEPLOY_AT_COMMIT_MUTATION,
+					variables: { serviceId, environmentId, commitSha },
+				};
 	let response: Response;
 
 	try {
 		response = await fetchFromRailway(RAILWAY_API_URL, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json', 'Project-Access-Token': token },
-			body: JSON.stringify({
-				query: DEPLOY_MUTATION,
-				variables: { serviceId, environmentId },
-			}),
+			body: JSON.stringify(deployRequest),
 			signal: AbortSignal.timeout(RAILWAY_REQUEST_TIMEOUT_MS),
 		});
 	} catch (error) {

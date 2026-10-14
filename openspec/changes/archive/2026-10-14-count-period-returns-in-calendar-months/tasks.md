@@ -5,4 +5,4 @@
 - [x] CONTEXT.md: Period Return.
 - [x] Dry run and the GLD comparison against the broker.
 - [x] Run tests, typecheck, lint, format and `openspec validate --all --strict`.
-- [ ] Archive after `add-line-page-wording`.
+- [x] Archive after `add-line-page-wording`.

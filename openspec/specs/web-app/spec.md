@@ -36,86 +36,23 @@ The web app SHALL be statically generated. The build SHALL read the latest snaps
 
 ### Requirement: every page shows the session it describes
 
-Every page that renders the snapshot SHALL show the snapshot's `requestedThroughSession`, so a reader can tell that a page describes an older session when a later run has not replaced it. The not-found page renders no snapshot.
+Every page that renders the snapshot SHALL show the session it describes, so a reader can tell that a page describes an older session when a later run has not replaced it. `/` SHALL show the snapshot's `requestedThroughSession`. An available line's page SHALL show its `latestState.sessionDate` as "Datos al cierre del <long date>", since the line may not have traded on the requested session. An unavailable line's page SHALL show the `requestedThroughSession` as "Revisada al cierre del <long date>". The not-found page renders no snapshot. Line pages SHALL NOT show the run timestamp `ranAt`.
 
 #### Scenario: a line page
 
-- **WHEN** the snapshot's `requestedThroughSession` is 2026-10-10
-- **THEN** `/` and every line page show 2026-10-10
+- **WHEN** the snapshot's `requestedThroughSession` is 2026-10-09 and GGAL's latest State is for 2026-10-09
+- **THEN** `/` shows 2026-10-09
+- **AND** GGAL's page shows "Datos al cierre del viernes 9 de octubre de 2026" and not the run timestamp
 
-### Requirement: a line page renders what the snapshot says about the line
+#### Scenario: a line that did not trade on the requested session
 
-A line page SHALL render the line's Trading Line ID and status from the snapshot and SHALL NOT compute domain values.
+- **WHEN** the snapshot's `requestedThroughSession` is 2026-10-09 and a line's latest State is for 2026-10-08
+- **THEN** its page shows "Datos al cierre del jueves 8 de octubre de 2026"
 
-For an available line it SHALL render the latest State, its session date, Regime, the pending Regime transition, Structure, the last confirmed swing high and low, RSI, price relative to the EMA in ATRs, and price relative to the long-term EMA as a percentage, showing a `null` part as not evaluated, never as a number. A pending Regime transition SHALL show its candidate and its confirmations out of the required ones, and `null` as none, since a missing candidate is a reading rather than a gap. A last confirmed swing SHALL show its price, its occurrence and confirmation session dates and the close's distance from it as a percentage, and `null` as none confirmed yet. For a reader who trades the peso line, the page SHALL also show values from `pesoEquivalents` in pesos, and SHALL NOT convert any value itself. The peso close SHALL be shown with its session as a market fact, not as a conversion. Each last confirmed swing SHALL be shown as an approximate equivalent, with the session and the MEP Rate in pesos per MEP dollar it was converted at, or as none confirmed yet. The page SHALL say that swing levels are found on prices in MEP dollars, and that their peso equivalents move with the MEP Rate and are not prices at which the line turned in pesos. A swing whose distance from the close is `null` SHALL say that the distance was not evaluated.
+#### Scenario: an unavailable line page
 
-The page SHALL also render, with plain labels and without computing them:
-
-- **Support and resistance:** whether each last confirmed swing is Support or Resistance, from its `closePosition`. A low whose `closePosition` is `below` SHALL be shown as not Support, with the close below it; a high whose `closePosition` is `above` as not Resistance, with the close above it.
-- **Regime tipping closes:** each side's close, labeled as the close Regime's price condition needs as of the State's session, approximate for later sessions, and not a target, together with whether EMA50 is already on that side of EMA200, and in pesos from `pesoEquivalents`. `null` SHALL be shown as not evaluated.
-- **Period returns:** each window's percent change with its window length in Market Sessions and its `fromSessionDate`, and `null` as not evaluated, never as `0%`.
-- **Situations:** each active Situation's type, `activeSinceSession` and `level`, shown above the detail, and an empty list as none active.
-
-Situation labels on the page SHALL be the plain type names until the wording table defines reader-facing labels. It SHALL render the line's Events in snapshot order, each with its session date, its type, its fields, and whether its session coincides with a Large One-Session Move. An available line without Events SHALL say it has none.
-
-Every price and ATR the page shows, such as a Structure Break's close and swing price, a last confirmed swing's price, or a Volatile Session's True Range and baseline ATR, SHALL be labeled with the snapshot's `priceUnit`; `mep-dollar` SHALL be labeled `MEP dollars`. The page SHALL take the unit from the snapshot and SHALL NOT assume one. Ratios, percentages and ATR multiples SHALL NOT be labeled with a price unit.
-
-For an unavailable line it SHALL render the reason and message. For reason `insufficient-liquidity` it SHALL also render the participation and median daily traded value in USD, showing a `null` median as no trades in the window.
-
-#### Scenario: an available line
-
-- **WHEN** a line's State has Regime `bearish`, Structure `downtrend`, RSI `null` and price relative to the long-term EMA `-4.2`, and it has a Volatile Session
-- **THEN** its page shows `bearish`, `downtrend`, RSI as not evaluated, `-4.2%`, and the Volatile Session with its session date, True Range, baseline ATR and multiple
-
-#### Scenario: long-term EMA not yet readable
-
-- **WHEN** a line's State has price relative to the long-term EMA `null`
-- **THEN** its page shows it as not evaluated
-
-#### Scenario: prices carry the snapshot's unit
-
-- **WHEN** the snapshot's `priceUnit` is `mep-dollar` and a line has a Structure Break with close 7.12
-- **THEN** the page shows the close as `7.12 MEP dollars`
-- **AND** the Event's multiples and the State's ratios carry no price unit
-
-#### Scenario: watch levels and a pending Regime transition
-
-- **WHEN** a line's State has a pending transition to `bearish` with 2 of 3 confirmations, a last confirmed swing high at 7.5 that occurred 2026-09-01 and was confirmed 2026-09-04 with the close 5% below it, and no confirmed swing low
-- **THEN** its page shows the candidate `bearish` with 2 of 3 confirmations
-- **AND** the swing high as `7.5 MEP dollars`, its two session dates and `-5%`
-- **AND** the swing low as none confirmed yet
-
-#### Scenario: watch levels in pesos
-
-- **WHEN** a line's `pesoEquivalents` has session 2026-10-09, MEP Rate 1500, close 5790 and last confirmed swing high 6000
-- **THEN** its page shows the close on 2026-10-09 as 5,790 pesos, without a conversion
-- **AND** the swing high as about 6,000 pesos, its equivalent at the 2026-10-09 MEP Rate of 1,500 pesos per MEP dollar
-- **AND** that peso equivalents move with the MEP Rate and are not prices at which the line turned in pesos
-
-#### Scenario: support, a Situation and period returns
-
-- **WHEN** a line's State is `bearish`, its last confirmed swing low has `closePosition` `below`, its last confirmed swing high has `closePosition` `at-or-below`, it lists `below-last-confirmed-low-in-bearish-regime` active since 2026-10-02, and its 252-session return is `null`
-- **THEN** its page shows the low as not Support, the high as Resistance, the Situation with 2026-10-02 and its level, and the 252-session return as not evaluated
-
-#### Scenario: Regime tipping closes
-
-- **WHEN** a line's tipping closes are above 4.2 and below 3.8 MEP dollars, EMA50 is below EMA200, and their peso equivalents are 6300 and 5700
-- **THEN** its page shows both closes in MEP dollars and in pesos, that EMA50 is not above EMA200 on the bullish side and is below it on the bearish side, and that the closes are conditions as of the session
-
-#### Scenario: no pending Regime transition
-
-- **WHEN** a line's State has `pendingRegimeTransition` `null`
-- **THEN** its page shows no pending transition, not a missing value
-
-#### Scenario: an insufficiently liquid line
-
-- **WHEN** a line is unavailable with reason `insufficient-liquidity`, participation 1 and median daily traded value 43,290 USD
-- **THEN** its page shows the reason, the message and both measures
-
-#### Scenario: a line without provider bars
-
-- **WHEN** a line is unavailable with reason `no-provider-bars`
-- **THEN** its page shows the reason and message
+- **WHEN** a line is unavailable in a snapshot whose `requestedThroughSession` is 2026-10-09
+- **THEN** its page shows "Revisada al cierre del viernes 9 de octubre de 2026"
 
 ### Requirement: the build fails without a snapshot to render
 
@@ -204,14 +141,233 @@ Each Railway service SHALL watch the paths its build or start reads, so that a c
 
 ### Requirement: a path without a page shows the not-found page
 
-A request for a path the build wrote no page for SHALL answer with status 404 and the not-found page, which SHALL say that the page does not exist and link to `/`. It SHALL NOT answer with another page or with status 200.
+A request for a path the build wrote no page for SHALL answer with status 404 and the not-found page, which SHALL say "Página no encontrada." and "No hay ninguna especie en esta dirección." and link to `/` as "Ver todas". It SHALL NOT answer with another page or with status 200.
 
 #### Scenario: a line no longer in the snapshot
 
 - **WHEN** a request asks for `/lines/<tradingLineId>` for an ID the latest build did not prerender
-- **THEN** the site answers 404 with the not-found page and its link to `/`
+- **THEN** the site answers 404 with the not-found page and its "Ver todas" link to `/`
 
 #### Scenario: a prerendered page
 
 - **WHEN** a request asks for `/lines/ggal-stock-byma-ars` and the build prerendered it
 - **THEN** the site answers 200 with that line page
+
+### Requirement: a line page renders the approved wording
+
+A line page SHALL render the wording of the approved line-page wording table (in this change's design.md) from the snapshot's facts, and SHALL NOT compute domain values: every number it shows SHALL be read from the snapshot, and the page only rounds, signs, takes absolute values for wording that names the side, and chooses wording from the facts. A part that is `null` SHALL NOT be shown as a number or as `0`.
+
+The page SHALL identify the line from the Instrument Catalog: its symbol as the ticker, its type as "Acción argentina" for a stock or "CEDEAR", and for a CEDEAR its Underlying as "Subyacente: <ticker> · <market>". A line the Catalog does not list SHALL show its Trading Line ID and no type.
+
+For an available line, the page SHALL render:
+
+- **Trend** from `regime`: "Tendencia alcista. Se confirmó con el precio y la media de 50 ruedas por encima de la de 200.", the mirror "por debajo" for "Tendencia bajista.", "Tendencia indefinida." with the table's sentence. A settled Regime lags the close by its confirming sessions, so the sentence says what confirmed it, not where the price is today. For `null` it SHALL show "Sin historia suficiente para leer la tendencia (hacen falta unas 200 ruedas)."
+- **Period returns** on one line, each window named ("en un mes", "en tres meses", "en un año" for windows of 1, 3 and 12 months) with its signed percent change, and "(en dólares MEP)" for `priceUnit` `mep-dollar`. A `null` change SHALL show as "— … (sin historia suficiente)".
+- **Distance from the 200-session average** from `priceRelativeToLongTermEmaInPercent`, as "El cierre está x % por debajo|por encima de su media móvil de 200 ruedas.", omitted when `null`.
+- **Support and resistance** as described in the Situation label requirement, with "Todavía no hay máximos ni mínimos confirmados." when neither swing is confirmed, and "Todavía no hay un mínimo confirmado." or "Todavía no hay un máximo confirmado." when only one is.
+- **Pattern** from `structure`: "Patrón descendente:" with a close above the last confirmed swing high as the close that would break it, "Patrón ascendente:" with a close below the last confirmed swing low, "Patrón lateral:", "Sin patrón claro:" for `undefined`, and "Sin patrón todavía:" for `null`, each with the table's sentence.
+- **Trend tipping points** as described in their requirement.
+- **Trend change in progress** from `pendingRegimeTransition`: "Posible cambio a tendencia <alcista|bajista|indefinida> en curso (n de m ruedas).", and nothing when `null`.
+- **Recent changes** as described in their requirement.
+- **Detail:** RSI as "Momentum: n sobre 100. En las últimas ruedas, las subas fueron el n % del movimiento total.", omitted when `null`; `priceRelativeToEmaInAtr` as "x movimientos diarios típicos por debajo|por encima de su media móvil de 20 ruedas."; the swing dates as "Mínimo del <date>, confirmado el <date> · Máximo del <date>, confirmado el <date>."; and the raw evidence: the peso close and the MEP Rate of `pesoEquivalents` on a peso line, and the exact analyzed prices of the swings and tipping closes.
+
+Events SHALL be worded as:
+
+- Structure Break: "<date> · Se rompió el patrón ascendente." for a prior `uptrend` or "descendente" for a prior `downtrend`, then "Cerró en <close>, por debajo del último mínimo confirmado (mínimo del <date>, confirmado el <date>)." or the mirror with "por encima del último máximo confirmado". The close SHALL be in the snapshot's price unit, since the snapshot has no peso equivalent for Event prices.
+- Regime Transition: "<date> · Tendencia: <from> → <to>. Se confirmó tras n ruedas (<confirming dates>)."
+- Volatile Session: "<date> · Rueda volátil: el rango del día fue x veces su rango diario típico."
+- An Event that coincides with a Large One-Session Move SHALL add "⚠ Movimiento inusual en una sola rueda; suele deberse a un split u otro evento corporativo."
+
+For an unavailable line it SHALL render "Sin analizar: opera muy poco volumen." with the table's sentence for `insufficient-liquidity`, "Sin datos." with the table's sentence for `no-provider-bars`, and "Sin analizar." with a sentence saying the prices could not be analyzed in the last update for any other reason. An `insufficient-liquidity` line SHALL also show its participation and median daily traded value in USD in tier 3, showing a `null` median as no trades in the period.
+
+#### Scenario: GGAL, between its levels in a downtrend
+
+- **WHEN** GGAL's State on 2026-10-09 is `bearish` and `downtrend`, its last confirmed swing low is 3.68 with the close 4.9% above it and `closePosition` `at-or-above`, its last confirmed swing high is 4.04 with the close 4.5% below it and `closePosition` `at-or-below`, its peso equivalents are 5,662 and 6,223, its returns are −16.5%, −24.9% and +18.5%, and it is 17.8% below its 200-session average
+- **THEN** its page shows "Tendencia bajista.", "−16,5 % en un mes · −24,9 % en tres meses · +18,5 % en un año (en dólares MEP)" and "El cierre está 17,8 % por debajo de su media móvil de 200 ruedas."
+- **AND** "Soporte en ≈ 5.662 pesos (US$ 3,68): el cierre está 4,9 % por encima." and "Resistencia en ≈ 6.223 pesos (US$ 4,04): el cierre está 4,5 % por debajo."
+- **AND** "Patrón descendente: máximos y mínimos cada vez más bajos. Un cierre por encima de ≈ 6.223 pesos (US$ 4,04) lo rompería."
+
+#### Scenario: a short history
+
+- **WHEN** a line's Regime, Structure and price relative to the long-term EMA are `null` and its twelve-month return is `null`
+- **THEN** its page shows "Sin historia suficiente para leer la tendencia", "Sin patrón todavía:" and "— en un año (sin historia suficiente)"
+- **AND** no distance from the 200-session average
+
+#### Scenario: a pending trend change (PATH, TECO2)
+
+- **WHEN** PATH has a pending transition to `bullish` with 2 of 3 confirmations and TECO2 one to `mixed` with 1 of 3
+- **THEN** PATH's page shows "Posible cambio a tendencia alcista en curso (2 de 3 ruedas)."
+- **AND** TECO2's page shows "Posible cambio a tendencia indefinida en curso (1 de 3 ruedas)."
+
+#### Scenario: Events
+
+- **WHEN** a line has a downward Structure Break on 2026-10-09 from an `uptrend`, closing at 3.50 against a low that occurred 2026-10-01 and was confirmed 2026-10-06, and a Regime Transition from `bullish` to `mixed` on 2026-09-29 confirmed on 2026-09-25, 2026-09-26 and 2026-09-29
+- **THEN** its page shows "9 oct · Se rompió el patrón ascendente. Cerró en US$ 3,50, por debajo del último mínimo confirmado (mínimo del 1 oct, confirmado el 6 oct)."
+- **AND** "29 sep · Tendencia: alcista → indefinida. Se confirmó tras 3 ruedas (25, 26 y 29 sep)."
+
+#### Scenario: an insufficiently liquid line
+
+- **WHEN** a line is unavailable with reason `insufficient-liquidity`, participation 1 and median daily traded value 43,290 USD
+- **THEN** its page shows "Sin analizar: opera muy poco volumen." with the table's sentence
+- **AND** its participation and median in tier 3
+
+#### Scenario: a line without provider bars
+
+- **WHEN** a line is unavailable with reason `no-provider-bars`
+- **THEN** its page shows "Sin datos. Nuestra fuente de datos de mercado no devolvió precios para esta especie."
+
+### Requirement: line pages are in Spanish with es-AR formats
+
+Line pages and the not-found page SHALL be in impersonal Spanish and declare `lang="es"`. The home page stays in English until its own wording is settled. Numbers SHALL use es-AR formatting: a dot groups thousands, a comma separates decimals, a negative number uses the minus sign `−`, and a unit or sign stays on the same line as its number. Percentages SHALL have one decimal and a space before `%`, with a sign where the wording does not name the side. Prices in MEP dollars SHALL be written `US$ 4,04`, with two decimals, or three significant digits when the price rounds to less than one. Peso amounts SHALL be written `5.662 pesos`, whole when they round to a thousand or more and with two decimals below. Header dates SHALL be written "viernes 9 de octubre de 2026", and list dates "9 oct", with months abbreviated as ene, feb, mar, abr, may, jun, jul, ago, sep, oct, nov and dic. A list of dates SHALL name each month once, after its last day: "25, 26 y 29 sep" or "30 sep, 1 y 2 oct".
+
+The table's English column is kept in the design for a later English version; this change builds no language routing.
+
+#### Scenario: es-AR numbers
+
+- **WHEN** a page shows −17.83%, +41.6%, 4.0412 MEP dollars and 5,662.4 pesos
+- **THEN** it shows "−17,8 %", "+41,6 %", "US$ 4,04" and "5.662 pesos"
+
+#### Scenario: a zero percentage
+
+- **WHEN** a period return rounds to 0.0%
+- **THEN** it shows "0,0 %", without a sign
+
+### Requirement: the line page reads in a fixed order with tiers
+
+A line page SHALL render, in order:
+
+0. identity: the ticker, the type, the data date, and in tier 2 the CEDEAR's Underlying and, on an available peso line, the currency note;
+1. what the line is doing: the trend and the period returns, then the distance from the 200-session average in tier 2;
+2. support and resistance;
+3. what would change it: the pattern with its break level, the trend tipping points and the trend change in progress;
+4. "Últimos cambios";
+5. detail: momentum in tier 2, and the short-term stretch, the swing dates and the raw evidence in tier 3.
+
+Tier 1 SHALL always be visible. Tier 2 SHALL be visible and collapsible, as an open `<details>` element with a `<summary>`. Tier 3 SHALL be collapsed by default, as a closed `<details>` element. The page SHALL NOT use client JavaScript for collapsing.
+
+The currency note SHALL read "Precios analizados en dólares MEP; los valores en pesos son equivalentes al dólar MEP de ese día."
+
+#### Scenario: tiers without JavaScript
+
+- **WHEN** the build writes GGAL's page
+- **THEN** the distance from the 200-session average and the momentum are inside open `<details>` elements
+- **AND** the swing dates and the full history are inside closed `<details>` elements
+- **AND** the page has no `<script` tag
+
+#### Scenario: a CEDEAR's identity
+
+- **WHEN** the build writes LAC's page
+- **THEN** it shows "LAC", "CEDEAR" and, in tier 2, "Subyacente: LAC · NYSE" and the currency note
+
+#### Scenario: an unavailable line has no currency note
+
+- **WHEN** a peso line is unavailable
+- **THEN** its page shows no currency note, since it shows no prices
+
+### Requirement: peso lines show peso equivalents first
+
+On a line traded in pesos, as its Trading Line's currency in the Instrument Catalog says, each level the page names (a swing, a break level or a tipping point) SHALL show its peso equivalent from `pesoEquivalents` first, as "≈ 5.662 pesos", then the analyzed price in parentheses, as "(US$ 3,68)". Peso figures are equivalents at the session's MEP Rate, and the tier-2 currency note says so. The page SHALL NOT convert any value: a level without a peso equivalent, or a line not traded in pesos, SHALL show the analyzed price alone. Event prices SHALL show the analyzed price alone, since the snapshot has no peso equivalent for them.
+
+#### Scenario: a peso line
+
+- **WHEN** GGAL's last confirmed swing low is 3.68 MEP dollars and its peso equivalent is 5,662
+- **THEN** its support shows "≈ 5.662 pesos (US$ 3,68)"
+
+#### Scenario: a line not traded in pesos
+
+- **WHEN** a line's Trading Line currency is not ARS
+- **THEN** its levels show only "US$ 3,68"
+
+### Requirement: Situation labels follow the analysis's noise band flag
+
+The support and resistance lines SHALL choose wording from each swing's `closePosition` and from the matching active Situation's `isBeyondNoiseBand`, and SHALL NOT compare a distance with any threshold:
+
+- a low `at-or-above`: "Soporte en <level>: el cierre está x % por encima.";
+- a low `below` with an active `below-last-confirmed-low-in-bearish-regime` whose `isBeyondNoiseBand` is `true`: "Caída sin piso confirmado. El cierre está x % por debajo de su último mínimo confirmado y todavía no se confirmó un mínimo nuevo.";
+- any other low `below`, including one with no active Situation or a flag that is `false` or `null`: "Debajo de su último mínimo confirmado (−x %): ya no hay un soporte confirmado.";
+- a high `at-or-below`: "Resistencia en <level>: el cierre está x % por debajo.";
+- a high `above` with an active `above-last-confirmed-high-in-bullish-regime` whose `isBeyondNoiseBand` is `true`: "Subida sin techo confirmado. El cierre está x % por encima de su último máximo confirmado y todavía no se confirmó un máximo nuevo.";
+- any other high `above`: "Por encima de su último máximo confirmado (+x %): no hay una resistencia confirmada arriba."
+
+The distance x SHALL be the swing's `priceRelativeToSwingInPercent`, the close's distance measured against the level, so the close is the subject of every distance; it SHALL be omitted when `null`. The calm labels SHALL always sign it by its side, so a distance that rounds to zero still reads "(−0,0 %)" or "(+0,0 %)". A `null` flag SHALL read as the calm label, so a missing measurement is never shown as a dramatic one.
+
+#### Scenario: below the low within the noise band (PEP)
+
+- **WHEN** PEP is `bearish`, 0.84% below its last confirmed low, with the Situation active and `isBeyondNoiseBand` `false`
+- **THEN** its page shows "Debajo de su último mínimo confirmado (−0,8 %): ya no hay un soporte confirmado."
+
+#### Scenario: falling with no confirmed floor (LAC)
+
+- **WHEN** LAC is `bearish`, 12.76% below its last confirmed low, with the Situation active and `isBeyondNoiseBand` `true`
+- **THEN** its page shows "Caída sin piso confirmado. El cierre está 12,8 % por debajo de su último mínimo confirmado y todavía no se confirmó un mínimo nuevo."
+
+#### Scenario: above the high within the noise band (XLV)
+
+- **WHEN** XLV is `bullish`, 0.08% above its last confirmed high, with the mirror Situation active and `isBeyondNoiseBand` `false`
+- **THEN** its page shows "Por encima de su último máximo confirmado (+0,1 %): no hay una resistencia confirmada arriba."
+
+#### Scenario: rising with no confirmed ceiling (XP)
+
+- **WHEN** XP is `bullish`, 52.07% above its last confirmed high, with the mirror Situation active and `isBeyondNoiseBand` `true`
+- **THEN** its page shows "Subida sin techo confirmado. El cierre está 52,1 % por encima de su último máximo confirmado y todavía no se confirmó un máximo nuevo."
+
+#### Scenario: below the low without a Situation
+
+- **WHEN** a line is `mixed` and its close is 12.8% below its last confirmed low, so no Situation is active
+- **THEN** its page shows "Debajo de su último mínimo confirmado (−12,8 %): ya no hay un soporte confirmado."
+
+#### Scenario: an unmeasured flag
+
+- **WHEN** a Situation is active with `isBeyondNoiseBand` `null`
+- **THEN** its line shows the calm label, not "Caída sin piso confirmado" or "Subida sin techo confirmado"
+
+### Requirement: trend tipping points name the nearest change
+
+The page SHALL show the Regime tipping close at which the trend would change soonest:
+
+- for a `bearish` Regime, the bearish close, as "Punto de quiebre de la tendencia: <level>: con cierres por encima, dejaría de ser bajista.";
+- for a `bullish` Regime, the bullish close, as "Punto de quiebre de la tendencia: <level>: con cierres por debajo, dejaría de ser alcista.";
+- for a `mixed` Regime, both, as "Punto de quiebre hacia tendencia alcista: <level>." and "Punto de quiebre hacia tendencia bajista: <level>.", each adding "Además, la media de 50 ruedas tendría que pasar por encima de la de 200." for the bullish point, or "por debajo" for the bearish point, when that side's `isFastEmaAligned` is `false`.
+
+Leaving a trend needs only its price condition to fail, so the bearish and bullish points carry no 50-session sentence; entering one from `mixed` needs both conditions. The farther edge, where a bearish trend would become bullish or the reverse, is not shown. No point SHALL be shown while `regime` or `regimeTippingCloses` is `null`. The page SHALL NOT explain the rule's internals; they belong on a future About page.
+
+#### Scenario: a bearish trend (GGAL)
+
+- **WHEN** GGAL is `bearish`, its bearish tipping close is 4.62 MEP dollars with peso equivalent 7,109, and its bullish tipping close is 4.77
+- **THEN** its page shows "Punto de quiebre de la tendencia: ≈ 7.109 pesos (US$ 4,62): con cierres por encima, dejaría de ser bajista."
+- **AND** not the bullish close
+
+#### Scenario: a bullish trend (XP)
+
+- **WHEN** XP is `bullish`, its bullish tipping close is 4.95 MEP dollars with peso equivalent 7,619, and EMA50 is not below EMA200
+- **THEN** its page shows "Punto de quiebre de la tendencia: ≈ 7.619 pesos (US$ 4,95): con cierres por debajo, dejaría de ser alcista." without the 50-session sentence
+
+#### Scenario: a mixed trend (PATH)
+
+- **WHEN** PATH is `mixed` and EMA50 is above EMA200
+- **THEN** its page shows both points, each named by the trend it leads to, and the 50-session sentence only on the bearish point
+
+### Requirement: recent changes cover the month of the one-month return
+
+"Últimos cambios" SHALL list the line's Events whose session is after the `fromSessionDate` of its one-month period return, the same month the "en un mes" return describes, newest first. When that `fromSessionDate` is `null`, the line's history is shorter than a month, and every Event SHALL be listed. Volatile Sessions SHALL be collapsed into a closed `<details>` whose summary is "+ N ruedas volátiles (ver)", or "+ 1 rueda volátil (ver)". When the month has no Event at all, the section SHALL say "Sin cambios en el último mes." Below it, a closed `<details>` with the summary "Ver historial" SHALL list every Event in the snapshot, newest first, under a heading per calendar year, since list dates carry no year. A snapshot without a one-month period return SHALL fail the page's render, and so the build.
+
+#### Scenario: a quiet month (GGAL)
+
+- **WHEN** GGAL's one-month return starts on 2026-09-09 and its last Event is on 2026-08-31
+- **THEN** its page shows "Sin cambios en el último mes." although its return over the month is −16.5%
+
+#### Scenario: Volatile Sessions in the month (XP)
+
+- **WHEN** XP's Events in the month are a Regime Transition on 2026-09-10 and Volatile Sessions on 2026-09-30 and 2026-10-05
+- **THEN** its page lists the Regime Transition and shows "+ 2 ruedas volátiles (ver)", which expands to both, newest first
+- **AND** it does not say "Sin cambios en el último mes."
+
+#### Scenario: changes in the month (TECO2)
+
+- **WHEN** TECO2 has a Structure Break on 2026-09-14 and Regime Transitions on 2026-09-30 and 2026-10-08, all after its one-month return's start
+- **THEN** its page lists the 2026-10-08 transition first and the 2026-09-14 break last
+
+#### Scenario: a history shorter than a month
+
+- **WHEN** a line's one-month return has `fromSessionDate` `null`
+- **THEN** every Event of the line is listed in "Últimos cambios"

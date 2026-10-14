@@ -8,4 +8,4 @@
 - [x] Line page in the table's order and tiers with `<details>`; the not-found page in Spanish; the published-output guard unchanged.
 - [x] Dry run through 2026-10-09 and a local build from it; pages checked in the browser.
 - [x] Run tests, typecheck, lint, format and `openspec validate --all --strict`.
-- [ ] Lean reviews the diff; with his OK, the Analysis Run writes the first v9 snapshot, then the web service redeploys.
+- [x] Lean reviews the diff; with his OK, the Analysis Run writes the first v9 snapshot, then the web service redeploys.

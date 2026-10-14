@@ -52,7 +52,7 @@ The Requested-Through Session SHALL be a completed session. A Requested-Through 
 
 ### Requirement: analysis reuses dollarization and the existing calculations
 
-Each fetched line SHALL be validated before use: an analyzed line by dropping its invalid bars and validating the rest as a chronological Daily Bar history, and a MEP rate source line as a whole. Each analyzed line SHALL be corrected for its confirmed Corporate Actions and then dollarized with the MEP rates calculated from the run's MEP rate source lines, and the resulting Dollarized Series SHALL be analyzed with `calculateInstrumentStates`, `detectRegimeTransitionEvents`, `detectStructureBreakEvents`, `detectVolatileSessionEvents` and `detectLargeOneSessionMoves`, and its period returns SHALL be measured with `calculatePeriodReturns` over that series and the dates of the run's MEP Rate sessions. The only other measurement the run SHALL calculate is each line's liquidity eligibility, with the liquidity-eligibility module.
+Each fetched line SHALL be validated before use: an analyzed line by dropping its invalid bars and validating the rest as a chronological Daily Bar history, and a MEP rate source line as a whole. Each analyzed line SHALL be corrected for its confirmed Corporate Actions and then dollarized with the MEP rates calculated from the run's MEP rate source lines, and the resulting Dollarized Series SHALL be analyzed with `calculateInstrumentStates`, `detectRegimeTransitionEvents`, `detectStructureBreakEvents`, `detectVolatileSessionEvents` and `detectLargeOneSessionMoves`, and its period returns SHALL be measured with `calculatePeriodReturns` over that series. The only other measurement the run SHALL calculate is each line's liquidity eligibility, with the liquidity-eligibility module.
 
 The MEP rate source lines SHALL be validated as a chronological Daily Bar history with one exception: a bar whose open is `0` SHALL be accepted when the open is its only invalid field. The MEP Rate reads only each leg's close and volume, and the provider has served traded sessions with a zero open on both AL30 lines. The close SHALL still be positive and within the bar's high–low range. Every accepted zero open SHALL be recorded in the snapshot. Analyzed lines SHALL get no such exception.
 
@@ -96,7 +96,7 @@ The snapshot SHALL hold one entry per analyzed Trading Line in `analyzedLines`. 
 - `sessionsWithoutMepRate`: the peso-line sessions that had no MEP Rate and therefore no dollarized bar.
 - `rangeRepairSessions`: the peso-line sessions whose range the adapter widened.
 - `droppedBarSessions`: the peso-line sessions whose invalid bar was dropped.
-- `periodReturns`: the line's period returns as of `latestState.sessionDate`, from `calculatePeriodReturns` over the Dollarized Series and the dates of the run's MEP Rate sessions, one per configured window in configuration order.
+- `periodReturns`: the line's period returns as of `latestState.sessionDate`, from `calculatePeriodReturns` over the Dollarized Series, one per configured window in configuration order.
 - `pesoEquivalents`: the latest State's session in pesos, for a reader who trades the peso line: `{ sessionDate, mepRate, close, lastConfirmedSwingHigh, lastConfirmedSwingLow, regimeTippingCloses }`. `sessionDate` SHALL equal `latestState.sessionDate`, `mepRate` SHALL be that session's MEP Rate, the one that dollarized its bar, and `close` SHALL be the line's corrected peso close on that session, a market fact. Each swing SHALL be the price of the State's last confirmed swing of that kind converted with `toPesoEquivalent` at that `mepRate`, or `null` when the State's swing is `null`. `regimeTippingCloses` SHALL be `{ bullishCloseAbove, bearishCloseBelow }`, the State's two tipping closes converted the same way, or `null` when the State's `regimeTippingCloses` is `null`. Because the close and the levels share one rate, the close's distance from each level in percent is the same in pesos as in MEP dollars.
 
 A peso equivalent describes the dollarized level at that one session's MEP Rate; it is not a peso level that price turned at, and the peso price at which a later close would cross the level depends on that later session's MEP Rate.
@@ -128,13 +128,13 @@ A State part that cannot be evaluated SHALL be `null`, as in the Instrument Stat
 #### Scenario: period returns are anchored at the latest State
 
 - **WHEN** a line's last dollarized bar is on 2026-10-08 and the run's Requested-Through Session is 2026-10-09
-- **THEN** its `periodReturns` are measured as of 2026-10-08, counting the run's MEP Rate sessions back from 2026-10-08
+- **THEN** its `periodReturns` are measured as of 2026-10-08, counting calendar months back from 2026-10-08
 
 ### Requirement: run-level facts are recorded
 
-The snapshot SHALL record `schemaVersion: 8`, `priceUnit`, `ranAt` as a UTC instant, `requestedThroughSession`, `analysisConfigurationVersion` equal to `ANALYSIS_CONFIGURATION.version`, and `mepRateSource` with both MEP rate source Trading Line IDs, the date of the latest session that had a MEP Rate, `acceptedZeroOpens`: one `{ tradingLineId, sessionDate }` for each MEP rate source bar accepted with a zero open, and `rangeRepairs`: one `{ tradingLineId, sessionDate }` for each MEP rate source bar whose range the adapter widened.
+The snapshot SHALL record `schemaVersion: 9`, `priceUnit`, `ranAt` as a UTC instant, `requestedThroughSession`, `analysisConfigurationVersion` equal to `ANALYSIS_CONFIGURATION.version`, and `mepRateSource` with both MEP rate source Trading Line IDs, the date of the latest session that had a MEP Rate, `acceptedZeroOpens`: one `{ tradingLineId, sessionDate }` for each MEP rate source bar accepted with a zero open, and `rangeRepairs`: one `{ tradingLineId, sessionDate }` for each MEP rate source bar whose range the adapter widened.
 
-The snapshot SHALL also record `corporateActionWatch`: either `{ status: 'available', publishedFrom, publishedThrough, candidates }`, with the candidates from the corporate-action-watch module, or `{ status: 'unavailable', publishedFrom, publishedThrough, message }`. Version 4 differed from version 3 only by this field. Version 5 differs from version 4 only in each line's `corporateActions` records, which carry `correction`, `shareFactor` for a `volume` entry and its statuses, and in `insufficient-liquidity` entries, which also carry `corporateActions`. Version 6 differs from version 5 in three ways: it adds `priceUnit`; each `latestState` adds `priceRelativeToLongTermEmaInPercent`; and the Event type `volatility-expansion` becomes `volatile-session`, with its `expansionMultiple` field renamed `atrMultiple`. Version 7 differs from version 6 in two ways: each `latestState` adds `pendingRegimeTransition`, `lastConfirmedSwingHigh` and `lastConfirmedSwingLow`, and each available line adds `pesoEquivalents`. Version 8 differs from version 7 in three ways: each `latestState` adds `regimeTippingCloses` and `situations`, and a `closePosition` on each last confirmed swing; each available line adds `periodReturns`; and `pesoEquivalents` adds `regimeTippingCloses`.
+The snapshot SHALL also record `corporateActionWatch`: either `{ status: 'available', publishedFrom, publishedThrough, candidates }`, with the candidates from the corporate-action-watch module, or `{ status: 'unavailable', publishedFrom, publishedThrough, message }`. Version 4 differed from version 3 only by this field. Version 5 differs from version 4 only in each line's `corporateActions` records, which carry `correction`, `shareFactor` for a `volume` entry and its statuses, and in `insufficient-liquidity` entries, which also carry `corporateActions`. Version 6 differs from version 5 in three ways: it adds `priceUnit`; each `latestState` adds `priceRelativeToLongTermEmaInPercent`; and the Event type `volatility-expansion` becomes `volatile-session`, with its `expansionMultiple` field renamed `atrMultiple`. Version 7 differs from version 6 in two ways: each `latestState` adds `pendingRegimeTransition`, `lastConfirmedSwingHigh` and `lastConfirmedSwingLow`, and each available line adds `pesoEquivalents`. Version 8 differs from version 7 in three ways: each `latestState` adds `regimeTippingCloses` and `situations`, and a `closePosition` on each last confirmed swing; each available line adds `periodReturns`; and `pesoEquivalents` adds `regimeTippingCloses`. Version 9 differs from version 8 in two ways: each Situation of `latestState.situations` adds `isBeyondNoiseBand`, and each period return's `windowMarketSessions` becomes `windowMonths`, since windows count calendar months.
 
 `priceUnit` SHALL be `mep-dollar`: every price and every price-denominated measurement in the snapshot, such as an Event's `closePrice`, a swing's `price`, including a State's last confirmed swings and a Situation's `level`, a State's Regime tipping closes, `trueRange` and `baselineAtr`, is in MEP dollars, because the run analyzes the Dollarized Series. It is recorded once, at the top level, and not repeated per value. Ratios, percentages and ATR multiples have no unit. `medianDailyTradedValueUsd` names its own unit and is unchanged. `pesoEquivalents` is the one block in pesos: its name states its unit, its `mepRate` is in pesos per MEP dollar, and `priceUnit` does not cover it.
 
@@ -152,7 +152,7 @@ The snapshot SHALL also record `corporateActionWatch`: either `{ status: 'availa
 #### Scenario: schema version is recorded
 
 - **WHEN** a run completes
-- **THEN** the snapshot's `schemaVersion` is `8`
+- **THEN** the snapshot's `schemaVersion` is `9`
 
 #### Scenario: the watch is recorded
 
@@ -183,17 +183,17 @@ When an analyzed Trading Line cannot be fetched, has no valid Daily Bar history 
 
 A successful run SHALL write the snapshot as JSON to the S3-compatible bucket used for Bar History under two keys:
 
-- dated: `analysis-snapshots/v8/<requestedThroughSession>/<ranAt>.json`
-- latest: `analysis-snapshots/v8/latest.json`
+- dated: `analysis-snapshots/v9/<requestedThroughSession>/<ranAt>.json`
+- latest: `analysis-snapshots/v9/latest.json`
 
-The `v8` in the key prefix SHALL equal the snapshot's `schemaVersion`, so a reader of one schema never finds another schema's object under the keys it reads. Objects written under an earlier prefix SHALL be left in place.
+The `v9` in the key prefix SHALL equal the snapshot's `schemaVersion`, so a reader of one schema never finds another schema's object under the keys it reads. Objects written under an earlier prefix SHALL be left in place.
 
 The dated object SHALL be written first. `latest` SHALL be written only after the dated object was written. A failed write SHALL fail the run with reason `snapshot-write-failed`. Each successful run SHALL replace `latest`.
 
 #### Scenario: dated and latest objects
 
 - **WHEN** a run for 2026-10-02 completes at 2026-10-04T15:00:00.000Z
-- **THEN** the snapshot is written to `analysis-snapshots/v8/2026-10-02/2026-10-04T15:00:00.000Z.json` and to `analysis-snapshots/v8/latest.json`
+- **THEN** the snapshot is written to `analysis-snapshots/v9/2026-10-02/2026-10-04T15:00:00.000Z.json` and to `analysis-snapshots/v9/latest.json`
 
 #### Scenario: dated write fails
 
@@ -652,11 +652,11 @@ The `analyze` command SHALL log the watch once it is reported: an unavailable wa
 
 ### Requirement: the latest snapshot can be read with validation
 
-The bucket-backed snapshot storage SHALL expose `readLatest`, which reads `analysis-snapshots/v8/latest.json` and returns it only after validating it. Validation SHALL cover the fields a reader uses: `schemaVersion` SHALL be `8`, `priceUnit` SHALL be `mep-dollar`, `ranAt` an ISO timestamp, `requestedThroughSession` a real `YYYY-MM-DD` date, and every entry of `analyzedLines` SHALL have string `instrumentId` and `tradingLineId` and one of these shapes:
+The bucket-backed snapshot storage SHALL expose `readLatest`, which reads `analysis-snapshots/v9/latest.json` and returns it only after validating it. Validation SHALL cover the fields a reader uses: `schemaVersion` SHALL be `9`, `priceUnit` SHALL be `mep-dollar`, `ranAt` an ISO timestamp, `requestedThroughSession` a real `YYYY-MM-DD` date, and every entry of `analyzedLines` SHALL have string `instrumentId` and `tradingLineId` and one of these shapes:
 
 - `status` `available`, with:
-    - a `latestState` whose `regime`, `pendingRegimeTransition`, `regimeTippingCloses`, `structure`, `lastConfirmedSwingHigh`, `lastConfirmedSwingLow`, `rsi`, `priceRelativeToEmaInAtr` and `priceRelativeToLongTermEmaInPercent` are each `null` or a valid value, and whose `situations` is a list. A valid pending transition has a readable Regime `candidate`, `confirmations` of `1` or `2` and `requiredConfirmations` of `3`. Valid tipping closes have a numeric `bullish.closeAbove` and `bearish.closeBelow` and a boolean `isFastEmaAligned` on each side. A valid last confirmed swing has the kind its part names, a numeric `price`, real occurrence and confirmation session dates, a numeric or `null` `priceRelativeToSwingInPercent`, and a `closePosition` of `at-or-above` or `below` for the low and `at-or-below` or `above` for the high. A valid Situation has a known `type`, a real `activeSinceSession` and a `level` of the kind its type names, and it SHALL agree with the State: `below-last-confirmed-low-in-bearish-regime` only with Regime `bearish` and a low whose `closePosition` is `below` and whose price and session dates equal the `level`, and the mirror for `above-last-confirmed-high-in-bullish-regime`;
-    - `periodReturns`, each with a positive integer `windowMarketSessions` and a `fromSessionDate` and `percentChange` that are both `null` or both valid;
+    - a `latestState` whose `regime`, `pendingRegimeTransition`, `regimeTippingCloses`, `structure`, `lastConfirmedSwingHigh`, `lastConfirmedSwingLow`, `rsi`, `priceRelativeToEmaInAtr` and `priceRelativeToLongTermEmaInPercent` are each `null` or a valid value, and whose `situations` is a list. A valid pending transition has a readable Regime `candidate`, `confirmations` of `1` or `2` and `requiredConfirmations` of `3`. Valid tipping closes have a numeric `bullish.closeAbove` and `bearish.closeBelow` and a boolean `isFastEmaAligned` on each side. A valid last confirmed swing has the kind its part names, a numeric `price`, real occurrence and confirmation session dates, a numeric or `null` `priceRelativeToSwingInPercent`, and a `closePosition` of `at-or-above` or `below` for the low and `at-or-below` or `above` for the high. A valid Situation has a known `type`, a real `activeSinceSession`, a `level` of the kind its type names and an `isBeyondNoiseBand` that is a boolean or `null`, and it SHALL agree with the State: `below-last-confirmed-low-in-bearish-regime` only with Regime `bearish` and a low whose `closePosition` is `below` and whose price and session dates equal the `level`, and the mirror for `above-last-confirmed-high-in-bullish-regime`;
+    - `periodReturns`, each with a positive integer `windowMonths` and a `fromSessionDate` and `percentChange` that are both `null` or both valid;
     - `pesoEquivalents` with a `sessionDate` equal to `latestState.sessionDate`, a positive numeric `mepRate`, a numeric `close`, a `lastConfirmedSwingHigh` and `lastConfirmedSwingLow` that are numbers exactly when the State's swing of that kind exists and `null` otherwise, and `regimeTippingCloses` with numeric `bullishCloseAbove` and `bearishCloseBelow` exactly when the State's tipping closes exist and `null` otherwise;
     - `events` whose entries each have a session date, a `coincidesWithLargeMove` boolean and an `event` that is a regime transition, structure break or volatile session with that type's fields;
 - `status` `unavailable` with reason `insufficient-liquidity`, a `message`, and `liquidity` with a numeric `participation` and a numeric or `null` `medianDailyTradedValueUsd`;
@@ -666,10 +666,15 @@ Other fields SHALL be allowed and not returned.
 
 `readLatest` SHALL NOT throw. It SHALL return a failure with reason `not-found` when the object does not exist, `read-failed` when the bucket read fails otherwise, and `invalid-snapshot` when the object is not JSON or fails validation.
 
+#### Scenario: a v9 snapshot
+
+- **WHEN** `latest.json` holds a v9 snapshot with one available and one unavailable line
+- **THEN** `readLatest` returns its `ranAt`, `requestedThroughSession`, `priceUnit`, both lines' IDs and statuses, the available line's State, period returns and Events and the unavailable line's reason, message and liquidity
+
 #### Scenario: a v8 snapshot
 
-- **WHEN** `latest.json` holds a v8 snapshot with one available and one unavailable line
-- **THEN** `readLatest` returns its `ranAt`, `requestedThroughSession`, `priceUnit`, both lines' IDs and statuses, the available line's State, period returns and Events and the unavailable line's reason, message and liquidity
+- **WHEN** `latest.json` holds a v8 snapshot, whose Situations have no `isBeyondNoiseBand` and whose period returns have `windowMarketSessions`
+- **THEN** `readLatest` fails with reason `invalid-snapshot`
 
 #### Scenario: a v7 snapshot
 
@@ -688,12 +693,12 @@ Other fields SHALL be allowed and not returned.
 
 #### Scenario: another schema version
 
-- **WHEN** `latest.json` holds a snapshot with `schemaVersion` `9`
+- **WHEN** `latest.json` holds a snapshot with `schemaVersion` `10`
 - **THEN** `readLatest` fails with reason `invalid-snapshot`
 
 #### Scenario: malformed data
 
-- **WHEN** `latest.json` is not JSON, or a line has status `pending`, or `requestedThroughSession` is `2026-02-30`, or an available line has no `latestState`, or a `latestState` has no `pendingRegimeTransition`, or a pending transition has `confirmations` `3`, or a `lastConfirmedSwingHigh` has kind `low`, or an available line has no `pesoEquivalents`, or its `pesoEquivalents` describe another session, a swing the State does not have, or a non-positive `mepRate`, or a `latestState` has no `situations`, or a last confirmed swing has no `closePosition`, or a Situation of type `below-last-confirmed-low-in-bearish-regime` is listed while Regime is `mixed` or while the low's `closePosition` is `at-or-above`, or an available line has no `periodReturns`, or a period return has a `fromSessionDate` but a `null` `percentChange`, or an Event has an unknown type
+- **WHEN** `latest.json` is not JSON, or a line has status `pending`, or `requestedThroughSession` is `2026-02-30`, or an available line has no `latestState`, or a `latestState` has no `pendingRegimeTransition`, or a pending transition has `confirmations` `3`, or a `lastConfirmedSwingHigh` has kind `low`, or an available line has no `pesoEquivalents`, or its `pesoEquivalents` describe another session, a swing the State does not have, or a non-positive `mepRate`, or a `latestState` has no `situations`, or a last confirmed swing has no `closePosition`, or a Situation has an `isBeyondNoiseBand` that is neither a boolean nor `null`, or a Situation of type `below-last-confirmed-low-in-bearish-regime` is listed while Regime is `mixed` or while the low's `closePosition` is `at-or-above`, or an available line has no `periodReturns`, or a period return has a `fromSessionDate` but a `null` `percentChange`, or an Event has an unknown type
 - **THEN** `readLatest` fails with reason `invalid-snapshot`
 
 #### Scenario: no latest snapshot
@@ -705,12 +710,19 @@ Other fields SHALL be allowed and not returned.
 
 After the run writes its snapshot to the bucket, the `analyze` command SHALL ask Railway's Public API once to deploy the web service, using a project token from `OBSERVATORY_RAILWAY_TOKEN` and the IDs from `OBSERVATORY_WEB_SERVICE_ID` and `OBSERVATORY_WEB_ENVIRONMENT_ID`. It SHALL log the requested deployment's ID at info.
 
-The request SHALL NOT change the run's outcome or exit status. When a variable is missing, the command SHALL NOT send a request and SHALL log a warning naming the missing variables. When the request fails, times out, or Railway answers with an HTTP error or a GraphQL error, the command SHALL log a warning with the reason. The request SHALL NOT be retried. A failed run and a dry run with `--output` SHALL NOT request a deploy. Logs SHALL NOT contain the token.
+The deploy SHALL be pinned to the commit the run itself runs, read from `RAILWAY_GIT_COMMIT_SHA` and sent as `commitSha`: that commit's code wrote the snapshot, so the web build reads the snapshot schema its code expects. When `RAILWAY_GIT_COMMIT_SHA` is not set, the command SHALL request the deploy without a commit, so Railway deploys the web service's current commit, and SHALL say in the info log that the deploy is not pinned to a commit. The info log SHALL carry the commit, or `null` when the deploy is not pinned.
+
+The request SHALL NOT change the run's outcome or exit status. When a variable is missing, the command SHALL NOT send a request and SHALL log a warning naming the missing variables. When the request fails, times out, or Railway answers with an HTTP error or a GraphQL error, including an unknown commit, the command SHALL log a warning with the reason. The request SHALL NOT be retried. A failed run and a dry run with `--output` SHALL NOT request a deploy. Logs SHALL NOT contain the token.
 
 #### Scenario: the deploy is requested
 
-- **WHEN** the snapshot is written to the bucket and the three variables are set
-- **THEN** the command sends `serviceInstanceDeployV2` for the web service and environment with the token in the `Project-Access-Token` header, logs the returned deployment ID, and exits `0`
+- **WHEN** the snapshot is written to the bucket, the three variables are set, and `RAILWAY_GIT_COMMIT_SHA` is `d0beb8f5c55b36df7d674d55965a23b8d54ad69b`
+- **THEN** the command sends `serviceInstanceDeployV2` for the web service and environment with `commitSha` `d0beb8f5c55b36df7d674d55965a23b8d54ad69b` and the token in the `Project-Access-Token` header, logs the returned deployment ID and the commit, and exits `0`
+
+#### Scenario: the run's commit is unknown
+
+- **WHEN** the snapshot is written, the three variables are set, and `RAILWAY_GIT_COMMIT_SHA` is not set
+- **THEN** the command sends `serviceInstanceDeployV2` for the web service and environment without `commitSha`, logs the returned deployment ID, says the deploy is not pinned to a commit, and exits `0`
 
 #### Scenario: the token is not set
 
@@ -721,6 +733,11 @@ The request SHALL NOT change the run's outcome or exit status. When a variable i
 
 - **WHEN** Railway answers with HTTP 200 and a GraphQL error `Not Authorized`
 - **THEN** the command warns that the web redeploy failed with `Not Authorized` and exits `0`
+
+#### Scenario: Railway does not know the commit
+
+- **WHEN** Railway answers with HTTP 200 and a GraphQL error `Commit not found`
+- **THEN** the command warns that the web redeploy failed with `Commit not found` and exits `0`
 
 #### Scenario: the request fails
 

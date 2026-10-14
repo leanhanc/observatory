@@ -6,26 +6,24 @@ Measure how far a Trading Line's close moved over fixed windows of Market Sessio
 
 ## Requirements
 
-### Requirement: period returns over windows of Market Sessions
+### Requirement: period returns over calendar months
 
-The period-returns module SHALL expose a pure `calculatePeriodReturns(bars, marketSessionDates)` that measures the percent change of the close over each window in `ANALYSIS_CONFIGURATION.periodReturns.windowMarketSessions` (21, 63 and 252), as of the last input bar. `bars` SHALL be the validated, chronological Daily Bars of one Trading Line; for peso lines, the bars of a Dollarized Series, so the change is in MEP dollars. `marketSessionDates` SHALL be the chronological dates of the Market Sessions, the sessions that have a MEP Rate. The windows SHALL NOT be caller parameters. The calculation SHALL NOT mutate its input and SHALL NOT perform I/O.
+The period-returns module SHALL expose a pure `calculatePeriodReturns(bars)` that measures the percent change of the close over each window in `ANALYSIS_CONFIGURATION.periodReturns.windowMonths` (1, 3 and 12), as of the last input bar. `bars` SHALL be the validated, chronological Daily Bars of one Trading Line; for peso lines, the bars of a Dollarized Series, so the change is in MEP dollars. The windows SHALL NOT be caller parameters. The calculation SHALL NOT mutate its input and SHALL NOT perform I/O.
 
-It SHALL return one `{ windowMarketSessions, fromSessionDate, percentChange }` per configured window, in configuration order:
+It SHALL return one `{ windowMonths, fromSessionDate, percentChange }` per configured window, in configuration order:
 
-- The anchor SHALL be the last bar's session, and its position the anchor's index in `marketSessionDates`.
-- The start session SHALL be the Market Session `windowMarketSessions` positions before the anchor.
-- The start bar SHALL be the last bar whose session is on or before the start session. When the line did not trade on the start session, it is the last close known by then.
+- The anchor SHALL be the last bar's session.
+- The start date SHALL be the anchor's date minus `windowMonths` calendar months. When that day does not exist in the target month, the start date SHALL be that month's last day: 2026-03-31 minus one month is 2026-02-28.
+- The start bar SHALL be the last bar whose session is on or before the start date. When the start date was not a session, or the line did not trade on it, the start close is the last close known by then.
 - `fromSessionDate` SHALL be the start bar's session.
 - `percentChange` SHALL be `(anchor close − start close) / start close × 100`, unrounded. It is positive for a rise and negative for a fall.
 
-Counting Market Sessions rather than the line's own bars makes a window span the same dates for every line, as Liquidity Eligibility does.
+Calendar months make "a month", "three months" and "a year" mean what a reader and a broker mean by them, whatever the number of sessions in between. Counting a fixed number of sessions does not: BYMA has fewer sessions a year than the 252 of the US convention, so 252 sessions reach about two weeks past a year.
 
 Both `fromSessionDate` and `percentChange` SHALL be `null` when:
 
 - there are no bars;
-- the anchor is not a Market Session;
-- fewer than `windowMarketSessions` Market Sessions precede the anchor;
-- no bar is on or before the start session;
+- no bar is on or before the start date;
 - the start close is zero;
 - the result is not finite.
 
@@ -33,25 +31,31 @@ They SHALL NOT be `0` or any other value while unavailable. A readable change of
 
 A period return describes how far the close moved over the window. It does not say why, and it predicts nothing.
 
-#### Scenario: a window with a bar on its start session
+#### Scenario: a month back to a session
 
-- **WHEN** the last bar closes at 110 and the line closed at 100 on the Market Session 21 positions earlier
-- **THEN** the 21-session return has that session as `fromSessionDate` and `percentChange` `10`
+- **WHEN** the last bar is on 2026-10-09 and closes at 110, and the line closed at 100 on 2026-09-09
+- **THEN** the one-month return has `fromSessionDate` 2026-09-09 and `percentChange` `10`
 
-#### Scenario: the line did not trade on the start session
+#### Scenario: the start date is not a session
 
-- **WHEN** the line has no bar on the window's start session, and its last bar before it closed at 80
-- **THEN** that return uses the close of 80 and that earlier bar's session as `fromSessionDate`
+- **WHEN** the last bar is on 2026-10-13 and 2026-09-13 is a Sunday, with the line's last earlier bar on 2026-09-11
+- **THEN** the one-month return starts from the close of 2026-09-11, the close known on 2026-09-13
+- **AND** a bar after the start date is never used as the start, even when it is closer to it
 
-#### Scenario: Market Sessions, not bars, are counted
+#### Scenario: a month end
 
-- **WHEN** a line skipped 5 of the last 21 Market Sessions
-- **THEN** its 21-session return starts at the Market Session 21 positions before the anchor, not 21 bars back
+- **WHEN** the last bar is on 2026-03-31
+- **THEN** the one-month window starts on 2026-02-28
+
+#### Scenario: a year is a calendar year
+
+- **WHEN** the last bar is on 2026-10-09 and the line traded on 2025-10-09
+- **THEN** the twelve-month return starts from the close of 2025-10-09, not from the close 252 sessions earlier
 
 #### Scenario: not enough history
 
-- **WHEN** the line's first bar is after the 252-session window's start session, or fewer than 252 Market Sessions precede the anchor
-- **THEN** the 252-session return has `fromSessionDate` and `percentChange` `null`
+- **WHEN** the line's first bar is after the twelve-month window's start date
+- **THEN** the twelve-month return has `fromSessionDate` and `percentChange` `null`
 - **AND** shorter windows that have a start bar are still measured
 
 #### Scenario: no change is a measurement
@@ -61,5 +65,5 @@ A period return describes how far the close moved over the window. It does not s
 
 #### Scenario: causal
 
-- **WHEN** returns are calculated for a history truncated at a session and its Market Sessions truncated at the same session
-- **THEN** they depend only on bars and Market Sessions on or before that session
+- **WHEN** returns are calculated for a history truncated at a session
+- **THEN** they depend only on bars on or before that session

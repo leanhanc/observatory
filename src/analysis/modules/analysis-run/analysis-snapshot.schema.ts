@@ -4,7 +4,7 @@ import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
 import { checkIfIsoDateIsValid } from '#lib/utils/validation/index.ts';
 
 const messages = {
-	invalidSchemaVersion: 'Schema version must be 9.',
+	invalidSchemaVersion: 'Schema version must be 10.',
 	invalidSessionDate: 'Value must be a real YYYY-MM-DD date.',
 	invalidTimestamp: 'Value must be an ISO timestamp.',
 	invalidType: 'Value has an invalid type or shape.',
@@ -169,6 +169,8 @@ const latestStateSchema = v.object(
 	messages.invalidType,
 );
 
+const mepRateSchema = v.pipe(numberSchema, v.gtValue(0, messages.invalidType));
+
 const analysisEventSchema = v.variant(
 	'type',
 	[
@@ -194,6 +196,14 @@ const analysisEventSchema = v.variant(
 				priorStructure: v.picklist(['uptrend', 'downtrend'], messages.invalidType),
 				definingSwing: confirmedSwingSchema,
 				closePrice: numberSchema,
+				pesoEquivalents: v.object(
+					{
+						mepRate: mepRateSchema,
+						closePrice: numberSchema,
+						definingSwingPrice: numberSchema,
+					},
+					messages.invalidType,
+				),
 			},
 			messages.invalidType,
 		),
@@ -214,7 +224,7 @@ const analysisEventSchema = v.variant(
 const pesoEquivalentsSchema = v.object(
 	{
 		sessionDate: sessionDateSchema,
-		mepRate: v.pipe(numberSchema, v.gtValue(0, messages.invalidType)),
+		mepRate: mepRateSchema,
 		close: numberSchema,
 		lastConfirmedSwingHigh: v.nullable(numberSchema),
 		lastConfirmedSwingLow: v.nullable(numberSchema),
@@ -314,7 +324,7 @@ const analyzedLineSchema = v.pipe(
  */
 export const analysisSnapshotOverviewSchema = v.object(
 	{
-		schemaVersion: v.literal(9, messages.invalidSchemaVersion),
+		schemaVersion: v.literal(10, messages.invalidSchemaVersion),
 		priceUnit: v.picklist(['mep-dollar'], messages.invalidType),
 		ranAt: v.pipe(stringSchema, v.isoTimestamp(messages.invalidTimestamp)),
 		requestedThroughSession: sessionDateSchema,

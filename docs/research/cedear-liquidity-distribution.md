@@ -191,11 +191,11 @@ every candidate.
 
 ### Boundary examples (2y, since-listing participation ≥ 95%)
 
-- **≈ USD 10k:** DOCU 10.5k (6m 12.3k), DEO 10.5k (6m 7.3k), SONY 9.9k (6m 20.1k), BMY 10.1k
+- **Around USD 10k:** DOCU 10.5k (6m 12.3k), DEO 10.5k (6m 7.3k), SONY 9.9k (6m 20.1k), BMY 10.1k
   (listed 2026-01; raw 38%), FISV 9.8k (listed 2026-05; raw 20%).
-- **≈ USD 50k:** EBAY 50.6k (6m 113k), LMT 51.5k, TXR 51.8k (6m 44.1k), MRK 47.2k (6m 38.1k),
+- **Around USD 50k:** EBAY 50.6k (6m 113k), LMT 51.5k, TXR 51.8k (6m 44.1k), MRK 47.2k (6m 38.1k),
   BA.C 53.1k, CSCO 48.3k (listed 2026-01).
-- **≈ USD 100k:** CVX 100k (6m 179k), BIDU 102k (6m 63.1k), IBM 96.7k (6m 718k), KLAC 100k
+- **Around USD 100k:** CVX 100k (6m 179k), BIDU 102k (6m 63.1k), IBM 96.7k (6m 718k), KLAC 100k
   (listed 2026-09-02, 23 sessions), GDX 100k (listed 2025-07).
 - **2y raw participation 85–95% on a full-window line:** ASR 94.2%, DD 94.0%, GRMN 94.8%, MUFG
   94.4%, ING 92.0%, IFF 91.1%, EA 91.1% (stopped 2026-08-03), IP 88.9%. Most of these sit at

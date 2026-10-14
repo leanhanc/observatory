@@ -67,9 +67,14 @@ const PATTERN_NAMES: Record<StructureBreak['priorStructure'], string> = {
 export const LARGE_MOVE_NOTE =
 	'⚠ Movimiento inusual en una sola rueda; suele deberse a un split u otro evento corporativo.';
 
-/** The tier-2 note on a peso line: levels are analyzed in MEP dollars and converted per session. */
+/**
+ * The tier-2 note on a peso line: levels are analyzed in MEP dollars and converted at a session's
+ * MEP Rate, so the page says once that peso figures are approximate instead of marking each one.
+ * "De cada día" covers both rates the page uses: the levels at the last session's, and each Event's
+ * prices at its own session's.
+ */
 export const CURRENCY_NOTE =
-	'Precios analizados en dólares MEP; los valores en pesos son equivalentes al dólar MEP de ese día.';
+	'Precios analizados en dólares MEP. Los valores en pesos son aproximados: equivalen al dólar MEP de cada día.';
 
 /** What the trend (Regime) reads, or that there is not enough history to read it. */
 export function describeTrend(regime: SnapshotState['regime']): Phrase {
@@ -237,15 +242,19 @@ function describeHighLevel(
 }
 
 /**
- * The pattern (Structure) and, for a trend, the close that would break it: the last confirmed swing
- * a Structure Break reads, the high in a downtrend and the low in an uptrend.
+ * The pattern (Structure). A trending pattern reads as the close that would break it: the last
+ * confirmed swing a Structure Break reads, the high in a downtrend and the low in an uptrend. A break
+ * leaves the pattern unclear rather than reversing it, and it does not change the trend (Regime), so
+ * the sentence says the trend would stay as it is.
  */
 export function describePattern(
 	state: SnapshotState,
 	pesoEquivalents: PesoEquivalents,
 	context: PriceContext,
 ): Phrase {
-	const { structure, lastConfirmedSwingHigh: high, lastConfirmedSwingLow: low } = state;
+	const { structure, regime, lastConfirmedSwingHigh: high, lastConfirmedSwingLow: low } = state;
+	const trendText =
+		regime === null ? '' : ` La tendencia seguiría siendo ${TREND_NAMES[regime]}.`;
 
 	if (structure === null) {
 		return [
@@ -255,24 +264,30 @@ export function describePattern(
 	}
 
 	if (structure === 'downtrend') {
-		const breakText =
-			high === null
-				? ''
-				: ` Un cierre por encima de ${formatLevelPrice(high.price, pesoEquivalents.lastConfirmedSwingHigh, context)} lo rompería.`;
+		if (high === null) {
+			return [{ strong: 'Patrón descendente:' }, ' máximos y mínimos cada vez más bajos.'];
+		}
+
 		return [
-			{ strong: 'Patrón descendente:' },
-			` máximos y mínimos cada vez más bajos.${breakText}`,
+			'Un cierre por encima de ',
+			...describeLevelPrice(high.price, pesoEquivalents.lastConfirmedSwingHigh, context),
+			' rompería el ',
+			{ strong: 'patrón descendente' },
+			`: los máximos dejarían de ser cada vez más bajos.${trendText}`,
 		];
 	}
 
 	if (structure === 'uptrend') {
-		const breakText =
-			low === null
-				? ''
-				: ` Un cierre por debajo de ${formatLevelPrice(low.price, pesoEquivalents.lastConfirmedSwingLow, context)} lo rompería.`;
+		if (low === null) {
+			return [{ strong: 'Patrón ascendente:' }, ' máximos y mínimos cada vez más altos.'];
+		}
+
 		return [
-			{ strong: 'Patrón ascendente:' },
-			` máximos y mínimos cada vez más altos.${breakText}`,
+			'Un cierre por debajo de ',
+			...describeLevelPrice(low.price, pesoEquivalents.lastConfirmedSwingLow, context),
+			' rompería el ',
+			{ strong: 'patrón ascendente' },
+			`: los mínimos dejarían de ser cada vez más altos.${trendText}`,
 		];
 	}
 
@@ -310,12 +325,12 @@ export function describeTippingPoints(
 
 	const { closeAbove, isFastEmaAligned: isFastEmaAboveSlow } = regimeTippingCloses.bullish;
 	const { closeBelow, isFastEmaAligned: isFastEmaBelowSlow } = regimeTippingCloses.bearish;
-	const bullishEdge = formatLevelPrice(
+	const bullishEdge = describeLevelPrice(
 		closeAbove,
 		pesoTippingCloses?.bullishCloseAbove ?? null,
 		context,
 	);
-	const bearishEdge = formatLevelPrice(
+	const bearishEdge = describeLevelPrice(
 		closeBelow,
 		pesoTippingCloses?.bearishCloseBelow ?? null,
 		context,
@@ -324,8 +339,11 @@ export function describeTippingPoints(
 	if (regime === 'bearish') {
 		return [
 			[
-				{ strong: 'Punto de quiebre de la tendencia:' },
-				` ${bearishEdge}: con cierres por encima, dejaría de ser bajista.`,
+				'Con cierres por encima de ',
+				...bearishEdge,
+				', la ',
+				{ strong: 'tendencia' },
+				' dejaría de ser bajista.',
 			],
 		];
 	}
@@ -333,8 +351,11 @@ export function describeTippingPoints(
 	if (regime === 'bullish') {
 		return [
 			[
-				{ strong: 'Punto de quiebre de la tendencia:' },
-				` ${bullishEdge}: con cierres por debajo, dejaría de ser alcista.`,
+				'Con cierres por debajo de ',
+				...bullishEdge,
+				', la ',
+				{ strong: 'tendencia' },
+				' dejaría de ser alcista.',
 			],
 		];
 	}
@@ -347,12 +368,18 @@ export function describeTippingPoints(
 		: ' Además, la media de 50 ruedas tendría que pasar por debajo de la de 200.';
 	return [
 		[
-			{ strong: 'Punto de quiebre hacia tendencia alcista:' },
-			` ${bullishEdge}.${bullishAverageText}`,
+			'Con cierres por encima de ',
+			...bullishEdge,
+			', la ',
+			{ strong: 'tendencia' },
+			` pasaría a ser alcista.${bullishAverageText}`,
 		],
 		[
-			{ strong: 'Punto de quiebre hacia tendencia bajista:' },
-			` ${bearishEdge}.${bearishAverageText}`,
+			'Con cierres por debajo de ',
+			...bearishEdge,
+			', la ',
+			{ strong: 'tendencia' },
+			` pasaría a ser bajista.${bearishAverageText}`,
 		],
 	];
 }
@@ -373,10 +400,10 @@ export function describePendingTransition(
 }
 
 /**
- * One Event, led by its session. A Structure Break's close is in the snapshot's price unit: the
- * snapshot has no peso equivalent for Event prices.
+ * One Event, led by its session. A Structure Break's prices are written as the levels are, from its
+ * own peso equivalents at its session's MEP Rate: the close is the peso close the line had that day.
  */
-export function describeEvent(snapshotEvent: SnapshotEvent, priceUnit: SnapshotPriceUnit): Phrase {
+export function describeEvent(snapshotEvent: SnapshotEvent, context: PriceContext): Phrase {
 	const { sessionDate, event } = snapshotEvent;
 	const date = formatShortDate(sessionDate);
 
@@ -389,7 +416,7 @@ export function describeEvent(snapshotEvent: SnapshotEvent, priceUnit: SnapshotP
 	}
 
 	if (event.type === 'structure-break') {
-		return describeStructureBreak(date, event, priceUnit);
+		return describeStructureBreak(date, event, context);
 	}
 
 	return [
@@ -401,16 +428,20 @@ export function describeEvent(snapshotEvent: SnapshotEvent, priceUnit: SnapshotP
 function describeStructureBreak(
 	date: string,
 	event: StructureBreak,
-	priceUnit: SnapshotPriceUnit,
+	context: PriceContext,
 ): Phrase {
-	const { direction, priorStructure, definingSwing, closePrice } = event;
+	const { direction, priorStructure, definingSwing, closePrice, pesoEquivalents } = event;
 	const swingName = definingSwing.kind === 'low' ? 'mínimo' : 'máximo';
 	const side = direction === 'downward' ? 'por debajo' : 'por encima';
-	const swingDates = `${swingName} del ${formatShortDate(definingSwing.occurredAtSession)}, confirmado el ${formatShortDate(definingSwing.confirmedAtSession)}`;
+	const swingDates = `del ${formatShortDate(definingSwing.occurredAtSession)}, confirmado el ${formatShortDate(definingSwing.confirmedAtSession)}`;
 
 	return [
 		{ strong: `${date} · Se rompió el patrón ${PATTERN_NAMES[priorStructure]}.` },
-		` Cerró en ${formatPrice(closePrice, priceUnit)}, ${side} del último ${swingName} confirmado (${swingDates}).`,
+		' Cerró en ',
+		...describeLevelPrice(closePrice, pesoEquivalents.closePrice, context),
+		`, ${side} del último ${swingName} confirmado: `,
+		...describeLevelPrice(definingSwing.price, pesoEquivalents.definingSwingPrice, context),
+		`, ${swingDates}.`,
 	];
 }
 
@@ -531,11 +562,22 @@ export function formatLevelPrice(
 	pesoPrice: number | null,
 	context: PriceContext,
 ): string {
+	return describeLevelPrice(price, pesoPrice, context)
+		.map((segment) => (typeof segment === 'string' ? segment : segment.strong))
+		.join('');
+}
+
+/** A level's price as `formatLevelPrice` writes it, with the figure the reader looks for in bold. */
+function describeLevelPrice(
+	price: number,
+	pesoPrice: number | null,
+	context: PriceContext,
+): Phrase {
 	const analyzedPrice = formatPrice(price, context.priceUnit);
 
 	if (!context.isPesoLine || pesoPrice === null) {
-		return analyzedPrice;
+		return [{ strong: analyzedPrice }];
 	}
 
-	return `≈ ${formatPesos(pesoPrice)} (${analyzedPrice})`;
+	return [{ strong: formatPesos(pesoPrice) }, ` (${analyzedPrice})`];
 }

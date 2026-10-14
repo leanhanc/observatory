@@ -165,7 +165,7 @@ For an available line, the page SHALL render:
 - **Period returns** on one line, each window named ("en un mes", "en tres meses", "en un año" for windows of 1, 3 and 12 months) with its signed percent change, and "(en dólares MEP)" for `priceUnit` `mep-dollar`. A `null` change SHALL show as "— … (sin historia suficiente)".
 - **Distance from the 200-session average** from `priceRelativeToLongTermEmaInPercent`, as "El cierre está x % por debajo|por encima de su media móvil de 200 ruedas.", omitted when `null`.
 - **Support and resistance** as described in the Situation label requirement, with "Todavía no hay máximos ni mínimos confirmados." when neither swing is confirmed, and "Todavía no hay un mínimo confirmado." or "Todavía no hay un máximo confirmado." when only one is.
-- **Pattern** from `structure`: "Patrón descendente:" with a close above the last confirmed swing high as the close that would break it, "Patrón ascendente:" with a close below the last confirmed swing low, "Patrón lateral:", "Sin patrón claro:" for `undefined`, and "Sin patrón todavía:" for `null`, each with the table's sentence.
+- **Pattern** from `structure`, naming what its level changes. A `downtrend` SHALL read "Un cierre por encima de <level> rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos.", with the last confirmed swing high as the level, and an `uptrend` "Un cierre por debajo de <level> rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos.", with the last confirmed swing low. Either SHALL add "La tendencia seguiría siendo <alcista|bajista|indefinida>." naming the current `regime`, and nothing when `regime` is `null`. A break makes Structure undefined and does not change Regime, so the page SHALL NOT say that a close reverses the pattern or the trend. A trending pattern without its level SHALL read "Patrón descendente: máximos y mínimos cada vez más bajos." or "Patrón ascendente: máximos y mínimos cada vez más altos." The other patterns name no level: "Patrón lateral:", "Sin patrón claro:" for `undefined`, and "Sin patrón todavía:" for `null`, each with the table's sentence.
 - **Trend tipping points** as described in their requirement.
 - **Trend change in progress** from `pendingRegimeTransition`: "Posible cambio a tendencia <alcista|bajista|indefinida> en curso (n de m ruedas).", and nothing when `null`.
 - **Recent changes** as described in their requirement.
@@ -173,7 +173,7 @@ For an available line, the page SHALL render:
 
 Events SHALL be worded as:
 
-- Structure Break: "<date> · Se rompió el patrón ascendente." for a prior `uptrend` or "descendente" for a prior `downtrend`, then "Cerró en <close>, por debajo del último mínimo confirmado (mínimo del <date>, confirmado el <date>)." or the mirror with "por encima del último máximo confirmado". The close SHALL be in the snapshot's price unit, since the snapshot has no peso equivalent for Event prices.
+- Structure Break: "<date> · Se rompió el patrón ascendente." for a prior `uptrend` or "descendente" for a prior `downtrend`, then "Cerró en <close>, por debajo del último mínimo confirmado: <level>, del <date>, confirmado el <date>." or the mirror with "por encima del último máximo confirmado". The close and the level SHALL be written as the levels are, from the Event's own `pesoEquivalents` on a peso line, as described in the peso requirement.
 - Regime Transition: "<date> · Tendencia: <from> → <to>. Se confirmó tras n ruedas (<confirming dates>)."
 - Volatile Session: "<date> · Rueda volátil: el rango del día fue x veces su rango diario típico."
 - An Event that coincides with a Large One-Session Move SHALL add "⚠ Movimiento inusual en una sola rueda; suele deberse a un split u otro evento corporativo."
@@ -184,8 +184,8 @@ For an unavailable line it SHALL render "Sin analizar: opera muy poco volumen." 
 
 - **WHEN** GGAL's State on 2026-10-09 is `bearish` and `downtrend`, its last confirmed swing low is 3.68 with the close 4.9% above it and `closePosition` `at-or-above`, its last confirmed swing high is 4.04 with the close 4.5% below it and `closePosition` `at-or-below`, its peso equivalents are 5,662 and 6,223, its returns are −16.5%, −24.9% and +18.5%, and it is 17.8% below its 200-session average
 - **THEN** its page shows "Tendencia bajista.", "−16,5 % en un mes · −24,9 % en tres meses · +18,5 % en un año (en dólares MEP)" and "El cierre está 17,8 % por debajo de su media móvil de 200 ruedas."
-- **AND** "Soporte en ≈ 5.662 pesos (US$ 3,68): el cierre está 4,9 % por encima." and "Resistencia en ≈ 6.223 pesos (US$ 4,04): el cierre está 4,5 % por debajo."
-- **AND** "Patrón descendente: máximos y mínimos cada vez más bajos. Un cierre por encima de ≈ 6.223 pesos (US$ 4,04) lo rompería."
+- **AND** "Soporte en 5.662 pesos (US$ 3,68): el cierre está 4,9 % por encima." and "Resistencia en 6.223 pesos (US$ 4,04): el cierre está 4,5 % por debajo."
+- **AND** "Un cierre por encima de 6.223 pesos (US$ 4,04) rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. La tendencia seguiría siendo bajista."
 
 #### Scenario: a short history
 
@@ -201,8 +201,8 @@ For an unavailable line it SHALL render "Sin analizar: opera muy poco volumen." 
 
 #### Scenario: Events
 
-- **WHEN** a line has a downward Structure Break on 2026-10-09 from an `uptrend`, closing at 3.50 against a low that occurred 2026-10-01 and was confirmed 2026-10-06, and a Regime Transition from `bullish` to `mixed` on 2026-09-29 confirmed on 2026-09-25, 2026-09-26 and 2026-09-29
-- **THEN** its page shows "9 oct · Se rompió el patrón ascendente. Cerró en US$ 3,50, por debajo del último mínimo confirmado (mínimo del 1 oct, confirmado el 6 oct)."
+- **WHEN** a line not traded in pesos has a downward Structure Break on 2026-10-09 from an `uptrend`, closing at 3.50 against a low of 3.68 that occurred 2026-10-01 and was confirmed 2026-10-06, and a Regime Transition from `bullish` to `mixed` on 2026-09-29 confirmed on 2026-09-25, 2026-09-26 and 2026-09-29
+- **THEN** its page shows "9 oct · Se rompió el patrón ascendente. Cerró en US$ 3,50, por debajo del último mínimo confirmado: US$ 3,68, del 1 oct, confirmado el 6 oct."
 - **AND** "29 sep · Tendencia: alcista → indefinida. Se confirmó tras 3 ruedas (25, 26 y 29 sep)."
 
 #### Scenario: an insufficiently liquid line
@@ -215,6 +215,16 @@ For an unavailable line it SHALL render "Sin analizar: opera muy poco volumen." 
 
 - **WHEN** a line is unavailable with reason `no-provider-bars`
 - **THEN** its page shows "Sin datos. Nuestra fuente de datos de mercado no devolvió precios para esta especie."
+
+#### Scenario: a rising pattern in a mixed trend
+
+- **WHEN** a line's State is `mixed` and `uptrend`, and its last confirmed swing low is 3.68 MEP dollars with peso equivalent 5,662
+- **THEN** its page shows "Un cierre por debajo de 5.662 pesos (US$ 3,68) rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos. La tendencia seguiría siendo indefinida."
+
+#### Scenario: a pattern without a level to break
+
+- **WHEN** a line's Structure is `range` or `undefined`
+- **THEN** its page shows "Patrón lateral:" or "Sin patrón claro:" with the table's sentence and no "rompería" sentence
 
 ### Requirement: line pages are in Spanish with es-AR formats
 
@@ -245,7 +255,7 @@ A line page SHALL render, in order:
 
 Tier 1 SHALL always be visible. Tier 2 SHALL be visible and collapsible, as an open `<details>` element with a `<summary>`. Tier 3 SHALL be collapsed by default, as a closed `<details>` element. The page SHALL NOT use client JavaScript for collapsing.
 
-The currency note SHALL read "Precios analizados en dólares MEP; los valores en pesos son equivalentes al dólar MEP de ese día."
+The currency note SHALL read "Precios analizados en dólares MEP. Los valores en pesos son aproximados: equivalen al dólar MEP de cada día." It is the only place the page says that peso figures are approximate. "De cada día" covers both rates the page uses: the levels in "Soporte y resistencia" and "Qué observar" are at the last session's MEP Rate, and each Event's prices at its own session's.
 
 #### Scenario: tiers without JavaScript
 
@@ -266,17 +276,24 @@ The currency note SHALL read "Precios analizados en dólares MEP; los valores en
 
 ### Requirement: peso lines show peso equivalents first
 
-On a line traded in pesos, as its Trading Line's currency in the Instrument Catalog says, each level the page names (a swing, a break level or a tipping point) SHALL show its peso equivalent from `pesoEquivalents` first, as "≈ 5.662 pesos", then the analyzed price in parentheses, as "(US$ 3,68)". Peso figures are equivalents at the session's MEP Rate, and the tier-2 currency note says so. The page SHALL NOT convert any value: a level without a peso equivalent, or a line not traded in pesos, SHALL show the analyzed price alone. Event prices SHALL show the analyzed price alone, since the snapshot has no peso equivalent for them.
+On a line traded in pesos, as its Trading Line's currency in the Instrument Catalog says, each level the page names (a swing, a break level or a tipping point) SHALL show its peso equivalent from `pesoEquivalents` first, as "5.662 pesos", then the analyzed price in parentheses, as "(US$ 3,68)". Peso figures are equivalents at the session's MEP Rate. They SHALL NOT carry an approximation sign, which Argentine readers do not use; the tier-2 currency note says once that they are approximate. The page SHALL NOT convert any value: a level without a peso equivalent, or a line not traded in pesos, SHALL show the analyzed price alone.
+
+A Structure Break's close and defining swing SHALL be written the same way, from the Event's own `pesoEquivalents`: `closePrice` and `definingSwingPrice`, at the Event session's MEP Rate. The page SHALL NOT use the line's `pesoEquivalents`, at the last session's rate, for an Event. Regime Transitions and Volatile Sessions name no price.
 
 #### Scenario: a peso line
 
 - **WHEN** GGAL's last confirmed swing low is 3.68 MEP dollars and its peso equivalent is 5,662
-- **THEN** its support shows "≈ 5.662 pesos (US$ 3,68)"
+- **THEN** its support shows "5.662 pesos (US$ 3,68)", without an approximation sign
+
+#### Scenario: a Structure Break on a peso line (PAMP)
+
+- **WHEN** PAMP's downward Structure Break on 2026-09-18 from an `uptrend` has a close of 3.39 MEP dollars and a defining swing low of 3.46 that occurred 2026-09-07 and was confirmed 2026-09-10, its `pesoEquivalents` are a close of 5,215 and a swing of 5,325 at that session's MEP Rate, and the line's last-session peso equivalents would put them at 5,220 and 5,331
+- **THEN** its page shows "18 sep · Se rompió el patrón ascendente. Cerró en 5.215 pesos (US$ 3,39), por debajo del último mínimo confirmado: 5.325 pesos (US$ 3,46), del 7 sep, confirmado el 10 sep."
 
 #### Scenario: a line not traded in pesos
 
 - **WHEN** a line's Trading Line currency is not ARS
-- **THEN** its levels show only "US$ 3,68"
+- **THEN** its levels and its Events' prices show only "US$ 3,68"
 
 ### Requirement: Situation labels follow the analysis's noise band flag
 
@@ -325,27 +342,27 @@ The distance x SHALL be the swing's `priceRelativeToSwingInPercent`, the close's
 
 The page SHALL show the Regime tipping close at which the trend would change soonest:
 
-- for a `bearish` Regime, the bearish close, as "Punto de quiebre de la tendencia: <level>: con cierres por encima, dejaría de ser bajista.";
-- for a `bullish` Regime, the bullish close, as "Punto de quiebre de la tendencia: <level>: con cierres por debajo, dejaría de ser alcista.";
-- for a `mixed` Regime, both, as "Punto de quiebre hacia tendencia alcista: <level>." and "Punto de quiebre hacia tendencia bajista: <level>.", each adding "Además, la media de 50 ruedas tendría que pasar por encima de la de 200." for the bullish point, or "por debajo" for the bearish point, when that side's `isFastEmaAligned` is `false`.
+- for a `bearish` Regime, the bearish close, as "Con cierres por encima de <level>, la tendencia dejaría de ser bajista.";
+- for a `bullish` Regime, the bullish close, as "Con cierres por debajo de <level>, la tendencia dejaría de ser alcista.";
+- for a `mixed` Regime, both, as "Con cierres por encima de <level>, la tendencia pasaría a ser alcista." and "Con cierres por debajo de <level>, la tendencia pasaría a ser bajista.", each adding "Además, la media de 50 ruedas tendría que pasar por encima de la de 200." for the bullish point, or "por debajo" for the bearish point, when that side's `isFastEmaAligned` is `false`.
 
-Leaving a trend needs only its price condition to fail, so the bearish and bullish points carry no 50-session sentence; entering one from `mixed` needs both conditions. The farther edge, where a bearish trend would become bullish or the reverse, is not shown. No point SHALL be shown while `regime` or `regimeTippingCloses` is `null`. The page SHALL NOT explain the rule's internals; they belong on a future About page.
+Leaving a trend needs only its price condition to fail, so the bearish and bullish points carry no 50-session sentence; entering one from `mixed` needs both conditions. Each point SHALL be its own line, apart from the pattern's break level, since the two levels change different things: the pattern level changes Structure, the tipping point changes Regime. A point speaks of closes, in the plural, because a single close does not change the trend. The farther edge, where a bearish trend would become bullish or the reverse, is not shown. No point SHALL be shown while `regime` or `regimeTippingCloses` is `null`. The page SHALL NOT explain the rule's internals; they belong on a future About page.
 
 #### Scenario: a bearish trend (GGAL)
 
 - **WHEN** GGAL is `bearish`, its bearish tipping close is 4.62 MEP dollars with peso equivalent 7,109, and its bullish tipping close is 4.77
-- **THEN** its page shows "Punto de quiebre de la tendencia: ≈ 7.109 pesos (US$ 4,62): con cierres por encima, dejaría de ser bajista."
+- **THEN** its page shows "Con cierres por encima de 7.109 pesos (US$ 4,62), la tendencia dejaría de ser bajista."
 - **AND** not the bullish close
 
 #### Scenario: a bullish trend (XP)
 
 - **WHEN** XP is `bullish`, its bullish tipping close is 4.95 MEP dollars with peso equivalent 7,619, and EMA50 is not below EMA200
-- **THEN** its page shows "Punto de quiebre de la tendencia: ≈ 7.619 pesos (US$ 4,95): con cierres por debajo, dejaría de ser alcista." without the 50-session sentence
+- **THEN** its page shows "Con cierres por debajo de 7.619 pesos (US$ 4,95), la tendencia dejaría de ser alcista." without the 50-session sentence
 
 #### Scenario: a mixed trend (PATH)
 
 - **WHEN** PATH is `mixed` and EMA50 is above EMA200
-- **THEN** its page shows both points, each named by the trend it leads to, and the 50-session sentence only on the bearish point
+- **THEN** its page shows "… la tendencia pasaría a ser alcista." and "… la tendencia pasaría a ser bajista.", and the 50-session sentence only on the bearish point
 
 ### Requirement: recent changes cover the month of the one-month return
 

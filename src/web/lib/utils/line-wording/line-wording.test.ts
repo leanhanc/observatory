@@ -129,8 +129,8 @@ describe('describeLongTermDistance', () => {
 describe('describeLevels', () => {
 	test('between both levels: support below and resistance above, peso equivalents first', () => {
 		expect(describeLevels(ggalState, ggalPesoEquivalents, PESO_LINE).map(toText)).toEqual([
-			`Soporte en ≈ 5.662${NBSP}pesos (US$${NBSP}3,68): el cierre está 4,9${NBSP}% por encima.`,
-			`Resistencia en ≈ 6.223${NBSP}pesos (US$${NBSP}4,04): el cierre está 4,5${NBSP}% por debajo.`,
+			`Soporte en 5.662${NBSP}pesos (US$${NBSP}3,68): el cierre está 4,9${NBSP}% por encima.`,
+			`Resistencia en 6.223${NBSP}pesos (US$${NBSP}4,04): el cierre está 4,5${NBSP}% por debajo.`,
 		]);
 	});
 
@@ -231,17 +231,43 @@ describe('describeLevels', () => {
 });
 
 describe('describePattern', () => {
-	test('a downtrend breaks with a close above the last confirmed high', () => {
-		expect(toText(describePattern(ggalState, ggalPesoEquivalents, PESO_LINE))).toBe(
-			`Patrón descendente: máximos y mínimos cada vez más bajos. Un cierre por encima de ≈ 6.223${NBSP}pesos (US$${NBSP}4,04) lo rompería.`,
+	test('a downtrend breaks with a close above the last confirmed high, leaving the trend as it is', () => {
+		const phrase = describePattern(ggalState, ggalPesoEquivalents, PESO_LINE);
+
+		expect(toText(phrase)).toBe(
+			`Un cierre por encima de 6.223${NBSP}pesos (US$${NBSP}4,04) rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. La tendencia seguiría siendo bajista.`,
+		);
+		expect(phrase).toContainEqual({ strong: `6.223${NBSP}pesos` });
+		expect(phrase).toContainEqual({ strong: 'patrón descendente' });
+	});
+
+	test('an uptrend breaks with a close below the last confirmed low and names the current trend', () => {
+		const uptrendState: SnapshotState = { ...ggalState, structure: 'uptrend', regime: 'mixed' };
+
+		expect(toText(describePattern(uptrendState, ggalPesoEquivalents, PESO_LINE))).toBe(
+			`Un cierre por debajo de 5.662${NBSP}pesos (US$${NBSP}3,68) rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos. La tendencia seguiría siendo indefinida.`,
 		);
 	});
 
-	test('an uptrend breaks with a close below the last confirmed low', () => {
-		const uptrendState: SnapshotState = { ...ggalState, structure: 'uptrend' };
+	test('a break says nothing about the trend while the trend is not readable', () => {
+		const warmUpTrend: SnapshotState = { ...ggalState, regime: null };
 
-		expect(toText(describePattern(uptrendState, ggalPesoEquivalents, PESO_LINE))).toBe(
-			`Patrón ascendente: máximos y mínimos cada vez más altos. Un cierre por debajo de ≈ 5.662${NBSP}pesos (US$${NBSP}3,68) lo rompería.`,
+		expect(toText(describePattern(warmUpTrend, ggalPesoEquivalents, PESO_LINE))).toBe(
+			`Un cierre por encima de 6.223${NBSP}pesos (US$${NBSP}4,04) rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos.`,
+		);
+	});
+
+	test('a line not traded in pesos names the analyzed price alone', () => {
+		expect(toText(describePattern(ggalState, ggalPesoEquivalents, DOLLAR_LINE))).toBe(
+			`Un cierre por encima de US$${NBSP}4,04 rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. La tendencia seguiría siendo bajista.`,
+		);
+	});
+
+	test('a trending pattern without its break level reads without a break sentence', () => {
+		const noHigh: SnapshotState = { ...ggalState, lastConfirmedSwingHigh: null };
+
+		expect(toText(describePattern(noHigh, ggalPesoEquivalents, PESO_LINE))).toBe(
+			'Patrón descendente: máximos y mínimos cada vez más bajos.',
 		);
 	});
 
@@ -250,12 +276,12 @@ describe('describePattern', () => {
 		const expired: SnapshotState = { ...ggalState, structure: 'undefined' };
 		const warmUp: SnapshotState = { ...ggalState, structure: null };
 
-		expect(describePattern(range, ggalPesoEquivalents, PESO_LINE)[0]).toEqual({
-			strong: 'Patrón lateral:',
-		});
-		expect(describePattern(expired, ggalPesoEquivalents, PESO_LINE)[0]).toEqual({
-			strong: 'Sin patrón claro:',
-		});
+		expect(toText(describePattern(range, ggalPesoEquivalents, PESO_LINE))).toBe(
+			'Patrón lateral: máximos y mínimos no coinciden en una dirección, y el precio sigue entre ellos.',
+		);
+		expect(toText(describePattern(expired, ggalPesoEquivalents, PESO_LINE))).toBe(
+			'Sin patrón claro: el precio salió de su último patrón y todavía no se confirmó un nuevo máximo o mínimo.',
+		);
 		expect(describePattern(warmUp, ggalPesoEquivalents, PESO_LINE)[0]).toEqual({
 			strong: 'Sin patrón todavía:',
 		});
@@ -267,7 +293,7 @@ describe('describeTippingPoints', () => {
 		expect(
 			describeTippingPoints(ggalState, ggalPesoEquivalents, PESO_LINE).map(toText),
 		).toEqual([
-			`Punto de quiebre de la tendencia: ≈ 6.480${NBSP}pesos (US$${NBSP}4,21): con cierres por encima, dejaría de ser bajista.`,
+			`Con cierres por encima de 6.480${NBSP}pesos (US$${NBSP}4,21), la tendencia dejaría de ser bajista.`,
 		]);
 	});
 
@@ -278,7 +304,7 @@ describe('describeTippingPoints', () => {
 		expect(
 			describeTippingPoints(bullishState, ggalPesoEquivalents, PESO_LINE).map(toText),
 		).toEqual([
-			`Punto de quiebre de la tendencia: ≈ 7.344${NBSP}pesos (US$${NBSP}4,77): con cierres por debajo, dejaría de ser alcista.`,
+			`Con cierres por debajo de 7.344${NBSP}pesos (US$${NBSP}4,77), la tendencia dejaría de ser alcista.`,
 		]);
 	});
 
@@ -287,8 +313,8 @@ describe('describeTippingPoints', () => {
 		const points = describeTippingPoints(mixedState, ggalPesoEquivalents, PESO_LINE);
 
 		expect(points.map(toText)).toEqual([
-			`Punto de quiebre hacia tendencia alcista: ≈ 7.344${NBSP}pesos (US$${NBSP}4,77). Además, la media de 50 ruedas tendría que pasar por encima de la de 200.`,
-			`Punto de quiebre hacia tendencia bajista: ≈ 6.480${NBSP}pesos (US$${NBSP}4,21).`,
+			`Con cierres por encima de 7.344${NBSP}pesos (US$${NBSP}4,77), la tendencia pasaría a ser alcista. Además, la media de 50 ruedas tendría que pasar por encima de la de 200.`,
+			`Con cierres por debajo de 6.480${NBSP}pesos (US$${NBSP}4,21), la tendencia pasaría a ser bajista.`,
 		]);
 	});
 
@@ -322,21 +348,43 @@ describe('describePendingTransition', () => {
 });
 
 describe('describeEvent', () => {
-	test('a downward Structure Break names the pattern it broke and the level, in the analyzed unit', () => {
-		const structureBreak: SnapshotEvent = {
-			sessionDate: '2026-10-09',
-			event: {
-				type: 'structure-break',
-				direction: 'downward',
-				priorStructure: 'uptrend',
-				definingSwing: swingLow,
-				closePrice: 3.5,
+	// PAMP's break of 18 Sep 2026, with its own session's MEP Rate of 1.538,32. At the last
+	// session's rate, 1.539,94, the close would read 5.220 and the low 5.331.
+	const pampBreak: SnapshotEvent = {
+		sessionDate: '2026-09-18',
+		event: {
+			type: 'structure-break',
+			direction: 'downward',
+			priorStructure: 'uptrend',
+			definingSwing: {
+				kind: 'low',
+				price: 3.4615564384201916,
+				occurredAtSession: '2026-09-07',
+				confirmedAtSession: '2026-09-10',
 			},
-			coincidesWithLargeMove: false,
-		};
+			closePrice: 3.3900556858147715,
+			pesoEquivalents: {
+				mepRate: 1538.322813345356,
+				closePrice: 5215,
+				definingSwingPrice: 5325.0,
+			},
+		},
+		coincidesWithLargeMove: false,
+	};
 
-		expect(toText(describeEvent(structureBreak, 'mep-dollar'))).toBe(
-			`9${NBSP}oct · Se rompió el patrón ascendente. Cerró en US$${NBSP}3,50, por debajo del último mínimo confirmado (mínimo del 1${NBSP}oct, confirmado el 6${NBSP}oct).`,
+	test('a downward Structure Break on a peso line names its close and low in pesos first', () => {
+		const phrase = describeEvent(pampBreak, PESO_LINE);
+
+		expect(toText(phrase)).toBe(
+			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró en 5.215${NBSP}pesos (US$${NBSP}3,39), por debajo del último mínimo confirmado: 5.325${NBSP}pesos (US$${NBSP}3,46), del 7${NBSP}sep, confirmado el 10${NBSP}sep.`,
+		);
+		expect(phrase).toContainEqual({ strong: `5.215${NBSP}pesos` });
+		expect(phrase).toContainEqual({ strong: `5.325${NBSP}pesos` });
+	});
+
+	test('a Structure Break on a line not traded in pesos shows the analyzed prices alone', () => {
+		expect(toText(describeEvent(pampBreak, DOLLAR_LINE))).toBe(
+			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró en US$${NBSP}3,39, por debajo del último mínimo confirmado: US$${NBSP}3,46, del 7${NBSP}sep, confirmado el 10${NBSP}sep.`,
 		);
 	});
 
@@ -349,12 +397,13 @@ describe('describeEvent', () => {
 				priorStructure: 'downtrend',
 				definingSwing: swingHigh,
 				closePrice: 4.1,
+				pesoEquivalents: { mepRate: 1540, closePrice: 6314, definingSwingPrice: 6221.6 },
 			},
 			coincidesWithLargeMove: false,
 		};
 
-		expect(toText(describeEvent(structureBreak, 'mep-dollar'))).toContain(
-			'Se rompió el patrón descendente. Cerró en US$ 4,10, por encima del último máximo confirmado',
+		expect(toText(describeEvent(structureBreak, PESO_LINE))).toContain(
+			`Se rompió el patrón descendente. Cerró en 6.314${NBSP}pesos (US$${NBSP}4,10), por encima del último máximo confirmado: 6.222${NBSP}pesos (US$${NBSP}4,04), del 6${NBSP}oct`,
 		);
 	});
 
@@ -370,7 +419,7 @@ describe('describeEvent', () => {
 			coincidesWithLargeMove: false,
 		};
 
-		expect(toText(describeEvent(transition, 'mep-dollar'))).toBe(
+		expect(toText(describeEvent(transition, PESO_LINE))).toBe(
 			`29${NBSP}sep · Tendencia: alcista → indefinida. Se confirmó tras 3 ruedas (25, 26 y 29${NBSP}sep).`,
 		);
 	});
@@ -388,7 +437,7 @@ describe('describeEvent', () => {
 			coincidesWithLargeMove: false,
 		};
 
-		expect(toText(describeEvent(volatileSession, 'mep-dollar'))).toBe(
+		expect(toText(describeEvent(volatileSession, PESO_LINE))).toBe(
 			`8${NBSP}oct · Rueda volátil: el rango del día fue 2,0 veces su rango diario típico.`,
 		);
 	});
@@ -450,6 +499,12 @@ describe('describeUnavailableLine', () => {
 });
 
 describe('formatLevelPrice', () => {
+	test('a peso line shows the peso equivalent first, without an approximation sign', () => {
+		expect(formatLevelPrice(3.68, 5662.4, PESO_LINE)).toBe(
+			`5.662${NBSP}pesos (US$${NBSP}3,68)`,
+		);
+	});
+
 	test('a peso line without a peso equivalent falls back to the analyzed price', () => {
 		expect(formatLevelPrice(3.68, null, PESO_LINE)).toBe(`US$${NBSP}3,68`);
 	});

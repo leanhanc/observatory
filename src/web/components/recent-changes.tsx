@@ -2,15 +2,16 @@ import { groupHistoryByYear, selectRecentChanges } from '#web/lib/utils/line-wor
 
 import { EventList } from './event-list.tsx';
 
-import type { AvailableLine, SnapshotPriceUnit } from '#web/lib/utils/snapshot-pages/index.ts';
+import type { PriceContext } from '#web/lib/utils/line-wording/index.ts';
+import type { AvailableLine } from '#web/lib/utils/snapshot-pages/index.ts';
 
-type RecentChangesProps = { line: AvailableLine; priceUnit: SnapshotPriceUnit };
+type RecentChangesProps = { line: AvailableLine; context: PriceContext };
 
 /**
  * The last month's Events, newest first, with Volatile Sessions collapsed under a count, then the
  * full history collapsed.
  */
-export function RecentChanges({ line, priceUnit }: RecentChangesProps) {
+export function RecentChanges({ line, context }: RecentChangesProps) {
 	const { changes, volatileSessions } = selectRecentChanges(line);
 	const hasChanges = changes.length > 0;
 	const hasVolatileSessions = volatileSessions.length > 0;
@@ -29,11 +30,11 @@ export function RecentChanges({ line, priceUnit }: RecentChangesProps) {
 					<strong>Sin cambios en el último mes.</strong>
 				</p>
 			)}
-			{hasChanges && <EventList events={changes} priceUnit={priceUnit} />}
+			{hasChanges && <EventList events={changes} context={context} />}
 			{hasVolatileSessions && (
 				<details>
 					<summary>{volatileSummary}</summary>
-					<EventList events={volatileSessions} priceUnit={priceUnit} />
+					<EventList events={volatileSessions} context={context} />
 				</details>
 			)}
 			{historyYears.length > 0 && (
@@ -42,7 +43,7 @@ export function RecentChanges({ line, priceUnit }: RecentChangesProps) {
 					{historyYears.map(({ year, events }) => (
 						<section key={year}>
 							<h3>{year}</h3>
-							<EventList events={events} priceUnit={priceUnit} />
+							<EventList events={events} context={context} />
 						</section>
 					))}
 				</details>

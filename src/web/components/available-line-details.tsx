@@ -75,7 +75,7 @@ export function AvailableLineDetails({ line, context }: AvailableLineDetailsProp
 					</p>
 				)}
 			</section>
-			<RecentChanges line={line} priceUnit={context.priceUnit} />
+			<RecentChanges line={line} context={context} />
 			<section>
 				<h2>Detalle</h2>
 				{momentum !== null && (

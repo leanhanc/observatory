@@ -8,7 +8,7 @@ import {
 import type { AnalysisSnapshot } from './analysis-run.types.ts';
 
 const snapshot: AnalysisSnapshot = {
-	schemaVersion: 9,
+	schemaVersion: 10,
 	priceUnit: 'mep-dollar',
 	ranAt: '2026-10-04T15:00:00.000Z',
 	requestedThroughSession: '2026-10-02',
@@ -28,8 +28,8 @@ const snapshot: AnalysisSnapshot = {
 		candidates: [],
 	},
 };
-const DATED_KEY = 'analysis-snapshots/v9/2026-10-02/2026-10-04T15:00:00.000Z.json';
-const LATEST_KEY = 'analysis-snapshots/v9/latest.json';
+const DATED_KEY = 'analysis-snapshots/v10/2026-10-02/2026-10-04T15:00:00.000Z.json';
+const LATEST_KEY = 'analysis-snapshots/v10/latest.json';
 
 describe('createAnalysisSnapshotStorageFromS3Client', () => {
 	test('writes the dated snapshot before latest', async () => {
@@ -160,6 +160,23 @@ describe('parseAnalysisSnapshotOverview', () => {
 		},
 		coincidesWithLargeMove: false,
 	} as const;
+	const structureBreak = {
+		sessionDate: '2026-10-01',
+		event: {
+			type: 'structure-break',
+			direction: 'downward',
+			priorStructure: 'uptrend',
+			definingSwing: {
+				kind: 'low',
+				price: 3.5,
+				occurredAtSession: '2026-09-22',
+				confirmedAtSession: '2026-09-25',
+			},
+			closePrice: 3.476,
+			pesoEquivalents: { mepRate: 1500, closePrice: 5215, definingSwingPrice: 5250 },
+		},
+		coincidesWithLargeMove: false,
+	} as const;
 	const pesoEquivalents = {
 		sessionDate: '2026-10-02',
 		mepRate: 1500,
@@ -175,7 +192,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 		latestState,
 		periodReturns,
 		pesoEquivalents,
-		events: [volatileSession],
+		events: [volatileSession, structureBreak],
 		largeMoves: [],
 	};
 	const liquidity = { participation: 1, medianDailyTradedValueUsd: 43_290 };
@@ -188,15 +205,15 @@ describe('parseAnalysisSnapshotOverview', () => {
 		liquidity,
 		corporateActions: [],
 	};
-	const v9Snapshot = { ...snapshot, analyzedLines: [availableLine, unavailableLine] };
+	const v10Snapshot = { ...snapshot, analyzedLines: [availableLine, unavailableLine] };
 
 	test('returns the run metadata and the fields the line pages read', () => {
-		const result = parseAnalysisSnapshotOverview(JSON.stringify(v9Snapshot));
+		const result = parseAnalysisSnapshotOverview(JSON.stringify(v10Snapshot));
 
 		expect(result).toEqual({
 			ok: true,
 			snapshot: {
-				schemaVersion: 9,
+				schemaVersion: 10,
 				priceUnit: 'mep-dollar',
 				ranAt: '2026-10-04T15:00:00.000Z',
 				requestedThroughSession: '2026-10-02',
@@ -208,7 +225,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 						latestState,
 						periodReturns,
 						pesoEquivalents,
-						events: [volatileSession],
+						events: [volatileSession, structureBreak],
 					},
 					{
 						status: 'unavailable',
@@ -224,7 +241,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 	});
 
 	test('accepts a ranAt with nanoseconds, as the run writes it', () => {
-		const nanosecondSnapshot = { ...v9Snapshot, ranAt: '2026-10-10T09:02:43.04013226Z' };
+		const nanosecondSnapshot = { ...v10Snapshot, ranAt: '2026-10-10T09:02:43.04013226Z' };
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(nanosecondSnapshot));
 
@@ -234,21 +251,21 @@ describe('parseAnalysisSnapshotOverview', () => {
 		});
 	});
 
-	test.each([5, 6, 7, 8, 10])('rejects schema version %d', (schemaVersion) => {
-		const otherSnapshot = { ...v9Snapshot, schemaVersion };
+	test.each([5, 6, 7, 8, 9, 11])('rejects schema version %d', (schemaVersion) => {
+		const otherSnapshot = { ...v10Snapshot, schemaVersion };
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(otherSnapshot));
 
 		expect(result).toEqual({
 			ok: false,
 			reason: 'invalid-snapshot',
-			message: 'The snapshot is invalid. schemaVersion: Schema version must be 9.',
+			message: 'The snapshot is invalid. schemaVersion: Schema version must be 10.',
 		});
 	});
 
 	test('rejects a snapshot without a known price unit', () => {
-		const { priceUnit: _priceUnit, ...snapshotWithoutUnit } = v9Snapshot;
-		const pesoSnapshot = { ...v9Snapshot, priceUnit: 'ars' };
+		const { priceUnit: _priceUnit, ...snapshotWithoutUnit } = v10Snapshot;
+		const pesoSnapshot = { ...v10Snapshot, priceUnit: 'ars' };
 
 		const resultWithoutUnit = parseAnalysisSnapshotOverview(
 			JSON.stringify(snapshotWithoutUnit),
@@ -291,14 +308,14 @@ describe('parseAnalysisSnapshotOverview', () => {
 
 		const { pesoEquivalents: _pesoEquivalents, ...lineWithoutPesoEquivalents } = availableLine;
 		const pesoResult = parseAnalysisSnapshotOverview(
-			JSON.stringify({ ...v9Snapshot, analyzedLines: [lineWithoutPesoEquivalents] }),
+			JSON.stringify({ ...v10Snapshot, analyzedLines: [lineWithoutPesoEquivalents] }),
 		);
 		expect(pesoResult).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
 
 		for (const malformedState of malformedStates) {
 			const line = { ...availableLine, latestState: malformedState };
 			const result = parseAnalysisSnapshotOverview(
-				JSON.stringify({ ...v9Snapshot, analyzedLines: [line] }),
+				JSON.stringify({ ...v10Snapshot, analyzedLines: [line] }),
 			);
 
 			expect(result).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
@@ -313,7 +330,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 		};
 
 		const result = parseAnalysisSnapshotOverview(
-			JSON.stringify({ ...v9Snapshot, analyzedLines: [line] }),
+			JSON.stringify({ ...v10Snapshot, analyzedLines: [line] }),
 		);
 
 		expect(result).toMatchObject({
@@ -325,7 +342,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 	function parseStateSnapshot(state: object) {
 		const line = { ...availableLine, latestState: state };
 		return parseAnalysisSnapshotOverview(
-			JSON.stringify({ ...v9Snapshot, analyzedLines: [line] }),
+			JSON.stringify({ ...v10Snapshot, analyzedLines: [line] }),
 		);
 	}
 
@@ -380,7 +397,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 		expect(parseStateSnapshot(bullishAboveHighState)).toMatchObject({ ok: true });
 		for (const line of malformedLines) {
 			const result = parseAnalysisSnapshotOverview(
-				JSON.stringify({ ...v9Snapshot, analyzedLines: [line] }),
+				JSON.stringify({ ...v10Snapshot, analyzedLines: [line] }),
 			);
 
 			expect(result).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
@@ -442,7 +459,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 				},
 			};
 			const result = parseAnalysisSnapshotOverview(
-				JSON.stringify({ ...v9Snapshot, analyzedLines: [line] }),
+				JSON.stringify({ ...v10Snapshot, analyzedLines: [line] }),
 			);
 
 			expect(result).toMatchObject({
@@ -467,7 +484,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 
 		for (const line of malformedLines) {
 			const result = parseAnalysisSnapshotOverview(
-				JSON.stringify({ ...v9Snapshot, analyzedLines: [line] }),
+				JSON.stringify({ ...v10Snapshot, analyzedLines: [line] }),
 			);
 
 			expect(result).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
@@ -486,7 +503,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 		for (const inconsistent of inconsistentPesoEquivalents) {
 			const line = { ...availableLine, pesoEquivalents: inconsistent };
 			const result = parseAnalysisSnapshotOverview(
-				JSON.stringify({ ...v9Snapshot, analyzedLines: [line] }),
+				JSON.stringify({ ...v10Snapshot, analyzedLines: [line] }),
 			);
 
 			expect(result).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
@@ -503,14 +520,51 @@ describe('parseAnalysisSnapshotOverview', () => {
 		const lineWithV5State = { ...availableLine, latestState: v5State };
 
 		const eventResult = parseAnalysisSnapshotOverview(
-			JSON.stringify({ ...v9Snapshot, analyzedLines: [lineWithV5Event] }),
+			JSON.stringify({ ...v10Snapshot, analyzedLines: [lineWithV5Event] }),
 		);
 		const stateResult = parseAnalysisSnapshotOverview(
-			JSON.stringify({ ...v9Snapshot, analyzedLines: [lineWithV5State] }),
+			JSON.stringify({ ...v10Snapshot, analyzedLines: [lineWithV5State] }),
 		);
 
 		expect(eventResult).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
 		expect(stateResult).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
+	});
+
+	test('rejects a v9 Structure Break, which has no peso equivalents', () => {
+		const { pesoEquivalents: _pesoEquivalents, ...v9Event } = structureBreak.event;
+		const lineWithV9Event = {
+			...availableLine,
+			events: [{ ...structureBreak, event: v9Event }],
+		};
+
+		const result = parseAnalysisSnapshotOverview(
+			JSON.stringify({ ...v10Snapshot, analyzedLines: [lineWithV9Event] }),
+		);
+
+		expect(result).toMatchObject({
+			ok: false,
+			reason: 'invalid-snapshot',
+			message: expect.stringContaining('analyzedLines.0.events.0.event'),
+		});
+	});
+
+	test.each([
+		['a missing MEP Rate', { mepRate: null }],
+		['a zero MEP Rate', { mepRate: 0 }],
+		['a missing peso close', { closePrice: null }],
+		['a missing peso swing', { definingSwingPrice: null }],
+	])('rejects a Structure Break with %s', (_case, override) => {
+		const event = {
+			...structureBreak.event,
+			pesoEquivalents: { ...structureBreak.event.pesoEquivalents, ...override },
+		};
+		const line = { ...availableLine, events: [{ ...structureBreak, event }] };
+
+		const result = parseAnalysisSnapshotOverview(
+			JSON.stringify({ ...v10Snapshot, analyzedLines: [line] }),
+		);
+
+		expect(result).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
 	});
 
 	test('rejects data that is not JSON', () => {
@@ -525,7 +579,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 
 	test('rejects a line with an unknown status', () => {
 		const pendingLine = { ...availableLine, status: 'pending' };
-		const malformedSnapshot = { ...v9Snapshot, analyzedLines: [pendingLine] };
+		const malformedSnapshot = { ...v10Snapshot, analyzedLines: [pendingLine] };
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(malformedSnapshot));
 
@@ -538,7 +592,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 
 	test('rejects an available line without a latest State', () => {
 		const { latestState: _latestState, ...lineWithoutState } = availableLine;
-		const malformedSnapshot = { ...v9Snapshot, analyzedLines: [lineWithoutState] };
+		const malformedSnapshot = { ...v10Snapshot, analyzedLines: [lineWithoutState] };
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(malformedSnapshot));
 
@@ -552,7 +606,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 	test('rejects an Event of an unknown type', () => {
 		const unknownEvent = { ...volatileSession, event: { type: 'gap-up' } };
 		const lineWithUnknownEvent = { ...availableLine, events: [unknownEvent] };
-		const malformedSnapshot = { ...v9Snapshot, analyzedLines: [lineWithUnknownEvent] };
+		const malformedSnapshot = { ...v10Snapshot, analyzedLines: [lineWithUnknownEvent] };
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(malformedSnapshot));
 
@@ -565,7 +619,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 
 	test('rejects an insufficiently liquid line without its liquidity measures', () => {
 		const { liquidity: _liquidity, ...lineWithoutLiquidity } = unavailableLine;
-		const malformedSnapshot = { ...v9Snapshot, analyzedLines: [lineWithoutLiquidity] };
+		const malformedSnapshot = { ...v10Snapshot, analyzedLines: [lineWithoutLiquidity] };
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(malformedSnapshot));
 
@@ -577,7 +631,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 	});
 
 	test('rejects a requested-through session that is not a real date', () => {
-		const malformedSnapshot = { ...v9Snapshot, requestedThroughSession: '2026-02-30' };
+		const malformedSnapshot = { ...v10Snapshot, requestedThroughSession: '2026-02-30' };
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(malformedSnapshot));
 
@@ -590,7 +644,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 	});
 
 	test('rejects a snapshot without analyzed lines', () => {
-		const { analyzedLines: _analyzedLines, ...snapshotWithoutLines } = v9Snapshot;
+		const { analyzedLines: _analyzedLines, ...snapshotWithoutLines } = v10Snapshot;
 
 		const result = parseAnalysisSnapshotOverview(JSON.stringify(snapshotWithoutLines));
 

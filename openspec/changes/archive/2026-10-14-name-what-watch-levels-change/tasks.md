@@ -1,0 +1,5 @@
+- [x] Spec delta for web-app: peso figures without the approximation sign, the currency note, the pattern line and the trend tipping points.
+- [x] `line-wording`: `formatLevelPrice` without the approximation sign, `CURRENCY_NOTE`, `describePattern` and `describeTippingPoints`, with tests.
+- [x] Run tests, typecheck, lint, format and `openspec validate --all --strict`; a local build checked in the browser on GGAL and a rising-pattern line.
+- [ ] Lean reviews the diff.
+- [ ] Archive.

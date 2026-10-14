@@ -14,7 +14,30 @@ import type {
 import type { analysisSnapshotOverviewSchema } from './analysis-snapshot.schema.ts';
 import type * as v from 'valibot';
 
-export type AnalysisEvent = RegimeTransitionEvent | StructureBreakEvent | VolatileSessionEvent;
+/**
+ * A Structure Break's prices in pesos at its own session's MEP Rate, the rate that dollarized the
+ * bar it was detected on. The close and the swing share that rate, so the close is beyond the swing
+ * in pesos exactly when it is in MEP dollars.
+ */
+export type StructureBreakPesoEquivalents = Readonly<{
+	/** Pesos per MEP dollar on the Event's session. */
+	mepRate: number;
+	/**
+	 * The line's peso close on the Event's session, corrected for corporate actions; not a
+	 * conversion.
+	 */
+	closePrice: number;
+	definingSwingPrice: number;
+}>;
+
+export type SnapshotStructureBreakEvent = StructureBreakEvent &
+	Readonly<{ pesoEquivalents: StructureBreakPesoEquivalents }>;
+
+/** Only Structure Breaks carry peso prices: the other kinds show no price. */
+export type AnalysisEvent =
+	| RegimeTransitionEvent
+	| SnapshotStructureBreakEvent
+	| VolatileSessionEvent;
 
 /**
  * One Event and the session on which it was detected. `event.type` is the Event kind.
@@ -127,7 +150,7 @@ export type TradingLineSession = Readonly<{
 export type PriceUnit = 'mep-dollar';
 
 export type AnalysisSnapshot = Readonly<{
-	schemaVersion: 9;
+	schemaVersion: 10;
 	priceUnit: PriceUnit;
 	ranAt: string;
 	requestedThroughSession: string;

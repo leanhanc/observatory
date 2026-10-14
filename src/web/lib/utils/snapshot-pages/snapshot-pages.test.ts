@@ -49,7 +49,7 @@ const unavailableLine = {
 	message: 'The provider returned no Daily Bars for this Trading Line.',
 } as const;
 const serializedSnapshot = JSON.stringify({
-	schemaVersion: 9,
+	schemaVersion: 10,
 	priceUnit: 'mep-dollar',
 	ranAt: '2026-10-11T14:03:58.608Z',
 	requestedThroughSession: '2026-10-10',
@@ -87,24 +87,24 @@ describe('requireRenderableSnapshot', () => {
 		const missingSnapshot: LatestAnalysisSnapshotReadResult = {
 			ok: false,
 			reason: 'not-found',
-			message: 'analysis-snapshots/v9/latest.json does not exist.',
+			message: 'analysis-snapshots/v10/latest.json does not exist.',
 		};
 
 		expect(() => requireRenderableSnapshot(missingSnapshot)).toThrow(
-			'No Analysis Snapshot to render: analysis-snapshots/v9/latest.json does not exist.',
+			'No Analysis Snapshot to render: analysis-snapshots/v10/latest.json does not exist.',
 		);
 	});
 
 	test('fails with the validation message when the snapshot is invalid', () => {
 		const invalidSnapshot = serializedSnapshot.replace(
+			'"schemaVersion":10',
 			'"schemaVersion":9',
-			'"schemaVersion":8',
 		);
 
 		expect(() =>
 			requireRenderableSnapshot(parseAnalysisSnapshotOverview(invalidSnapshot)),
 		).toThrow(
-			'No Analysis Snapshot to render: The snapshot is invalid. schemaVersion: Schema version must be 9.',
+			'No Analysis Snapshot to render: The snapshot is invalid. schemaVersion: Schema version must be 10.',
 		);
 	});
 

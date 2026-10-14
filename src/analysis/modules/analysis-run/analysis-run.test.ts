@@ -162,6 +162,80 @@ describe('createAnalysisRunner', () => {
 		expect(pesoDistance).toBeCloseTo(lastConfirmedSwingHigh!.priceRelativeToSwingInPercent!, 9);
 	});
 
+	test('expresses each Structure Break in pesos at its own session’s MEP Rate', async () => {
+		const { result } = await runWithProvider(createHealthyProvider());
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const structureBreaks = ggal.events.flatMap(({ sessionDate, event }) =>
+			event.type === 'structure-break' ? [{ sessionDate, event }] : [],
+		);
+		const breakRates = new Set(
+			structureBreaks.map(({ event }) => event.pesoEquivalents.mepRate),
+		);
+
+		for (const { sessionDate, event } of structureBreaks) {
+			const mepRate = selectMepRate(sessionDate);
+			const pesoClose = ggalPesoBars.find((bar) => bar.sessionDate === sessionDate)!.close;
+
+			expect(event.pesoEquivalents).toEqual({
+				mepRate,
+				closePrice: pesoClose,
+				definingSwingPrice: event.definingSwing.price * mepRate,
+			});
+		}
+		// The fixture's breaks span two rate periods, neither of them the last session's, so the
+		// last session's rate, or a mix of both rates, would give other prices.
+		expect(breakRates).toEqual(new Set([1024, 2048]));
+		expect(ggal.pesoEquivalents.mepRate).toBe(4096);
+	});
+
+	test('keeps a Structure Break beyond its swing in pesos, as in MEP dollars', async () => {
+		const { result } = await runWithProvider(createHealthyProvider());
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+
+		for (const { event } of ggal.events) {
+			if (event.type !== 'structure-break') {
+				continue;
+			}
+
+			const { closePrice, definingSwingPrice } = event.pesoEquivalents;
+			const isBeyondSwing =
+				event.direction === 'downward'
+					? closePrice < definingSwingPrice
+					: closePrice > definingSwingPrice;
+			expect(isBeyondSwing).toBe(true);
+		}
+	});
+
+	test('gives no peso prices to Events that carry no price', async () => {
+		const { result } = await runWithProvider(createHealthyProvider());
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const eventsWithoutPrices = ggal.events.filter(
+			({ event }) => event.type !== 'structure-break',
+		);
+
+		expect(eventsWithoutPrices.length).toBeGreaterThan(0);
+		expect(eventsWithoutPrices.some(({ event }) => 'pesoEquivalents' in event)).toBe(false);
+	});
+
+	test('detects no Event on a session without a MEP Rate, so no Event lacks one', async () => {
+		// 2026-09-14 has a Structure Break when its MEP Rate exists.
+		const missingSession = '2026-09-14';
+		const provider = {
+			...createHealthyProvider(),
+			AL30D: al30dBars.filter((bar) => bar.sessionDate !== missingSession),
+		};
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const structureBreaks = ggal.events.flatMap(({ sessionDate, event }) =>
+			event.type === 'structure-break' ? [{ sessionDate, event }] : [],
+		);
+
+		expect(ggal.events.map((entry) => entry.sessionDate)).not.toContain(missingSession);
+		for (const { sessionDate, event } of structureBreaks) {
+			expect(event.pesoEquivalents.mepRate).toBe(selectMepRate(sessionDate));
+		}
+	});
+
 	test('converts a line that stopped trading at its own last session’s rate, not the latest', async () => {
 		const provider = {
 			...createHealthyProvider(),
@@ -227,7 +301,7 @@ describe('createAnalysisRunner', () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 
 		expect(result.ok && result.snapshot).toMatchObject({
-			schemaVersion: 9,
+			schemaVersion: 10,
 			priceUnit: 'mep-dollar',
 			ranAt: RAN_AT,
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,

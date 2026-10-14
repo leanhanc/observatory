@@ -1,0 +1,7 @@
+- [x] Spec deltas for analysis-run and web-app.
+- [x] Analysis Run: Structure Break `pesoEquivalents` at the Event session's MEP Rate, schema version 10, with tests that tell that rate from the last session's.
+- [x] Snapshot validation of the Event `pesoEquivalents`, with tests.
+- [x] `line-wording`: the Structure Break sentence and the currency note, with tests.
+- [x] Run tests, typecheck, lint, format and `openspec validate --all --strict`; a local dry run through 2026-10-13, kept in memory, validates as v10 and renders PAMP's break. The Astro build reads only the bucket, which has no v10 snapshot, so it was not run.
+- [ ] Lean reviews the diff.
+- [ ] Archive after `name-what-watch-levels-change`.

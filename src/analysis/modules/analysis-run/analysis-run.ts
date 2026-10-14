@@ -55,7 +55,12 @@ import type { MepRateSession } from '#modules/dollarized-series/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type { InstrumentState } from '#modules/instrument-state/index.ts';
 import type { LiquidityWindow } from '#modules/liquidity-eligibility/index.ts';
-import type { LargeOneSessionMove } from '#modules/technical-analysis/index.ts';
+import type {
+	LargeOneSessionMove,
+	RegimeTransitionEvent,
+	StructureBreakEvent,
+	VolatileSessionEvent,
+} from '#modules/technical-analysis/index.ts';
 import type {
 	AnalysisEvent,
 	AnalysisRunProgress,
@@ -281,7 +286,7 @@ async function runAnalysis(
 	);
 
 	const snapshot = {
-		schemaVersion: 9,
+		schemaVersion: 10,
 		priceUnit: SNAPSHOT_PRICE_UNIT,
 		ranAt,
 		requestedThroughSession,
@@ -861,7 +866,7 @@ function analyzeTradingLine(
 		...identity,
 		latestState,
 		periodReturns: calculatePeriodReturns(bars),
-		events: collectEvents(bars, largeMoves),
+		events: collectEvents(bars, largeMoves, correction.bars, mepRates),
 		largeMoves,
 		corporateActions: correction.outcomes,
 		window: {
@@ -887,18 +892,56 @@ function projectLatestStateToPesos(
 ): PesoEquivalents {
 	const { sessionDate, lastConfirmedSwingHigh, lastConfirmedSwingLow, regimeTippingCloses } =
 		latestState;
-	// The State's session has a dollarized bar, so it has both a peso bar and a MEP Rate.
-	const { mepRate } = mepRates.find((rate) => rate.sessionDate === sessionDate)!;
-	const pesoBar = pesoBars.find((bar) => bar.sessionDate === sessionDate)!;
+	const { mepRate, pesoClose } = findPesoSession(sessionDate, pesoBars, mepRates);
 
 	return {
 		sessionDate,
 		mepRate,
-		close: pesoBar.close,
+		close: pesoClose,
 		lastConfirmedSwingHigh: convertSwingPrice(lastConfirmedSwingHigh, mepRate),
 		lastConfirmedSwingLow: convertSwingPrice(lastConfirmedSwingLow, mepRate),
 		regimeTippingCloses: convertTippingCloses(regimeTippingCloses, mepRate),
 	};
+}
+
+/**
+ * Expresses a Structure Break's close and defining swing in pesos at its own session's MEP Rate, so
+ * the close is the line's actual peso close that session. The other Event kinds carry no price the
+ * page shows and are returned as they are.
+ */
+function projectEventToPesos(
+	sessionDate: string,
+	event: RegimeTransitionEvent | StructureBreakEvent | VolatileSessionEvent,
+	pesoBars: readonly DailyBar[],
+	mepRates: readonly MepRateSession[],
+): AnalysisEvent {
+	if (event.type !== 'structure-break') {
+		return event;
+	}
+
+	const { mepRate, pesoClose } = findPesoSession(sessionDate, pesoBars, mepRates);
+	return {
+		...event,
+		pesoEquivalents: {
+			mepRate,
+			closePrice: pesoClose,
+			definingSwingPrice: toPesoEquivalent(event.definingSwing.price, mepRate),
+		},
+	};
+}
+
+/**
+ * The corrected peso close and the MEP Rate of a session of the Dollarized Series. Such a session
+ * has a dollarized bar, so it has both a peso bar and a MEP Rate.
+ */
+function findPesoSession(
+	sessionDate: string,
+	pesoBars: readonly DailyBar[],
+	mepRates: readonly MepRateSession[],
+): Readonly<{ mepRate: number; pesoClose: number }> {
+	const { mepRate } = mepRates.find((rate) => rate.sessionDate === sessionDate)!;
+	const pesoBar = pesoBars.find((bar) => bar.sessionDate === sessionDate)!;
+	return { mepRate, pesoClose: pesoBar.close };
 }
 
 function convertTippingCloses(
@@ -933,17 +976,24 @@ function convertSwingPrice(
 function collectEvents(
 	bars: readonly DailyBar[],
 	largeMoves: readonly LargeOneSessionMove[],
+	pesoBars: readonly DailyBar[],
+	mepRates: readonly MepRateSession[],
 ): readonly AnalysisSnapshotEvent[] {
 	const largeMoveSessions = new Set(largeMoves.map((move) => move.sessionDate));
-	const eventSessions: readonly Readonly<{ sessionDate: string; event: AnalysisEvent | null }>[] =
-		[
-			...detectRegimeTransitionEvents(bars),
-			...detectStructureBreakEvents(bars),
-			...detectVolatileSessionEvents(bars),
-		];
+	const eventSessions = [
+		...detectRegimeTransitionEvents(bars),
+		...detectStructureBreakEvents(bars),
+		...detectVolatileSessionEvents(bars),
+	];
 	const events = eventSessions.flatMap(({ sessionDate, event }) =>
 		event
-			? [{ sessionDate, event, coincidesWithLargeMove: largeMoveSessions.has(sessionDate) }]
+			? [
+					{
+						sessionDate,
+						event: projectEventToPesos(sessionDate, event, pesoBars, mepRates),
+						coincidesWithLargeMove: largeMoveSessions.has(sessionDate),
+					},
+				]
 			: [],
 	);
 

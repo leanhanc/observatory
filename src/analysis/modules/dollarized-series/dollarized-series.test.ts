@@ -2,7 +2,12 @@ import { describe, expect, test } from 'bun:test';
 
 import { calculateAtr, calculateEma, calculateRsi } from '#modules/technical-analysis/index.ts';
 
-import { calculateMepRates, dollarizeBarHistory, toPesoEquivalent } from './index.ts';
+import {
+	calculateCclRates,
+	calculateMepRates,
+	dollarizeBarHistory,
+	toPesoEquivalent,
+} from './index.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
 
@@ -123,6 +128,47 @@ describe('calculateMepRates', () => {
 		);
 
 		expect(sessionDates).toEqual(['2026-01-07', '2026-01-06', '2026-01-05']);
+	});
+});
+
+describe('calculateCclRates', () => {
+	test('divides the peso close by the cable close of the same session', () => {
+		const pesoBond = [
+			buildBar('2026-10-13', { close: 86360 }),
+			buildBar('2026-10-14', { open: 1, close: 86260 }),
+		];
+		const cableBond = [
+			buildBar('2026-10-13', { close: 53.56 }),
+			buildBar('2026-10-14', { open: 7, close: 53.3 }),
+		];
+
+		expect(calculateCclRates(pesoBond, cableBond)).toEqual([
+			{ sessionDate: '2026-10-13', cclRate: 86360 / 53.56 },
+			{ sessionDate: '2026-10-14', cclRate: 86260 / 53.3 },
+		]);
+	});
+
+	test('never carries a rate across a session where a leg did not trade or is missing', () => {
+		const pesoBond = [
+			buildBar('2026-01-05', { close: 1000 }),
+			buildBar('2026-01-06', { close: 2000 }),
+			buildBar('2026-01-07', { close: 3000 }),
+			buildBar('2026-01-08', { close: 4000, volume: 0 }),
+			buildBar('2026-01-09', { close: 5000 }),
+		];
+		const cableBond = [
+			buildBar('2026-01-05', { close: 1 }),
+			buildBar('2026-01-06', { close: 1, volume: 0 }),
+			// 2026-01-07 has no cable bar at all
+			buildBar('2026-01-08', { close: 1 }),
+			buildBar('2026-01-09', { close: 1 }),
+			buildBar('2026-01-10', { close: 1 }),
+		];
+
+		expect(calculateCclRates(pesoBond, cableBond)).toEqual([
+			{ sessionDate: '2026-01-05', cclRate: 1000 },
+			{ sessionDate: '2026-01-09', cclRate: 5000 },
+		]);
 	});
 });
 

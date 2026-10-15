@@ -88,6 +88,10 @@ _Avoid_: Initial Backfill, ordinary daily update
 The pesos-per-dollar exchange rate implied, for one Trading Session, by the closes of a bond's peso line and its local-dollar (MEP, "D") line with the same settlement. A session has a MEP Rate only when both lines traded. It is distinct from the CCL rate, which uses the cable line.
 _Avoid_: Ratio, a third-party dólar MEP quote
 
+**CCL Rate**:
+The pesos-per-dollar exchange rate implied, for one Trading Session, by the closes of a bond's peso line and its cable (CCL, "C") line with the same settlement: the price of a dollar settled abroad. A session has a CCL Rate only when both lines traded. It usually sits a few percent above the MEP Rate. It is for display only and never dollarizes a series or enters analysis.
+_Avoid_: Ratio, a third-party dólar CCL quote, dollarizing with it
+
 **Dollarized Series**:
 A peso-line Bar History expressed in **MEP dollars** by dividing each Daily Bar's prices by the same session's MEP Rate. Its bars are derived values, not market facts of any Trading Line. Sessions without a MEP Rate have no bar.
 _Avoid_: Dollar-line history, Bar History

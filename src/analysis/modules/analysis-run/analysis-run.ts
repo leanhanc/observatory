@@ -16,11 +16,13 @@ import {
 	corporateActions as committedCorporateActions,
 } from '#modules/corporate-actions/index.ts';
 import {
+	CCL_RATE_SOURCE,
 	MEP_RATE_SOURCE,
+	calculateCclRates,
 	calculateMepRates,
 	dollarizeBarHistory,
 	toPesoEquivalent,
-	validateMepRateSourceBars,
+	validateRateSourceBars,
 } from '#modules/dollarized-series/index.ts';
 import { instrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import { calculateInstrumentStates } from '#modules/instrument-state/index.ts';
@@ -51,7 +53,7 @@ import type {
 	WatchedTradingLine,
 } from '#modules/corporate-action-watch/index.ts';
 import type { CorporateAction } from '#modules/corporate-actions/index.ts';
-import type { MepRateSession } from '#modules/dollarized-series/index.ts';
+import type { CclRateSession, MepRateSession } from '#modules/dollarized-series/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type { InstrumentState } from '#modules/instrument-state/index.ts';
 import type { LiquidityWindow } from '#modules/liquidity-eligibility/index.ts';
@@ -124,7 +126,13 @@ type MepRatesResult =
 			latestRateSessionDate: string;
 			acceptedZeroOpens: readonly TradingLineSession[];
 			rangeRepairs: readonly TradingLineSession[];
+			/** The validated peso leg, which the CCL Rate shares. */
+			pesoBondBars: readonly DailyBar[];
 	  }>
+	| Readonly<{ ok: false; message: string }>;
+
+type CclRatesResult =
+	| Readonly<{ ok: true; rates: readonly CclRateSession[]; latestRate: CclRateSession }>
 	| Readonly<{ ok: false; message: string }>;
 
 type AnalysisRunDependencies = Readonly<{
@@ -154,8 +162,8 @@ const MEP_RATE_SOURCE_RETRY_COOL_DOWN_MS = 30_000;
 const ANALYZED_LINE_RETRY_COOL_DOWN_MS = 30_000;
 
 /**
- * Creates the Analysis Run: a fresh provider fetch of the MEP rate source and every analyzed
- * Trading Line, correction of confirmed Corporate Actions, dollarization, a liquidity-eligibility
+ * Creates the Analysis Run: a fresh provider fetch of the MEP rate source, the CCL rate source's
+ * cable line and every analyzed Trading Line, correction of confirmed Corporate Actions, dollarization, a liquidity-eligibility
  * gate, analysis with Large One-Session Move flags, a watch for Corporate Action Notices, and one
  * persisted Analysis Snapshot.
  *
@@ -263,6 +271,13 @@ async function runAnalysis(
 		);
 	}
 
+	const cclRates = await deriveCclRates(
+		dependencies,
+		mepRates.pesoBondBars,
+		requestedThroughSession,
+	);
+	reportCclRates(reportProgress, cclRates);
+
 	const analyzedLineResults = await analyzeTradingLines(dependencies, analyzedLines, {
 		requestedThroughSession,
 		ranAt,
@@ -307,7 +322,12 @@ async function runAnalysis(
 		return createRunFailure('snapshot-write-failed', writeResult.message);
 	}
 
-	return { ok: true, snapshot, locations: writeResult.locations };
+	return {
+		ok: true,
+		snapshot,
+		locations: writeResult.locations,
+		cclRates: cclRates.ok ? cclRates.rates : null,
+	};
 }
 
 /**
@@ -406,7 +426,7 @@ async function fetchTradingLines(
 	acquirer: BarHistoryAcquirer,
 	tradingLines: readonly OpenBymadataTradingLineDescriptor[],
 	requestedThroughSession: string,
-	isMepRateSource: boolean,
+	isRateSource: boolean,
 ): Promise<ReadonlyMap<string, FetchedLine>> {
 	const acquisition = await acquirer.acquire({
 		requestedThroughSession,
@@ -426,7 +446,7 @@ async function fetchTradingLines(
 	return new Map(
 		acquisition.lines.map((line) => [
 			line.tradingLineId,
-			validateAcquiredLine(line, isMepRateSource),
+			validateAcquiredLine(line, isRateSource),
 		]),
 	);
 }
@@ -488,7 +508,7 @@ async function fetchMepRateSource(
 
 function validateAcquiredLine(
 	result: BarHistoryAcquisitionLineResult,
-	isMepRateSource: boolean,
+	isRateSource: boolean,
 ): FetchedLine {
 	if (result.status === 'not-required') {
 		throw new Error(`The acquisition skipped ${result.tradingLineId} during a full fetch.`);
@@ -501,22 +521,23 @@ function validateAcquiredLine(
 
 	const rangeRepairSessions = result.repairs.map((repair) => repair.sessionDate);
 
-	if (isMepRateSource) {
-		return validateMepRateSourceLine(result.bars, rangeRepairSessions);
+	if (isRateSource) {
+		return validateRateSourceLine(result.bars, rangeRepairSessions);
 	}
 
 	return validateAnalyzedLine(result.bars, rangeRepairSessions);
 }
 
 /**
- * A wrong MEP Rate would mis-dollarize every line on its session, so the MEP rate source drops no
- * bar: any invalid bar other than an accepted zero open fails the line.
+ * A wrong MEP Rate would mis-dollarize every line on its session, and a wrong CCL Rate would
+ * mis-display it, so a rate source line drops no bar: any invalid bar other than an accepted zero
+ * open fails the line.
  */
-function validateMepRateSourceLine(
+function validateRateSourceLine(
 	bars: readonly DailyBar[],
 	rangeRepairSessions: readonly string[],
 ): FetchedLine {
-	const { issues, zeroOpenSessions } = validateMepRateSourceBars(bars);
+	const { issues, zeroOpenSessions } = validateRateSourceBars(bars);
 
 	if (issues.length > 0) {
 		return createInvalidBarsFailure(issues);
@@ -618,7 +639,77 @@ function calculateRunMepRates(fetchedLines: ReadonlyMap<string, FetchedLine>): M
 			...labelSessions(pesoBondTradingLineId, pesoBond.rangeRepairSessions),
 			...labelSessions(dollarBondTradingLineId, dollarBond.rangeRepairSessions),
 		],
+		pesoBondBars: pesoBond.bars,
 	};
+}
+
+/**
+ * Fetches the cable leg once and derives the CCL Rates with the peso leg the MEP rate source fetch
+ * already validated. The CCL Rate is for display only, so a failure is returned, not retried, and
+ * leaves the analysis untouched.
+ */
+async function deriveCclRates(
+	dependencies: AnalysisRunDependencies,
+	pesoBondBars: readonly DailyBar[],
+	requestedThroughSession: string,
+): Promise<CclRatesResult> {
+	const { acquirer, catalog, pause } = dependencies;
+	const cableBondLine = resolveCableBondLine(catalog);
+	await pause(HISTORICAL_REQUEST_PAUSE_MS);
+	const fetchedLines = await fetchTradingLines(
+		acquirer,
+		[cableBondLine],
+		requestedThroughSession,
+		true,
+	);
+	const cableBond = getRequiredFetchedLine(fetchedLines, cableBondLine.tradingLineId);
+
+	if (!cableBond.ok) {
+		return { ok: false, message: `${cableBondLine.tradingLineId}: ${cableBond.message}` };
+	}
+
+	if (cableBond.bars.length === 0) {
+		return {
+			ok: false,
+			message: `${cableBondLine.tradingLineId}: the provider returned no Daily Bars.`,
+		};
+	}
+
+	const rates = calculateCclRates(pesoBondBars, cableBond.bars);
+	const latestRate = rates.at(-1);
+
+	if (!latestRate) {
+		return {
+			ok: false,
+			message: 'The CCL rate source has no session in which both legs traded.',
+		};
+	}
+
+	return { ok: true, rates, latestRate };
+}
+
+function resolveCableBondLine(catalog: InstrumentCatalog): OpenBymadataTradingLineDescriptor {
+	const result = catalog.getTradingLinesByIds([CCL_RATE_SOURCE.cableBondTradingLineId]);
+	const cableBondLine = result.ok ? result.tradingLines[0] : undefined;
+
+	if (!cableBondLine) {
+		throw new Error('The Instrument Catalog cannot resolve the CCL rate source cable line.');
+	}
+
+	return { tradingLineId: cableBondLine.id, symbol: cableBondLine.symbol };
+}
+
+function reportCclRates(
+	reportProgress: AnalysisRunDependencies['reportProgress'],
+	cclRates: CclRatesResult,
+): void {
+	if (!cclRates.ok) {
+		reportProgress({ type: 'ccl-rate-unavailable', message: cclRates.message });
+		return;
+	}
+
+	const { sessionDate, cclRate } = cclRates.latestRate;
+	reportProgress({ type: 'ccl-rate-derived', latestRateSessionDate: sessionDate, cclRate });
 }
 
 function labelSessions(

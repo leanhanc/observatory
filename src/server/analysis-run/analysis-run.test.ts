@@ -144,6 +144,8 @@ const ggalPesoBars = ggalDollarBars.map((bar) => scaleBarPrices(bar, MEP_RATE));
 const thinlyTradedPesoBars = ggalPesoBars.map((bar) => ({ ...bar, volume: 1 }));
 const al30Bars = ggalDollarBars.map((bar) => createFlatBar(bar.sessionDate, MEP_RATE));
 const al30dBars = ggalDollarBars.map((bar) => createFlatBar(bar.sessionDate, 1));
+// A cable dollar costs 5% more pesos than a MEP dollar.
+const al30cBars = ggalDollarBars.map((bar) => createFlatBar(bar.sessionDate, 1 / 1.05));
 const GGAL_SHARE_DISTRIBUTION: PricesAndVolumeCorporateAction = {
 	tradingLineId: 'galicia-stock-byma-ars',
 	exDate: '2025-06-02',
@@ -169,7 +171,7 @@ const unadjustedGgalPesoBars = ggalPesoBars.map((bar) =>
 describe('Analysis Run command logging', () => {
 	afterAll(() => rm(SNAPSHOT_PATH, { force: true }));
 
-	test('logs the start, the MEP rate source, each line in order and the outcome', async () => {
+	test('logs the start, the MEP and CCL Rates, each line in order and the outcome', async () => {
 		// Galicia's last bar is missing, so it ends one session before the MEP rate source.
 		const { entries, outcome } = await runCommandWithProvider({
 			GGAL: ggalPesoBars.slice(0, -1),
@@ -180,6 +182,7 @@ describe('Analysis Run command logging', () => {
 		expect(entries.map(({ level, message }) => `${level} ${message}`)).toEqual([
 			`info Analysis Run through 2026-09-30: 3 lines, configuration v${ANALYSIS_CONFIGURATION.version}.`,
 			'info MEP rate source fetched; latest rate session 2026-09-30.',
+			'info CCL Rate 1050.00 on 2026-09-30.',
 			expect.stringMatching(
 				/^info \[1\/3\] galicia-stock-byma-ars: available \(last session 2026-09-29, \d+ events, \d+ large moves\)$/,
 			),
@@ -196,7 +199,7 @@ describe('Analysis Run command logging', () => {
 				/^info Analysis Run through 2026-09-30 completed in \d+ s: 1 available \(1 ending before 2026-09-30\), 2 unavailable; written to .+\.json\.$/,
 			),
 		]);
-		expect(entries[2]!.fields).toMatchObject({
+		expect(entries[3]!.fields).toMatchObject({
 			event: 'line-analyzed',
 			position: 1,
 			analyzedLineCount: 3,
@@ -229,7 +232,7 @@ describe('Analysis Run command logging', () => {
 			{ corporateActions: [GGAL_SHARE_DISTRIBUTION] },
 		);
 
-		expect(entries[2]).toMatchObject({
+		expect(entries[3]).toMatchObject({
 			level: 'warn',
 			message: expect.stringMatching(
 				/^\[1\/3\] galicia-stock-byma-ars: available \(.+; corporate action 2025-06-02: step-not-observed \(observed ×\d\.\d{3}; check the history before removing the entry\)\)$/,
@@ -252,7 +255,7 @@ describe('Analysis Run command logging', () => {
 			{ corporateActions: [GGAL_VOLUME_SPLIT] },
 		);
 
-		expect(entries[2]).toMatchObject({
+		expect(entries[3]).toMatchObject({
 			level: 'warn',
 			message: expect.stringMatching(
 				/; corporate action 2025-06-02: price-step-observed \(observed ×0\.\d{3}; check whether the provider adjusted the price, or the entry needs prices-and-volume\)\)$/,
@@ -278,7 +281,7 @@ describe('Analysis Run command logging', () => {
 			{ corporateActions: [GGAL_VOLUME_SPLIT] },
 		);
 
-		expect(entries[2]).toMatchObject({
+		expect(entries[3]).toMatchObject({
 			level: 'warn',
 			message: expect.stringMatching(
 				/; corporate action 2025-06-02: volume-rescale-suspected \(every earlier volume read is a multiple of 2; the provider may already have rescaled the volume, check the history before removing the entry\)\)$/,
@@ -294,7 +297,7 @@ describe('Analysis Run command logging', () => {
 			{ corporateActions: [thinVolumeSplit] },
 		);
 
-		expect(entries[3]).toMatchObject({
+		expect(entries[4]).toMatchObject({
 			level: 'warn',
 			message: expect.stringMatching(
 				/^\[2\/3\] thin-stock-byma-ars: unavailable: insufficient-liquidity \(participation 1\.00, median USD \d+k; corporate action 2025-06-02: price-step-observed \(observed ×0\.\d{3}; .+\)\)$/,
@@ -310,7 +313,7 @@ describe('Analysis Run command logging', () => {
 			{ corporateActions: [thinVolumeSplit] },
 		);
 
-		expect(entries[3]).toMatchObject({
+		expect(entries[4]).toMatchObject({
 			level: 'info',
 			message: expect.stringMatching(
 				/^\[2\/3\] thin-stock-byma-ars: unavailable: insufficient-liquidity \(participation 1\.00, median USD \d+k; corporate action 2025-06-02: applied\)$/,
@@ -324,7 +327,7 @@ describe('Analysis Run command logging', () => {
 			{ corporateActions: [GGAL_SHARE_DISTRIBUTION] },
 		);
 
-		expect(entries[2]).toMatchObject({
+		expect(entries[3]).toMatchObject({
 			level: 'info',
 			message: expect.stringMatching(
 				/^\[1\/3\] galicia-stock-byma-ars: available \(.+, 0 large moves; corporate action 2025-06-02: applied\)$/,
@@ -338,7 +341,7 @@ describe('Analysis Run command logging', () => {
 			THIN: thinlyTradedPesoBars,
 		});
 
-		expect(entries[2]).toMatchObject({
+		expect(entries[3]).toMatchObject({
 			level: 'warn',
 			message: expect.stringMatching(
 				/^\[1\/3\] galicia-stock-byma-ars: available \(.+, 1 large moves; large move 2025-06-02 ×0\.\d{3}\)$/,
@@ -359,7 +362,7 @@ describe('Analysis Run command logging', () => {
 			THIN: thinlyTradedPesoBars,
 		});
 
-		expect(entries[2]).toMatchObject({
+		expect(entries[3]).toMatchObject({
 			level: 'warn',
 			message: expect.stringMatching(
 				/^\[1\/3\] galicia-stock-byma-ars: available \(.+; 1 dropped bar\)$/,
@@ -378,12 +381,28 @@ describe('Analysis Run command logging', () => {
 			THIN: thinWithInvalidBar,
 		});
 
-		expect(entries[3]).toMatchObject({
+		expect(entries[4]).toMatchObject({
 			level: 'warn',
 			message: expect.stringMatching(
 				/^\[2\/3\] thin-stock-byma-ars: unavailable: insufficient-liquidity \(participation 0\.99, median USD \d+k; 1 dropped bar\)$/,
 			),
 			fields: { droppedBarSessions: [droppedSession] },
+		});
+	});
+
+	test('warns about an unavailable CCL Rate and still writes the snapshot', async () => {
+		const { entries, outcome } = await runCommandWithProvider({
+			GGAL: ggalPesoBars,
+			THIN: thinlyTradedPesoBars,
+			AL30C: null,
+		});
+
+		expect(outcome).toBe('snapshot-written');
+		expect(entries[2]).toMatchObject({
+			level: 'warn',
+			message:
+				'CCL Rate unavailable: al30-bond-byma-usd-ccl: Open BYMADATA returned HTTP 500. The run continues; the CCL Rate is for display only.',
+			fields: { event: 'ccl-rate-unavailable' },
 		});
 	});
 
@@ -748,6 +767,7 @@ function createFakeProvider(
 	const bars: Readonly<Record<string, readonly DailyBar[] | null>> = {
 		AL30: al30Bars,
 		AL30D: al30dBars,
+		AL30C: al30cBars,
 		...provider,
 	};
 
@@ -812,6 +832,12 @@ function createTestCatalog() {
 					{
 						id: 'al30-bond-byma-usd-mep',
 						symbol: 'AL30D',
+						exchange: 'BYMA',
+						currency: 'USD',
+					},
+					{
+						id: 'al30-bond-byma-usd-ccl',
+						symbol: 'AL30C',
 						exchange: 'BYMA',
 						currency: 'USD',
 					},

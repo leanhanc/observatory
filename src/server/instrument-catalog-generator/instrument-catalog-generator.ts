@@ -15,7 +15,7 @@ import {
 import {
 	MEP_RATE_SOURCE,
 	calculateMepRates,
-	validateMepRateSourceBars,
+	validateRateSourceBars,
 } from '#modules/dollarized-series/index.ts';
 import { instrumentCatalog, validateInstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import {
@@ -717,7 +717,7 @@ async function fetchMepRateSourceLine(
 		return { ok: false, message: `${tradingLineId}: ${history.message}` };
 	}
 
-	const { issues } = validateMepRateSourceBars(history.bars);
+	const { issues } = validateRateSourceBars(history.bars);
 
 	if (issues.length > 0) {
 		return { ok: false, message: `${tradingLineId}: ${describeBarIssues(issues)}` };

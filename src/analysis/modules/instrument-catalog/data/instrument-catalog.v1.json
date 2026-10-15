@@ -56,6 +56,12 @@
 					"symbol": "AL30D",
 					"exchange": "BYMA",
 					"currency": "USD"
+				},
+				{
+					"id": "al30-bond-byma-usd-ccl",
+					"symbol": "AL30C",
+					"exchange": "BYMA",
+					"currency": "USD"
 				}
 			]
 		},

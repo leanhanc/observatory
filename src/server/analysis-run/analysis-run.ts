@@ -263,6 +263,24 @@ function logProgress(log: AnalysisRunLog, progress: AnalysisRunProgress): void {
 		return;
 	}
 
+	if (progress.type === 'ccl-rate-derived') {
+		const { latestRateSessionDate, cclRate } = progress;
+		log.info(
+			{ event: progress.type, latestRateSessionDate, cclRate },
+			`CCL Rate ${cclRate.toFixed(2)} on ${latestRateSessionDate}.`,
+		);
+		return;
+	}
+
+	if (progress.type === 'ccl-rate-unavailable') {
+		const { message } = progress;
+		log.warn(
+			{ event: progress.type, message },
+			`CCL Rate unavailable: ${message} The run continues; the CCL Rate is for display only.`,
+		);
+		return;
+	}
+
 	if (progress.type === 'fetch-retry-started') {
 		logFetchRetry(log, progress);
 		return;

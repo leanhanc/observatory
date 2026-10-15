@@ -40,6 +40,9 @@ const al30Bars = sessionDates.map((sessionDate) =>
 	createFlatBar(sessionDate, selectMepRate(sessionDate)),
 );
 const al30dBars = sessionDates.map((sessionDate) => createFlatBar(sessionDate, 1));
+// A cable dollar costs 5% more pesos than a MEP dollar, so a CCL Rate is never a MEP Rate.
+const CABLE_PRICE = 1 / 1.05;
+const al30cBars = sessionDates.map((sessionDate) => createFlatBar(sessionDate, CABLE_PRICE));
 // A steady rise has no confirmed swing highs, so Structure stays unavailable while RSI and the
 // EMA distance warm up within 120 sessions and the EMA200 of Regime and of the long-term distance
 // does not. Trading on 120 of the last 125 sessions at USD 100k or more a day, the line is
@@ -1137,19 +1140,120 @@ describe('Analysis Run corporate-action watch', () => {
 	});
 });
 
+describe('Analysis Run CCL Rate', () => {
+	test('derives each CCL Rate from the same session’s AL30 and AL30C closes', async () => {
+		// The cable price changes every session, so a rate taken from a neighboring session differs.
+		const cablePrices = sessionDates.map((_sessionDate, index) => 0.9 + (index % 7) / 100);
+		const varyingAl30cBars = sessionDates.map((sessionDate, index) =>
+			createFlatBar(sessionDate, cablePrices[index]!),
+		);
+		const provider = { ...createHealthyProvider(), AL30C: varyingAl30cBars };
+		const { result } = await runWithProvider(provider);
+
+		expect(result.ok && result.cclRates).toEqual(
+			sessionDates.map((sessionDate, index) => ({
+				sessionDate,
+				cclRate: selectMepRate(sessionDate) / cablePrices[index]!,
+			})),
+		);
+	});
+
+	test('gives no CCL Rate to a session where either leg did not trade, and carries none', async () => {
+		const untradedCableSession = '2026-09-30';
+		const missingCableSession = '2026-09-28';
+		const untradedPesoSession = '2026-09-24';
+		const provider = {
+			...createHealthyProvider(),
+			AL30: replaceBar(al30Bars, untradedPesoSession, { volume: 0 }),
+			AL30C: replaceBar(al30cBars, untradedCableSession, { volume: 0 }).filter(
+				(bar) => bar.sessionDate !== missingCableSession,
+			),
+		};
+		const timeline = await recordRunTimeline(provider);
+		const { result } = await runWithProvider(provider);
+		const cclSessionDates = result.ok ? result.cclRates?.map((rate) => rate.sessionDate) : [];
+
+		expect(cclSessionDates).toEqual(
+			sessionDates.filter(
+				(sessionDate) =>
+					![untradedCableSession, missingCableSession, untradedPesoSession].includes(
+						sessionDate,
+					),
+			),
+		);
+		expect(timeline).toContain('ccl-rate-derived 2026-09-29 4300.80');
+	});
+
+	test.each([
+		['fails transiently', 'http-error', 'Open BYMADATA returned HTTP 500.'],
+		['has no data', 'no-data', 'no Daily Bars'],
+		['never traded', 'never-traded', 'no session in which both legs traded'],
+		['has an invalid bar', 'invalid-bar', 'invalid Daily Bar issue'],
+	] as const)(
+		'warns and still writes the same snapshot when AL30C %s',
+		async (_label, cableResponse, expectedMessage) => {
+			const cableResponses = {
+				'http-error': 'http-error' as const,
+				'no-data': 'no-data' as const,
+				'never-traded': al30cBars.map((bar) => ({ ...bar, volume: 0 })),
+				'invalid-bar': replaceBar(al30cBars, '2026-09-29', { close: 5 }),
+			};
+			const provider = { ...createHealthyProvider(), AL30C: cableResponses[cableResponse] };
+			const healthyRun = await runWithProvider(createHealthyProvider());
+			const { result, writes, requestedSymbols } = await runWithProvider(provider);
+			const timeline = await recordRunTimeline(provider);
+			const cclReport = timeline.find((entry) => entry.startsWith('ccl-rate-'));
+
+			expect(result).toMatchObject({ ok: true, cclRates: null });
+			expect(writes).toEqual(healthyRun.writes);
+			expect(requestedSymbols.filter((symbol) => symbol === 'AL30C')).toHaveLength(1);
+			expect(cclReport).toStartWith('ccl-rate-unavailable: ');
+			expect(cclReport).toContain(expectedMessage);
+		},
+	);
+
+	test('accepts an AL30C bar whose only defect is a zero open', async () => {
+		const provider = {
+			...createHealthyProvider(),
+			AL30C: replaceBar(al30cBars, '2026-09-30', { open: 0 }),
+		};
+		const { result } = await runWithProvider(provider);
+
+		expect(result.ok && result.cclRates?.at(-1)).toEqual({
+			sessionDate: '2026-09-30',
+			cclRate: 4096 / CABLE_PRICE,
+		});
+	});
+
+	test('keeps CCL Rates out of the snapshot and its analysis', async () => {
+		const provider = createHealthyProvider();
+		const { result, writes } = await runWithProvider(provider);
+		const withoutCableRun = await runWithProvider({ ...provider, AL30C: 'no-data' as const });
+		const writtenSnapshot = JSON.stringify(writes[0]);
+
+		expect(result.ok && result.cclRates).toHaveLength(sessionDates.length);
+		expect(writes[0]?.schemaVersion).toBe(10);
+		expect(writtenSnapshot).not.toMatch(/ccl|al30c|cable/i);
+		expect(writes).toEqual(withoutCableRun.writes);
+	});
+});
+
 describe('Analysis Run progress', () => {
 	test('reports each analyzed line once, in order, as soon as it is analyzed', async () => {
 		const provider = { ...createHealthyProvider(), AAPL: 'http-not-found' as const };
 		const timeline = await recordRunTimeline(provider);
 
 		// Exactly one historical request pause separates every pair of provider requests, including
-		// the MEP rate source's last request and the first analyzed line's.
+		// the rate sources' requests and the first analyzed line's.
 		expect(timeline).toEqual([
 			'run-started 2026-09-30 lines=3 configuration=' + ANALYSIS_CONFIGURATION.version,
 			'request AL30',
 			'pause 2000',
 			'request AL30D',
 			'mep-rate-source-fetched 2026-09-30',
+			'pause 2000',
+			'request AL30C',
+			'ccl-rate-derived 2026-09-30 4300.80',
 			'pause 2000',
 			'request GGAL',
 			'line 1/3 galicia-stock-byma-ars available',
@@ -1192,11 +1296,14 @@ describe('Analysis Run progress', () => {
 describe('Analysis Run fetch retries', () => {
 	const RUN_STARTED =
 		'run-started 2026-09-30 lines=3 configuration=' + ANALYSIS_CONFIGURATION.version;
-	const MEP_RATE_SOURCE_FETCH = [
+	const RATE_SOURCES_FETCH = [
 		'request AL30',
 		'pause 2000',
 		'request AL30D',
 		'mep-rate-source-fetched 2026-09-30',
+		'pause 2000',
+		'request AL30C',
+		'ccl-rate-derived 2026-09-30 4300.80',
 	];
 	const newPesoBars = convertDollarBarsToPeso(shortHistoryDollarBars);
 	const WATCH = ['pause 2000', 'request relevant-facts', 'corporate-action-watch available: '];
@@ -1264,6 +1371,7 @@ describe('Analysis Run fetch retries', () => {
 		expect(requestedSymbols).toEqual([
 			'AL30',
 			'AL30D',
+			'AL30C',
 			'GGAL',
 			'AAPL',
 			'NEW',
@@ -1284,6 +1392,7 @@ describe('Analysis Run fetch retries', () => {
 		expect(requestedSymbols).toEqual([
 			'AL30',
 			'AL30D',
+			'AL30C',
 			'GGAL',
 			'AAPL',
 			'NEW',
@@ -1301,7 +1410,7 @@ describe('Analysis Run fetch retries', () => {
 
 		expect(timeline).toEqual([
 			RUN_STARTED,
-			...MEP_RATE_SOURCE_FETCH,
+			...RATE_SOURCES_FETCH,
 			'pause 2000',
 			'request GGAL',
 			'pause 2000',
@@ -1532,6 +1641,14 @@ function describeProgress(progress: AnalysisRunProgress): string {
 		return `mep-rate-source-fetched ${progress.latestRateSessionDate}`;
 	}
 
+	if (progress.type === 'ccl-rate-derived') {
+		return `ccl-rate-derived ${progress.latestRateSessionDate} ${progress.cclRate.toFixed(2)}`;
+	}
+
+	if (progress.type === 'ccl-rate-unavailable') {
+		return `ccl-rate-unavailable: ${progress.message}`;
+	}
+
 	if (progress.type === 'fetch-retry-started') {
 		const { scope, retry, retryCount, coolDownMs, failures } = progress;
 		const lineIds = failures.map((failure) => failure.tradingLineId).join(', ');
@@ -1584,6 +1701,7 @@ function createHealthyProvider(): FakeProvider {
 		NEW: convertDollarBarsToPeso(shortHistoryDollarBars),
 		AL30: al30Bars,
 		AL30D: al30dBars,
+		AL30C: al30cBars,
 	};
 }
 
@@ -1745,6 +1863,7 @@ function createTestCatalog(): InstrumentCatalog {
 			createInstrument('al30-bond', 'bond', [
 				['al30-bond-byma-ars', 'AL30', 'ARS'],
 				['al30-bond-byma-usd-mep', 'AL30D', 'USD'],
+				['al30-bond-byma-usd-ccl', 'AL30C', 'USD'],
 			]),
 		],
 	});

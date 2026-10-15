@@ -304,7 +304,7 @@ describe('Instrument Catalog interface', () => {
 		expect(exchanges).not.toContain('NASDAQ');
 	});
 
-	test('loads the AL30 bond with its peso and local-dollar Trading Lines', () => {
+	test('loads the AL30 bond with its peso, local-dollar and cable Trading Lines', () => {
 		expect(instrumentCatalog.getInstrumentById('al30-bond')).toEqual({
 			ok: true,
 			instrument: {
@@ -315,6 +315,12 @@ describe('Instrument Catalog interface', () => {
 					{
 						id: 'al30-bond-byma-usd-mep',
 						symbol: 'AL30D',
+						exchange: 'BYMA',
+						currency: 'USD',
+					},
+					{
+						id: 'al30-bond-byma-usd-ccl',
+						symbol: 'AL30C',
 						exchange: 'BYMA',
 						currency: 'USD',
 					},

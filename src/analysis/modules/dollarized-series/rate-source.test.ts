@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { instrumentCatalog } from '#modules/instrument-catalog/index.ts';
 
-import { MEP_RATE_SOURCE, validateMepRateSourceBars } from './index.ts';
+import { CCL_RATE_SOURCE, MEP_RATE_SOURCE, validateRateSourceBars } from './index.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
 import type { Instrument, TradingLine } from '#modules/instrument-catalog/index.ts';
@@ -59,6 +59,38 @@ describe('MEP_RATE_SOURCE', () => {
 	});
 });
 
+describe('CCL_RATE_SOURCE', () => {
+	const { cableBondTradingLineId } = CCL_RATE_SOURCE;
+
+	test('names the AL30 peso line and its cable line', () => {
+		expect(CCL_RATE_SOURCE).toEqual({
+			pesoBondTradingLineId: 'al30-bond-byma-ars',
+			cableBondTradingLineId: 'al30-bond-byma-usd-ccl',
+		});
+	});
+
+	// One fetch of the peso leg then serves both rates.
+	test('shares the MEP rate source peso leg', () => {
+		expect(CCL_RATE_SOURCE.pesoBondTradingLineId).toBe(pesoBondTradingLineId);
+	});
+
+	test('takes the cable line from the MEP bond', () => {
+		const cableBondInstrument = findOwningInstrument(cableBondTradingLineId);
+
+		expect(cableBondInstrument.id).toBe(findOwningInstrument(pesoBondTradingLineId).id);
+		expect(cableBondInstrument.type).toBe('bond');
+	});
+
+	test('uses a BYMA cable line for the dollar leg', () => {
+		const cableBondLine = resolveTradingLine(cableBondTradingLineId);
+
+		expect(cableBondLine.exchange).toBe('BYMA');
+		expect(cableBondLine.currency).toBe('USD');
+		expect(cableBondLine.symbol).toBe('AL30C');
+		expect(cableBondTradingLineId).toEndWith('-usd-ccl');
+	});
+});
+
 function resolveTradingLine(tradingLineId: string): TradingLine {
 	const resolution = instrumentCatalog.getTradingLinesByIds([tradingLineId]);
 	const tradingLine = resolution.ok ? resolution.tradingLines[0] : undefined;
@@ -84,7 +116,7 @@ function findOwningInstrument(tradingLineId: string): Instrument {
 	return owningInstrument;
 }
 
-describe('validateMepRateSourceBars', () => {
+describe('validateRateSourceBars', () => {
 	const validBar: DailyBar = {
 		sessionDate: '2025-10-13',
 		open: 1000,
@@ -95,14 +127,14 @@ describe('validateMepRateSourceBars', () => {
 	};
 
 	test('accepts a zero open when it is the only invalid field, and records its session', () => {
-		expect(validateMepRateSourceBars([{ ...validBar, open: 0 }])).toEqual({
+		expect(validateRateSourceBars([{ ...validBar, open: 0 }])).toEqual({
 			issues: [],
 			zeroOpenSessions: ['2025-10-13'],
 		});
 	});
 
 	test('still rejects a zero-open bar whose close is outside its range', () => {
-		const validation = validateMepRateSourceBars([{ ...validBar, open: 0, close: 2000 }]);
+		const validation = validateRateSourceBars([{ ...validBar, open: 0, close: 2000 }]);
 
 		expect(validation.issues.map((issue) => issue.path)).toContain('bars[0].close');
 	});

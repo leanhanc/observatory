@@ -6,6 +6,15 @@ export type MepRateSession = Readonly<{
 	mepRate: number;
 }>;
 
+/**
+ * The peso price of one dollar settled abroad (CCL, cable) implied by a bond pair on one session.
+ * For display only.
+ */
+export type CclRateSession = Readonly<{
+	sessionDate: string;
+	cclRate: number;
+}>;
+
 export type DollarizedSeries = Readonly<{
 	bars: readonly DailyBar[];
 	sessionsWithoutMepRate: readonly string[];
@@ -17,7 +26,13 @@ export type MepRateSource = Readonly<{
 	dollarBondTradingLineId: string;
 }>;
 
-export type MepRateSourceBarsValidation = Readonly<{
+/** The Trading Lines of the bond whose peso and cable closes imply the CCL Rate. */
+export type CclRateSource = Readonly<{
+	pesoBondTradingLineId: string;
+	cableBondTradingLineId: string;
+}>;
+
+export type RateSourceBarsValidation = Readonly<{
 	issues: readonly ValidationIssue[];
 	zeroOpenSessions: readonly string[];
 }>;

@@ -1,3 +1,5 @@
+import { calculateBondCloseRatios } from './bond-close-ratio.ts';
+
 import type { DailyBar } from '#modules/bar-history/index.ts';
 import type { MepRateSession } from './dollarized-series.types.ts';
 
@@ -22,27 +24,7 @@ export function calculateMepRates(
 	pesoBondBars: readonly DailyBar[],
 	dollarBondBars: readonly DailyBar[],
 ): readonly MepRateSession[] {
-	const dollarBondBarsBySession = new Map(dollarBondBars.map((bar) => [bar.sessionDate, bar]));
-	const rates: MepRateSession[] = [];
-
-	for (const pesoBondBar of pesoBondBars) {
-		const dollarBondBar = dollarBondBarsBySession.get(pesoBondBar.sessionDate);
-
-		if (!dollarBondBar) {
-			continue;
-		}
-
-		const hasBothLegsTraded = pesoBondBar.volume > 0 && dollarBondBar.volume > 0;
-
-		if (!hasBothLegsTraded) {
-			continue;
-		}
-
-		rates.push({
-			sessionDate: pesoBondBar.sessionDate,
-			mepRate: pesoBondBar.close / dollarBondBar.close,
-		});
-	}
-
-	return rates;
+	return calculateBondCloseRatios(pesoBondBars, dollarBondBars).map(
+		({ sessionDate, closeRatio }) => ({ sessionDate, mepRate: closeRatio }),
+	);
 }

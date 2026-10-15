@@ -1,0 +1,7 @@
+- [x] Spec deltas for dollarized-series, instrument-catalog and analysis-run.
+- [x] Catalog: AL30C line, symbol confirmed against Open BYMADATA.
+- [x] dollarized-series: `calculateCclRates`, `CCL_RATE_SOURCE`, `validateRateSourceBars`, with tests.
+- [x] Analysis Run: fetch AL30C, report the CCL Rate or a warning, keep the rates in the result, with tests.
+- [x] `analyze` command: log the CCL Rate and the warning, with tests.
+- [x] CONTEXT.md: `CCL Rate`.
+- [x] Run tests, typecheck, lint, format and `openspec validate --all --strict`.

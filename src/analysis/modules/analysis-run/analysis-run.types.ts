@@ -1,6 +1,7 @@
 import type { BarHistoryPause } from '#modules/bar-history/index.ts';
 import type { CorporateActionWatch, WatchRules } from '#modules/corporate-action-watch/index.ts';
 import type { CorporateAction, CorporateActionOutcome } from '#modules/corporate-actions/index.ts';
+import type { CclRateSession } from '#modules/dollarized-series/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type { InstrumentState } from '#modules/instrument-state/index.ts';
 import type { LiquidityMeasures } from '#modules/liquidity-eligibility/index.ts';
@@ -206,6 +207,11 @@ export type AnalysisRunResult =
 			ok: true;
 			snapshot: AnalysisSnapshot;
 			locations: readonly string[];
+			/**
+			 * Every CCL Rate through the Requested-Through Session, for display only and not in the
+			 * snapshot, or `null` when the CCL rate source failed or yielded no rate.
+			 */
+			cclRates: readonly CclRateSession[] | null;
 	  }>
 	| Readonly<{
 			ok: false;
@@ -232,6 +238,16 @@ export type AnalysisRunProgress =
 			type: 'mep-rate-source-fetched';
 			requestedThroughSession: string;
 			latestRateSessionDate: string;
+	  }>
+	| Readonly<{
+			type: 'ccl-rate-derived';
+			latestRateSessionDate: string;
+			cclRate: number;
+	  }>
+	| Readonly<{
+			/** The CCL Rate is for display only, so the run goes on without it. */
+			type: 'ccl-rate-unavailable';
+			message: string;
 	  }>
 	| Readonly<{
 			type: 'fetch-retry-started';

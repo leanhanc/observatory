@@ -264,11 +264,27 @@ function logProgress(log: AnalysisRunLog, progress: AnalysisRunProgress): void {
 	}
 
 	if (progress.type === 'ccl-rate-derived') {
-		const { latestRateSessionDate, cclRate } = progress;
-		log.info(
-			{ event: progress.type, latestRateSessionDate, cclRate },
-			`CCL Rate ${cclRate.toFixed(2)} on ${latestRateSessionDate}.`,
-		);
+		const { latestRateSessionDate, cclRate, latestMepRateSessionDate } = progress;
+		const fields = {
+			event: progress.type,
+			latestRateSessionDate,
+			cclRate,
+			latestMepRateSessionDate,
+		};
+		const rateText = `CCL Rate ${cclRate.toFixed(2)} on ${latestRateSessionDate}`;
+		// No session borrows another's CCL Rate, so every line analyzed through the later MEP Rate
+		// session loses its CCL figures and its page's CCL view.
+		const isStale = latestRateSessionDate < latestMepRateSessionDate;
+
+		if (isStale) {
+			log.warn(
+				fields,
+				`${rateText}, before the latest MEP Rate session ${latestMepRateSessionDate}; lines analyzed through ${latestMepRateSessionDate} have no CCL figures.`,
+			);
+			return;
+		}
+
+		log.info(fields, `${rateText}.`);
 		return;
 	}
 

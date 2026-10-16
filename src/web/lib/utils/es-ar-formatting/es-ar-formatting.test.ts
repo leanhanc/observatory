@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+	formatDollars,
+	formatExactDollars,
+	formatExactRate,
 	formatLongDate,
 	formatOneDecimal,
 	formatPercent,
 	formatPesos,
-	formatPrice,
 	formatShortDate,
 	formatShortDateList,
 	formatSignedPercent,
@@ -35,14 +37,20 @@ describe('es-AR numbers', () => {
 		expect(formatPercent(-4.53)).toBe(`4,5${NBSP}%`);
 	});
 
-	test('a price carries the snapshot unit as US$ with two decimals', () => {
-		expect(formatPrice(4.0412, 'mep-dollar')).toBe(`US$${NBSP}4,04`);
-		expect(formatPrice(1234.5, 'mep-dollar')).toBe(`US$${NBSP}1.234,50`);
+	test('a MEP or CCL dollar price is US$ with two decimals', () => {
+		expect(formatDollars(4.0412)).toBe(`US$${NBSP}4,04`);
+		expect(formatDollars(1234.5)).toBe(`US$${NBSP}1.234,50`);
 	});
 
 	test('a price under one keeps three significant digits', () => {
-		expect(formatPrice(0.01234, 'mep-dollar')).toBe(`US$${NBSP}0,0123`);
-		expect(formatPrice(0.5, 'mep-dollar')).toBe(`US$${NBSP}0,50`);
+		expect(formatDollars(0.01234)).toBe(`US$${NBSP}0,0123`);
+		expect(formatDollars(0.5)).toBe(`US$${NBSP}0,50`);
+	});
+
+	test('raw evidence keeps four decimals for dollars and two for a rate, which has no unit', () => {
+		expect(formatExactDollars(3.684)).toBe(`US$${NBSP}3,684`);
+		expect(formatExactDollars(3.51293)).toBe(`US$${NBSP}3,5129`);
+		expect(formatExactRate(1612.384)).toBe('1.612,38');
 	});
 
 	test('pesos are whole from a thousand up, with two decimals below', () => {
@@ -51,7 +59,7 @@ describe('es-AR numbers', () => {
 	});
 
 	test('the format follows the rounded value at each cutoff', () => {
-		expect(formatPrice(0.99951, 'mep-dollar')).toBe(`US$${NBSP}1,00`);
+		expect(formatDollars(0.99951)).toBe(`US$${NBSP}1,00`);
 		expect(formatPesos(999.996)).toBe(`1.000${NBSP}pesos`);
 	});
 });

@@ -1,7 +1,6 @@
 import type { BarHistoryPause } from '#modules/bar-history/index.ts';
 import type { CorporateActionWatch, WatchRules } from '#modules/corporate-action-watch/index.ts';
 import type { CorporateAction, CorporateActionOutcome } from '#modules/corporate-actions/index.ts';
-import type { CclRateSession } from '#modules/dollarized-series/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type { InstrumentState } from '#modules/instrument-state/index.ts';
 import type { LiquidityMeasures } from '#modules/liquidity-eligibility/index.ts';
@@ -31,8 +30,23 @@ export type StructureBreakPesoEquivalents = Readonly<{
 	definingSwingPrice: number;
 }>;
 
+/**
+ * A Structure Break's prices in CCL dollars at its own session's CCL Rate: the peso prices divided
+ * by it, so the close is beyond the swing in CCL dollars exactly when it is in pesos.
+ */
+export type StructureBreakCclEquivalents = Readonly<{
+	/** Pesos per CCL dollar on the Event's session. */
+	cclRate: number;
+	closePrice: number;
+	definingSwingPrice: number;
+}>;
+
 export type SnapshotStructureBreakEvent = StructureBreakEvent &
-	Readonly<{ pesoEquivalents: StructureBreakPesoEquivalents }>;
+	Readonly<{
+		pesoEquivalents: StructureBreakPesoEquivalents;
+		/** `null` when the Event's session has no CCL Rate; no other session's rate stands in. */
+		cclEquivalents: StructureBreakCclEquivalents | null;
+	}>;
 
 /** Only Structure Breaks carry peso prices: the other kinds show no price. */
 export type AnalysisEvent =
@@ -64,8 +78,15 @@ export type AnalyzedLine =
 			instrumentId: string;
 			tradingLineId: string;
 			latestState: InstrumentState;
-			/** The close's change over each configured window of calendar months, as of `latestState`. */
+			/**
+			 * The close's change over each configured window of calendar months, as of `latestState`,
+			 * in MEP dollars.
+			 */
 			periodReturns: readonly PeriodReturn[];
+			/** The same windows in pesos, devaluation included: what a holder of the peso line got. */
+			pesoPeriodReturns: readonly PeriodReturn[];
+			/** The same windows in CCL dollars; unavailable when an endpoint session has no CCL Rate. */
+			cclPeriodReturns: readonly PeriodReturn[];
 			events: readonly AnalysisSnapshotEvent[];
 			/** Large One-Session Moves of the corrected Dollarized Series, in session order. */
 			largeMoves: readonly LargeOneSessionMove[];
@@ -78,6 +99,8 @@ export type AnalyzedLine =
 			}>;
 			sessionsWithoutMepRate: readonly string[];
 			pesoEquivalents: PesoEquivalents;
+			/** `null` when the latest State's session has no CCL Rate. */
+			cclEquivalents: CclEquivalents | null;
 	  }> &
 			BarRepairs)
 	| Readonly<{
@@ -141,6 +164,21 @@ export type PesoEquivalents = Readonly<{
 	regimeTippingCloses: Readonly<{ bullishCloseAbove: number; bearishCloseBelow: number }> | null;
 }>;
 
+/**
+ * The latest State's session in CCL dollars: each `PesoEquivalents` value divided by that session's
+ * CCL Rate. For display only.
+ */
+export type CclEquivalents = Readonly<{
+	sessionDate: string;
+	/** Pesos per CCL dollar on `sessionDate`. */
+	cclRate: number;
+	/** The line's corrected peso close on `sessionDate` divided by `cclRate`. */
+	close: number;
+	lastConfirmedSwingHigh: number | null;
+	lastConfirmedSwingLow: number | null;
+	regimeTippingCloses: Readonly<{ bullishCloseAbove: number; bearishCloseBelow: number }> | null;
+}>;
+
 /** One session of one Trading Line, used to report bars the run accepted with a defect. */
 export type TradingLineSession = Readonly<{
 	tradingLineId: string;
@@ -151,7 +189,7 @@ export type TradingLineSession = Readonly<{
 export type PriceUnit = 'mep-dollar';
 
 export type AnalysisSnapshot = Readonly<{
-	schemaVersion: 10;
+	schemaVersion: 11;
 	priceUnit: PriceUnit;
 	ranAt: string;
 	requestedThroughSession: string;
@@ -165,6 +203,12 @@ export type AnalysisSnapshot = Readonly<{
 		/** MEP rate source bars whose range the adapter widened to contain the open and close. */
 		rangeRepairs: readonly TradingLineSession[];
 	}>;
+	/** Where every CCL figure comes from, or `null` when the run had no CCL Rate. */
+	cclRateSource: Readonly<{
+		pesoBondTradingLineId: string;
+		cableBondTradingLineId: string;
+		latestRateSessionDate: string;
+	}> | null;
 	analyzedLines: readonly AnalyzedLine[];
 	/** Notices that may announce a Corporate Action for an analyzed line; never applied. */
 	corporateActionWatch: CorporateActionWatch;
@@ -207,11 +251,6 @@ export type AnalysisRunResult =
 			ok: true;
 			snapshot: AnalysisSnapshot;
 			locations: readonly string[];
-			/**
-			 * Every CCL Rate through the Requested-Through Session, for display only and not in the
-			 * snapshot, or `null` when the CCL rate source failed or yielded no rate.
-			 */
-			cclRates: readonly CclRateSession[] | null;
 	  }>
 	| Readonly<{
 			ok: false;
@@ -243,6 +282,8 @@ export type AnalysisRunProgress =
 			type: 'ccl-rate-derived';
 			latestRateSessionDate: string;
 			cclRate: number;
+			/** A later MEP Rate session leaves the lines that traded on it without CCL figures. */
+			latestMepRateSessionDate: string;
 	  }>
 	| Readonly<{
 			/** The CCL Rate is for display only, so the run goes on without it. */

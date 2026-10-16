@@ -1,5 +1,5 @@
 export {
-	CURRENCY_NOTE,
+	CURRENCY_NOTES,
 	LARGE_MOVE_NOTE,
 	describeEvent,
 	describeLevels,
@@ -14,8 +14,8 @@ export {
 	describeTippingPoints,
 	describeTrend,
 	describeUnavailableLine,
-	formatLevelPrice,
+	selectDisplayCurrencies,
 } from './line-wording.ts';
 export { groupHistoryByYear, selectRecentChanges } from './recent-changes.ts';
 export type { HistoryYear, RecentChanges } from './recent-changes.ts';
-export type { Phrase, PhraseSegment, PriceContext } from './line-wording.types.ts';
+export type { DisplayCurrency, Phrase, PhraseSegment } from './line-wording.types.ts';

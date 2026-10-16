@@ -12,20 +12,22 @@ import {
 	describeTrend,
 } from '#web/lib/utils/line-wording/index.ts';
 
+import { CurrencyVariants } from './currency-variants.tsx';
 import { PhraseText } from './phrase-text.tsx';
 import { RecentChanges } from './recent-changes.tsx';
 
-import type { PriceContext } from '#web/lib/utils/line-wording/index.ts';
+import type { DisplayCurrency } from '#web/lib/utils/line-wording/index.ts';
 import type { AvailableLine } from '#web/lib/utils/snapshot-pages/index.ts';
 
-type AvailableLineDetailsProps = { line: AvailableLine; context: PriceContext };
+type AvailableLineDetailsProps = { line: AvailableLine; currencies: readonly DisplayCurrency[] };
 
 /**
  * Sections 1 to 5 of the line page: what the line is doing, its support and resistance, what would
  * change it, its last changes and the detail. Tier 2 is open and collapsible, tier 3 is collapsed.
+ * Each phrase that names a price is rendered once per offered currency view.
  */
-export function AvailableLineDetails({ line, context }: AvailableLineDetailsProps) {
-	const { latestState: state, pesoEquivalents, periodReturns } = line;
+export function AvailableLineDetails({ line, currencies }: AvailableLineDetailsProps) {
+	const { latestState: state } = line;
 	const longTermDistance = describeLongTermDistance(state.priceRelativeToLongTermEmaInPercent);
 	const pendingTransition = describePendingTransition(state.pendingRegimeTransition);
 	const momentum = describeMomentum(state.rsi);
@@ -38,7 +40,12 @@ export function AvailableLineDetails({ line, context }: AvailableLineDetailsProp
 					<PhraseText phrase={describeTrend(state.regime)} />
 				</p>
 				<p>
-					<PhraseText phrase={describePeriodReturns(periodReturns, context.priceUnit)} />
+					<CurrencyVariants
+						currencies={currencies}
+						render={(currency) => (
+							<PhraseText phrase={describePeriodReturns(line, currency)} />
+						)}
+					/>
 				</p>
 				{longTermDistance !== null && (
 					<details open>
@@ -51,31 +58,48 @@ export function AvailableLineDetails({ line, context }: AvailableLineDetailsProp
 			</section>
 			<section>
 				<h2>Soporte y resistencia</h2>
-				<ul>
-					{describeLevels(state, pesoEquivalents, context).map((phrase, index) => (
-						<li key={index}>
-							<PhraseText phrase={phrase} />
-						</li>
-					))}
-				</ul>
+				<CurrencyVariants
+					currencies={currencies}
+					as="div"
+					render={(currency) => (
+						<ul>
+							{describeLevels(line, currency).map((phrase, index) => (
+								<li key={index}>
+									<PhraseText phrase={phrase} />
+								</li>
+							))}
+						</ul>
+					)}
+				/>
 			</section>
 			<section>
 				<h2>Qué observar</h2>
 				<p>
-					<PhraseText phrase={describePattern(state, pesoEquivalents, context)} />
+					<CurrencyVariants
+						currencies={currencies}
+						render={(currency) => (
+							<PhraseText phrase={describePattern(line, currency)} />
+						)}
+					/>
 				</p>
-				{describeTippingPoints(state, pesoEquivalents, context).map((phrase, index) => (
-					<p key={index}>
-						<PhraseText phrase={phrase} />
-					</p>
-				))}
+				<CurrencyVariants
+					currencies={currencies}
+					as="div"
+					render={(currency) =>
+						describeTippingPoints(line, currency).map((phrase, index) => (
+							<p key={index}>
+								<PhraseText phrase={phrase} />
+							</p>
+						))
+					}
+				/>
 				{pendingTransition !== null && (
 					<p>
 						<PhraseText phrase={pendingTransition} />
 					</p>
 				)}
 			</section>
-			<RecentChanges line={line} context={context} />
+			<RecentChanges line={line} currencies={currencies} />
 			<section>
 				<h2>Detalle</h2>
 				{momentum !== null && (
@@ -88,14 +112,14 @@ export function AvailableLineDetails({ line, context }: AvailableLineDetailsProp
 				)}
 				<details>
 					<summary>Más detalle</summary>
-					<DetailList line={line} context={context} />
+					<DetailList line={line} currencies={currencies} />
 				</details>
 			</section>
 		</>
 	);
 }
 
-function DetailList({ line, context }: AvailableLineDetailsProps) {
+function DetailList({ line, currencies }: AvailableLineDetailsProps) {
 	const shortTermStretch = describeShortTermStretch(line.latestState.priceRelativeToEmaInAtr);
 	const swingDates = describeSwingDates(line.latestState);
 
@@ -107,11 +131,17 @@ function DetailList({ line, context }: AvailableLineDetailsProps) {
 				</p>
 			)}
 			{swingDates !== null && <p>{swingDates}</p>}
-			<ul>
-				{describeRawEvidence(line, context).map((fact) => (
-					<li key={fact}>{fact}</li>
-				))}
-			</ul>
+			<CurrencyVariants
+				currencies={currencies}
+				as="div"
+				render={(currency) => (
+					<ul>
+						{describeRawEvidence(line, currency).map((fact) => (
+							<li key={fact}>{fact}</li>
+						))}
+					</ul>
+				)}
+			/>
 		</>
 	);
 }

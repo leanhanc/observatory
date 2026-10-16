@@ -2,7 +2,7 @@ import type {
 	AnalysisSnapshotOverview,
 	LatestAnalysisSnapshotReadResult,
 } from '#modules/analysis-run/index.ts';
-import type { SnapshotLine, SnapshotPriceUnit } from './snapshot-pages.types.ts';
+import type { SnapshotLine } from './snapshot-pages.types.ts';
 
 export type LinePage = Readonly<{
 	params: { tradingLineId: string };
@@ -11,7 +11,6 @@ export type LinePage = Readonly<{
 
 export type LinePageProps = Readonly<{
 	requestedThroughSession: string;
-	priceUnit: SnapshotPriceUnit;
 	line: SnapshotLine;
 }>;
 
@@ -21,11 +20,11 @@ export function buildLinePagePath(tradingLineId: string): string {
 
 /** The line pages a build prerenders: one per analyzed line, available or not, in snapshot order. */
 export function buildLinePages(snapshot: AnalysisSnapshotOverview): LinePage[] {
-	const { requestedThroughSession, priceUnit, analyzedLines } = snapshot;
+	const { requestedThroughSession, analyzedLines } = snapshot;
 
 	return analyzedLines.map((line) => ({
 		params: { tradingLineId: line.tradingLineId },
-		props: { requestedThroughSession, priceUnit, line },
+		props: { requestedThroughSession, line },
 	}));
 }
 

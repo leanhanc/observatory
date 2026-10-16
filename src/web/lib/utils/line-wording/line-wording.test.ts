@@ -14,18 +14,16 @@ import {
 	describeTippingPoints,
 	describeTrend,
 	describeUnavailableLine,
-	formatLevelPrice,
+	selectDisplayCurrencies,
 } from './line-wording.ts';
 
 import type { AvailableLine, SnapshotEvent } from '#web/lib/utils/snapshot-pages/index.ts';
-import type { Phrase, PriceContext } from './line-wording.types.ts';
+import type { Phrase } from './line-wording.types.ts';
 
 type SnapshotState = AvailableLine['latestState'];
 type SnapshotSituation = SnapshotState['situations'][number];
 
 const NBSP = ' ';
-const PESO_LINE: PriceContext = { priceUnit: 'mep-dollar', isPesoLine: true };
-const DOLLAR_LINE: PriceContext = { priceUnit: 'mep-dollar', isPesoLine: false };
 
 const swingLow = {
 	kind: 'low',
@@ -73,6 +71,24 @@ const ggalPesoEquivalents: AvailableLine['pesoEquivalents'] = {
 	lastConfirmedSwingLow: 5662,
 	regimeTippingCloses: { bullishCloseAbove: 7344, bearishCloseBelow: 6480 },
 };
+// The same levels at a CCL Rate of 1.612: about 4,5 % fewer dollars than at the MEP Rate.
+const ggalCclEquivalents: NonNullable<AvailableLine['cclEquivalents']> = {
+	sessionDate: '2026-10-09',
+	cclRate: 1612,
+	close: 3.6849,
+	lastConfirmedSwingHigh: 3.8604,
+	lastConfirmedSwingLow: 3.5124,
+	regimeTippingCloses: { bullishCloseAbove: 4.5558, bearishCloseBelow: 4.0199 },
+};
+const ggalLine = {
+	latestState: ggalState,
+	pesoEquivalents: ggalPesoEquivalents,
+	cclEquivalents: ggalCclEquivalents,
+};
+
+function withState(latestState: SnapshotState) {
+	return { ...ggalLine, latestState };
+}
 
 describe('describeTrend', () => {
 	test('reads each Regime as a trend, and a missing Regime as too little history', () => {
@@ -90,25 +106,69 @@ describe('describeTrend', () => {
 });
 
 describe('describePeriodReturns', () => {
-	test('names each window and shows an unavailable one as a dash, never as zero', () => {
-		const periodReturns = [
-			{ windowMonths: 1, fromSessionDate: '2026-09-10', percentChange: -17.04 },
+	const returnsLine = {
+		periodReturns: [
+			{ windowMonths: 1, fromSessionDate: '2026-09-10', percentChange: -15.2 },
 			{ windowMonths: 3, fromSessionDate: '2026-07-09', percentChange: -27.3 },
-			{ windowMonths: 12, fromSessionDate: null, percentChange: null },
-		];
+			{ windowMonths: 12, fromSessionDate: '2025-10-09', percentChange: 14.3 },
+		],
+		pesoPeriodReturns: [
+			{ windowMonths: 1, fromSessionDate: '2026-09-10', percentChange: -15.1 },
+			{ windowMonths: 3, fromSessionDate: '2026-07-09', percentChange: -26.3 },
+			{ windowMonths: 12, fromSessionDate: '2025-10-09', percentChange: 25.1 },
+		],
+		cclPeriodReturns: [
+			{ windowMonths: 1, fromSessionDate: '2026-09-10', percentChange: -15.8 },
+			{ windowMonths: 3, fromSessionDate: '2026-07-09', percentChange: -28.3 },
+			{ windowMonths: 12, fromSessionDate: '2025-10-09', percentChange: 10.4 },
+		],
+	};
 
-		expect(toText(describePeriodReturns(periodReturns, 'mep-dollar'))).toBe(
-			`−17,0${NBSP}% en un mes · −27,3${NBSP}% en tres meses · — en un año (sin historia suficiente) (en dólares MEP)`,
+	test('each view reads its own currency’s returns and names the currency', () => {
+		expect(toText(describePeriodReturns(returnsLine, 'ars'))).toBe(
+			`−15,1${NBSP}% en un mes · −26,3${NBSP}% en tres meses · +25,1${NBSP}% en un año (en pesos, incluye la suba del dólar)`,
+		);
+		expect(toText(describePeriodReturns(returnsLine, 'usd'))).toBe(
+			`−15,2${NBSP}% en un mes · −27,3${NBSP}% en tres meses · +14,3${NBSP}% en un año (en dólares MEP)`,
+		);
+		expect(toText(describePeriodReturns(returnsLine, 'ccl'))).toBe(
+			`−15,8${NBSP}% en un mes · −28,3${NBSP}% en tres meses · +10,4${NBSP}% en un año (en dólares CCL)`,
+		);
+	});
+
+	test('shows an unavailable window as a dash, never as zero', () => {
+		const shortLine = {
+			...returnsLine,
+			pesoPeriodReturns: [
+				...returnsLine.pesoPeriodReturns.slice(0, 2),
+				{ windowMonths: 12, fromSessionDate: null, percentChange: null },
+			],
+		};
+
+		expect(toText(describePeriodReturns(shortLine, 'ars'))).toContain(
+			'— en un año (sin historia suficiente)',
+		);
+	});
+
+	test('a CCL return missing where the MEP return exists lacked a CCL Rate, not history', () => {
+		const unavailable = { fromSessionDate: null, percentChange: null };
+		const line = {
+			periodReturns: [returnsLine.periodReturns[0]!, { windowMonths: 3, ...unavailable }],
+			pesoPeriodReturns: returnsLine.pesoPeriodReturns.slice(0, 2),
+			cclPeriodReturns: [
+				{ windowMonths: 1, ...unavailable },
+				{ windowMonths: 3, ...unavailable },
+			],
+		};
+
+		expect(toText(describePeriodReturns(line, 'ccl'))).toBe(
+			'— en un mes (sin cotización CCL) · — en tres meses (sin historia suficiente) (en dólares CCL)',
 		);
 	});
 
 	test('shows a rise with a plus sign', () => {
-		const periodReturns = [
-			{ windowMonths: 12, fromSessionDate: '2025-10-01', percentChange: 41.6 },
-		];
-
-		expect(describePeriodReturns(periodReturns, 'mep-dollar')[0]).toEqual({
-			strong: `+41,6${NBSP}%`,
+		expect(describePeriodReturns(returnsLine, 'usd')).toContainEqual({
+			strong: `+14,3${NBSP}%`,
 		});
 	});
 });
@@ -127,23 +187,25 @@ describe('describeLongTermDistance', () => {
 });
 
 describe('describeLevels', () => {
-	test('between both levels: support below and resistance above, peso equivalents first', () => {
-		expect(describeLevels(ggalState, ggalPesoEquivalents, PESO_LINE).map(toText)).toEqual([
-			`Soporte en 5.662${NBSP}pesos (US$${NBSP}3,68): el cierre está 4,9${NBSP}% por encima.`,
-			`Resistencia en 6.223${NBSP}pesos (US$${NBSP}4,04): el cierre está 4,5${NBSP}% por debajo.`,
+	test('between both levels: each view names its own currency only, at the same distance', () => {
+		expect(describeLevels(ggalLine, 'ars').map(toText)).toEqual([
+			`Soporte en 5.662${NBSP}pesos: el cierre está 4,9${NBSP}% por encima.`,
+			`Resistencia en 6.223${NBSP}pesos: el cierre está 4,5${NBSP}% por debajo.`,
 		]);
-	});
-
-	test('a line not traded in pesos shows the analyzed price only', () => {
-		expect(toText(describeLevels(ggalState, ggalPesoEquivalents, DOLLAR_LINE)[0]!)).toBe(
+		expect(describeLevels(ggalLine, 'usd').map(toText)).toEqual([
 			`Soporte en US$${NBSP}3,68: el cierre está 4,9${NBSP}% por encima.`,
-		);
+			`Resistencia en US$${NBSP}4,04: el cierre está 4,5${NBSP}% por debajo.`,
+		]);
+		expect(describeLevels(ggalLine, 'ccl').map(toText)).toEqual([
+			`Soporte en US$${NBSP}3,51: el cierre está 4,9${NBSP}% por encima.`,
+			`Resistencia en US$${NBSP}3,86: el cierre está 4,5${NBSP}% por debajo.`,
+		]);
 	});
 
 	test('below the low within the noise band (PEP) gets the calm label with its distance', () => {
 		const pepState = buildBelowLowState(-0.8, false);
 
-		expect(describeLevels(pepState, ggalPesoEquivalents, PESO_LINE)[0]).toEqual([
+		expect(describeLevels(withState(pepState), 'ars')[0]).toEqual([
 			{ strong: 'Debajo de su último mínimo confirmado' },
 			` (−0,8${NBSP}%): ya no hay un soporte confirmado.`,
 		]);
@@ -152,7 +214,7 @@ describe('describeLevels', () => {
 	test('below the low beyond the noise band in a bearish Regime (LAC) reads as falling with no floor', () => {
 		const lacState = buildBelowLowState(-12.8, true);
 
-		expect(describeLevels(lacState, ggalPesoEquivalents, PESO_LINE)[0]).toEqual([
+		expect(describeLevels(withState(lacState), 'ars')[0]).toEqual([
 			{ strong: 'Caída sin piso confirmado.' },
 			` El cierre está 12,8${NBSP}% por debajo de su último mínimo confirmado y todavía no se confirmó un mínimo nuevo.`,
 		]);
@@ -162,7 +224,7 @@ describe('describeLevels', () => {
 		// A large distance with the flag off, as for an unreadable ATR, still reads calm.
 		const unflaggedState = buildBelowLowState(-12.8, null);
 
-		expect(describeLevels(unflaggedState, ggalPesoEquivalents, PESO_LINE)[0]![0]).toEqual({
+		expect(describeLevels(withState(unflaggedState), 'ars')[0]![0]).toEqual({
 			strong: 'Debajo de su último mínimo confirmado',
 		});
 	});
@@ -170,7 +232,7 @@ describe('describeLevels', () => {
 	test('an unmeasured flag above the high reads calm too', () => {
 		const unflaggedState = buildAboveHighState(52.1, null);
 
-		expect(describeLevels(unflaggedState, ggalPesoEquivalents, PESO_LINE)[1]![0]).toEqual({
+		expect(describeLevels(withState(unflaggedState), 'ars')[1]![0]).toEqual({
 			strong: 'Por encima de su último máximo confirmado',
 		});
 	});
@@ -182,7 +244,7 @@ describe('describeLevels', () => {
 			situations: [],
 		};
 
-		expect(describeLevels(mixedBelowLowState, ggalPesoEquivalents, PESO_LINE)[0]![0]).toEqual({
+		expect(describeLevels(withState(mixedBelowLowState), 'ars')[0]![0]).toEqual({
 			strong: 'Debajo de su último mínimo confirmado',
 		});
 	});
@@ -190,7 +252,7 @@ describe('describeLevels', () => {
 	test('above the high within the noise band (XLV) gets the calm mirror label', () => {
 		const xlvState = buildAboveHighState(0.1, false);
 
-		expect(describeLevels(xlvState, ggalPesoEquivalents, PESO_LINE)[1]).toEqual([
+		expect(describeLevels(withState(xlvState), 'ars')[1]).toEqual([
 			{ strong: 'Por encima de su último máximo confirmado' },
 			` (+0,1${NBSP}%): no hay una resistencia confirmada arriba.`,
 		]);
@@ -199,7 +261,7 @@ describe('describeLevels', () => {
 	test('a distance that rounds to zero keeps the side the label names (GLD)', () => {
 		const gldState = buildAboveHighState(0.04, false);
 
-		expect(describeLevels(gldState, ggalPesoEquivalents, PESO_LINE)[1]![1]).toBe(
+		expect(describeLevels(withState(gldState), 'ars')[1]![1]).toBe(
 			` (+0,0${NBSP}%): no hay una resistencia confirmada arriba.`,
 		);
 	});
@@ -207,7 +269,7 @@ describe('describeLevels', () => {
 	test('above the high beyond the noise band in a bullish Regime (XP) reads as rising with no ceiling', () => {
 		const xpState = buildAboveHighState(52.1, true);
 
-		expect(describeLevels(xpState, ggalPesoEquivalents, PESO_LINE)[1]).toEqual([
+		expect(describeLevels(withState(xpState), 'ars')[1]).toEqual([
 			{ strong: 'Subida sin techo confirmado.' },
 			` El cierre está 52,1${NBSP}% por encima de su último máximo confirmado y todavía no se confirmó un máximo nuevo.`,
 		]);
@@ -221,10 +283,10 @@ describe('describeLevels', () => {
 		};
 		const onlyHigh = { ...ggalState, lastConfirmedSwingLow: null };
 
-		expect(describeLevels(noLevels, ggalPesoEquivalents, PESO_LINE)).toEqual([
+		expect(describeLevels(withState(noLevels), 'ars')).toEqual([
 			['Todavía no hay máximos ni mínimos confirmados.'],
 		]);
-		expect(describeLevels(onlyHigh, ggalPesoEquivalents, PESO_LINE)[0]).toEqual([
+		expect(describeLevels(withState(onlyHigh), 'ars')[0]).toEqual([
 			'Todavía no hay un mínimo confirmado.',
 		]);
 	});
@@ -232,10 +294,10 @@ describe('describeLevels', () => {
 
 describe('describePattern', () => {
 	test('a downtrend breaks with a close above the last confirmed high, which alone does not change the trend', () => {
-		const phrase = describePattern(ggalState, ggalPesoEquivalents, PESO_LINE);
+		const phrase = describePattern(ggalLine, 'ars');
 
 		expect(toText(phrase)).toBe(
-			`Un cierre por encima de 6.223${NBSP}pesos (US$${NBSP}4,04) rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
+			`Un cierre por encima de 6.223${NBSP}pesos rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
 		);
 		expect(phrase).toContainEqual({ strong: `6.223${NBSP}pesos` });
 		expect(phrase).toContainEqual({ strong: 'patrón descendente' });
@@ -244,21 +306,24 @@ describe('describePattern', () => {
 	test('an uptrend breaks with a close below the last confirmed low', () => {
 		const uptrendState: SnapshotState = { ...ggalState, structure: 'uptrend', regime: 'mixed' };
 
-		expect(toText(describePattern(uptrendState, ggalPesoEquivalents, PESO_LINE))).toBe(
-			`Un cierre por debajo de 5.662${NBSP}pesos (US$${NBSP}3,68) rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos. Por sí solo, no cambia la tendencia.`,
+		expect(toText(describePattern(withState(uptrendState), 'ars'))).toBe(
+			`Un cierre por debajo de 5.662${NBSP}pesos rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos. Por sí solo, no cambia la tendencia.`,
 		);
 	});
 
 	test('a break says nothing about the trend while the trend is not readable', () => {
 		const warmUpTrend: SnapshotState = { ...ggalState, regime: null };
 
-		expect(toText(describePattern(warmUpTrend, ggalPesoEquivalents, PESO_LINE))).toBe(
-			`Un cierre por encima de 6.223${NBSP}pesos (US$${NBSP}4,04) rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos.`,
+		expect(toText(describePattern(withState(warmUpTrend), 'ars'))).toBe(
+			`Un cierre por encima de 6.223${NBSP}pesos rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos.`,
 		);
 	});
 
-	test('a line not traded in pesos names the analyzed price alone', () => {
-		expect(toText(describePattern(ggalState, ggalPesoEquivalents, DOLLAR_LINE))).toBe(
+	test('the USD and CCL views name the level in their own dollars', () => {
+		expect(toText(describePattern(ggalLine, 'ccl'))).toContain(
+			`Un cierre por encima de US$${NBSP}3,86 rompería`,
+		);
+		expect(toText(describePattern(ggalLine, 'usd'))).toBe(
 			`Un cierre por encima de US$${NBSP}4,04 rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
 		);
 	});
@@ -281,10 +346,15 @@ describe('describePattern', () => {
 			lastConfirmedSwingHigh: 5336,
 			regimeTippingCloses: { bullishCloseAbove: 5288, bearishCloseBelow: 5129 },
 		};
-		const patternText = toText(describePattern(pampState, pampPesoEquivalents, PESO_LINE));
+		const pampLine = {
+			...ggalLine,
+			latestState: pampState,
+			pesoEquivalents: pampPesoEquivalents,
+		};
+		const patternText = toText(describePattern(pampLine, 'ars'));
 
 		expect(patternText).toBe(
-			`Un cierre por encima de 5.336${NBSP}pesos (US$${NBSP}3,47) rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
+			`Un cierre por encima de 5.336${NBSP}pesos rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
 		);
 		expect(patternText).not.toContain('seguiría siendo');
 	});
@@ -292,7 +362,7 @@ describe('describePattern', () => {
 	test('a trending pattern without its break level reads without a break sentence', () => {
 		const noHigh: SnapshotState = { ...ggalState, lastConfirmedSwingHigh: null };
 
-		expect(toText(describePattern(noHigh, ggalPesoEquivalents, PESO_LINE))).toBe(
+		expect(toText(describePattern(withState(noHigh), 'ars'))).toBe(
 			'Patrón descendente: máximos y mínimos cada vez más bajos.',
 		);
 	});
@@ -302,13 +372,13 @@ describe('describePattern', () => {
 		const expired: SnapshotState = { ...ggalState, structure: 'undefined' };
 		const warmUp: SnapshotState = { ...ggalState, structure: null };
 
-		expect(toText(describePattern(range, ggalPesoEquivalents, PESO_LINE))).toBe(
+		expect(toText(describePattern(withState(range), 'ars'))).toBe(
 			'Patrón lateral: máximos y mínimos no coinciden en una dirección, y el precio sigue entre ellos.',
 		);
-		expect(toText(describePattern(expired, ggalPesoEquivalents, PESO_LINE))).toBe(
+		expect(toText(describePattern(withState(expired), 'ars'))).toBe(
 			'Sin patrón claro: el precio salió de su último patrón y todavía no se confirmó un nuevo máximo o mínimo.',
 		);
-		expect(describePattern(warmUp, ggalPesoEquivalents, PESO_LINE)[0]).toEqual({
+		expect(describePattern(withState(warmUp), 'ars')[0]).toEqual({
 			strong: 'Sin patrón todavía:',
 		});
 	});
@@ -316,10 +386,8 @@ describe('describePattern', () => {
 
 describe('describeTippingPoints', () => {
 	test('a bearish trend shows where it would stop being bearish: the near, bearish edge', () => {
-		expect(
-			describeTippingPoints(ggalState, ggalPesoEquivalents, PESO_LINE).map(toText),
-		).toEqual([
-			`Con cierres por encima de 6.480${NBSP}pesos (US$${NBSP}4,21), la tendencia dejaría de ser bajista.`,
+		expect(describeTippingPoints(ggalLine, 'ars').map(toText)).toEqual([
+			`Con cierres por encima de 6.480${NBSP}pesos, la tendencia dejaría de ser bajista.`,
 		]);
 	});
 
@@ -327,20 +395,27 @@ describe('describeTippingPoints', () => {
 		// The 50-session condition is not needed to leave a trend, so it is never added here.
 		const bullishState: SnapshotState = { ...ggalState, regime: 'bullish' };
 
-		expect(
-			describeTippingPoints(bullishState, ggalPesoEquivalents, PESO_LINE).map(toText),
-		).toEqual([
-			`Con cierres por debajo de 7.344${NBSP}pesos (US$${NBSP}4,77), la tendencia dejaría de ser alcista.`,
+		expect(describeTippingPoints(withState(bullishState), 'ars').map(toText)).toEqual([
+			`Con cierres por debajo de 7.344${NBSP}pesos, la tendencia dejaría de ser alcista.`,
 		]);
 	});
 
 	test('a mixed trend shows both points, each named by the trend it leads to', () => {
 		const mixedState: SnapshotState = { ...ggalState, regime: 'mixed' };
-		const points = describeTippingPoints(mixedState, ggalPesoEquivalents, PESO_LINE);
+		const points = describeTippingPoints(withState(mixedState), 'ars');
 
 		expect(points.map(toText)).toEqual([
-			`Con cierres por encima de 7.344${NBSP}pesos (US$${NBSP}4,77), la tendencia pasaría a ser alcista. Además, la media de 50 ruedas tendría que pasar por encima de la de 200.`,
-			`Con cierres por debajo de 6.480${NBSP}pesos (US$${NBSP}4,21), la tendencia pasaría a ser bajista.`,
+			`Con cierres por encima de 7.344${NBSP}pesos, la tendencia pasaría a ser alcista. Además, la media de 50 ruedas tendría que pasar por encima de la de 200.`,
+			`Con cierres por debajo de 6.480${NBSP}pesos, la tendencia pasaría a ser bajista.`,
+		]);
+	});
+
+	test('each view names the tipping point in its own currency', () => {
+		expect(describeTippingPoints(ggalLine, 'usd').map(toText)).toEqual([
+			`Con cierres por encima de US$${NBSP}4,21, la tendencia dejaría de ser bajista.`,
+		]);
+		expect(describeTippingPoints(ggalLine, 'ccl').map(toText)).toEqual([
+			`Con cierres por encima de US$${NBSP}4,02, la tendencia dejaría de ser bajista.`,
 		]);
 	});
 
@@ -351,7 +426,7 @@ describe('describeTippingPoints', () => {
 			regimeTippingCloses: null,
 		};
 
-		expect(describeTippingPoints(warmUpState, ggalPesoEquivalents, PESO_LINE)).toEqual([]);
+		expect(describeTippingPoints(withState(warmUpState), 'ars')).toEqual([]);
 	});
 });
 
@@ -394,24 +469,36 @@ describe('describeEvent', () => {
 				closePrice: 5215,
 				definingSwingPrice: 5325.0,
 			},
+			cclEquivalents: { cclRate: 1604.6, closePrice: 3.2501, definingSwingPrice: 3.3186 },
 		},
 		coincidesWithLargeMove: false,
 	};
 
-	test('a downward Structure Break on a peso line names its close and low in pesos first', () => {
-		const phrase = describeEvent(pampBreak, PESO_LINE);
+	test('a downward Structure Break names its close and low in each view’s own currency', () => {
+		const pesoPhrase = describeEvent(pampBreak, 'ars');
 
-		expect(toText(phrase)).toBe(
-			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró en 5.215${NBSP}pesos (US$${NBSP}3,39), por debajo del último mínimo confirmado: 5.325${NBSP}pesos (US$${NBSP}3,46), del 7${NBSP}sep, confirmado el 10${NBSP}sep.`,
+		expect(toText(pesoPhrase)).toBe(
+			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró en 5.215${NBSP}pesos, por debajo del último mínimo confirmado: 5.325${NBSP}pesos, del 7${NBSP}sep, confirmado el 10${NBSP}sep.`,
 		);
-		expect(phrase).toContainEqual({ strong: `5.215${NBSP}pesos` });
-		expect(phrase).toContainEqual({ strong: `5.325${NBSP}pesos` });
-	});
-
-	test('a Structure Break on a line not traded in pesos shows the analyzed prices alone', () => {
-		expect(toText(describeEvent(pampBreak, DOLLAR_LINE))).toBe(
+		expect(pesoPhrase).toContainEqual({ strong: `5.215${NBSP}pesos` });
+		expect(toText(describeEvent(pampBreak, 'usd'))).toBe(
 			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró en US$${NBSP}3,39, por debajo del último mínimo confirmado: US$${NBSP}3,46, del 7${NBSP}sep, confirmado el 10${NBSP}sep.`,
 		);
+		expect(toText(describeEvent(pampBreak, 'ccl'))).toBe(
+			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró en US$${NBSP}3,25, por debajo del último mínimo confirmado: US$${NBSP}3,32, del 7${NBSP}sep, confirmado el 10${NBSP}sep.`,
+		);
+	});
+
+	test('a Structure Break on a session without a CCL Rate keeps its sentence without prices in CCL', () => {
+		const breakWithoutCcl: SnapshotEvent = {
+			...pampBreak,
+			event: { ...pampBreak.event, cclEquivalents: null } as SnapshotEvent['event'],
+		};
+
+		expect(toText(describeEvent(breakWithoutCcl, 'ccl'))).toBe(
+			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró por debajo del último mínimo confirmado, del 7${NBSP}sep, confirmado el 10${NBSP}sep. Sin cotización CCL ese día.`,
+		);
+		expect(toText(describeEvent(breakWithoutCcl, 'ars'))).toContain(`5.215${NBSP}pesos`);
 	});
 
 	test('an upward Structure Break names the falling pattern and the high', () => {
@@ -424,12 +511,13 @@ describe('describeEvent', () => {
 				definingSwing: swingHigh,
 				closePrice: 4.1,
 				pesoEquivalents: { mepRate: 1540, closePrice: 6314, definingSwingPrice: 6221.6 },
+				cclEquivalents: null,
 			},
 			coincidesWithLargeMove: false,
 		};
 
-		expect(toText(describeEvent(structureBreak, PESO_LINE))).toContain(
-			`Se rompió el patrón descendente. Cerró en 6.314${NBSP}pesos (US$${NBSP}4,10), por encima del último máximo confirmado: 6.222${NBSP}pesos (US$${NBSP}4,04), del 6${NBSP}oct`,
+		expect(toText(describeEvent(structureBreak, 'ars'))).toContain(
+			`Se rompió el patrón descendente. Cerró en 6.314${NBSP}pesos, por encima del último máximo confirmado: 6.222${NBSP}pesos, del 6${NBSP}oct`,
 		);
 	});
 
@@ -454,17 +542,22 @@ describe('describeEvent', () => {
 					closePrice: 4702.5,
 					definingSwingPrice: 4703.454104287854,
 				},
+				cclEquivalents: null,
 			},
 			coincidesWithLargeMove: false,
 		};
 
-		expect(toText(describeEvent(pampNarrowBreak, PESO_LINE))).toBe(
-			`8${NBSP}may · Se rompió el patrón ascendente. Cerró en 4.703${NBSP}pesos (US$${NBSP}3,30), apenas por debajo del último mínimo confirmado: 4.703${NBSP}pesos (US$${NBSP}3,30), del 27${NBSP}abr, confirmado el 30${NBSP}abr.`,
+		expect(toText(describeEvent(pampNarrowBreak, 'ars'))).toBe(
+			`8${NBSP}may · Se rompió el patrón ascendente. Cerró en 4.703${NBSP}pesos, apenas por debajo del último mínimo confirmado: 4.703${NBSP}pesos, del 27${NBSP}abr, confirmado el 30${NBSP}abr.`,
+		);
+		expect(toText(describeEvent(pampNarrowBreak, 'usd'))).toContain(
+			`Cerró en US$${NBSP}3,30, apenas por debajo del último mínimo confirmado: US$${NBSP}3,30`,
 		);
 	});
 
-	test('"apenas" follows the leading figures: pesos on a peso line, dollars otherwise', () => {
-		// YPF's break of 13 Oct 2026: 8.330 against 8.328 pesos, but US$ 5,41 for both.
+	test('"apenas" follows each view’s own printed figures', () => {
+		// YPF's break of 13 Oct 2026: 8.330 against 8.328 pesos, US$ 5,41 for both in MEP dollars,
+		// and US$ 5,18 against US$ 5,17 in CCL dollars.
 		const ypfBreak: SnapshotEvent = {
 			sessionDate: '2026-10-13',
 			event: {
@@ -474,28 +567,42 @@ describe('describeEvent', () => {
 				definingSwing: { ...swingHigh, price: 5.4085 },
 				closePrice: 5.4097,
 				pesoEquivalents: { mepRate: 1539.8, closePrice: 8330, definingSwingPrice: 8328.0 },
+				cclEquivalents: { cclRate: 1609, closePrice: 5.1772, definingSwingPrice: 5.1734 },
 			},
 			coincidesWithLargeMove: false,
 		};
-		// Equal pesos with different dollars: a close of US$ 3,2949 against a high of US$ 3,2951.
-		const pesoOnlyCollision: SnapshotEvent = {
-			...ypfBreak,
-			event: {
-				...ypfBreak.event,
-				definingSwing: { ...swingHigh, price: 3.2949 },
-				closePrice: 3.2951,
-				pesoEquivalents: { mepRate: 1427, closePrice: 4702.9, definingSwingPrice: 4702.6 },
-			} as SnapshotEvent['event'],
-		};
 
-		expect(toText(describeEvent(ypfBreak, PESO_LINE))).toContain(
-			`Cerró en 8.330${NBSP}pesos (US$${NBSP}5,41), por encima del último máximo confirmado`,
+		expect(toText(describeEvent(ypfBreak, 'ars'))).toContain(
+			`Cerró en 8.330${NBSP}pesos, por encima del último máximo confirmado`,
 		);
-		expect(toText(describeEvent(ypfBreak, DOLLAR_LINE))).toContain(
+		expect(toText(describeEvent(ypfBreak, 'usd'))).toContain(
 			`Cerró en US$${NBSP}5,41, apenas por encima del último máximo confirmado`,
 		);
-		expect(toText(describeEvent(pesoOnlyCollision, PESO_LINE))).toContain(
-			`Cerró en 4.703${NBSP}pesos (US$${NBSP}3,30), apenas por encima del último máximo confirmado: 4.703${NBSP}pesos (US$${NBSP}3,29)`,
+		expect(toText(describeEvent(ypfBreak, 'ccl'))).toContain(
+			`Cerró en US$${NBSP}5,18, por encima del último máximo confirmado: US$${NBSP}5,17`,
+		);
+	});
+
+	test('"apenas" in CCL dollars when only the CCL figures print equal', () => {
+		const cclOnlyCollision: SnapshotEvent = {
+			sessionDate: '2026-10-13',
+			event: {
+				type: 'structure-break',
+				direction: 'upward',
+				priorStructure: 'downtrend',
+				definingSwing: { ...swingHigh, price: 5.38 },
+				closePrice: 5.4097,
+				pesoEquivalents: { mepRate: 1539.8, closePrice: 8330, definingSwingPrice: 8284 },
+				cclEquivalents: { cclRate: 1609, closePrice: 5.1772, definingSwingPrice: 5.1751 },
+			},
+			coincidesWithLargeMove: false,
+		};
+
+		expect(toText(describeEvent(cclOnlyCollision, 'ccl'))).toContain(
+			`Cerró en US$${NBSP}5,18, apenas por encima del último máximo confirmado: US$${NBSP}5,18`,
+		);
+		expect(toText(describeEvent(cclOnlyCollision, 'usd'))).toContain(
+			`Cerró en US$${NBSP}5,41, por encima del último máximo confirmado: US$${NBSP}5,38`,
 		);
 	});
 
@@ -511,7 +618,7 @@ describe('describeEvent', () => {
 			coincidesWithLargeMove: false,
 		};
 
-		expect(toText(describeEvent(transition, PESO_LINE))).toBe(
+		expect(toText(describeEvent(transition, 'ars'))).toBe(
 			`29${NBSP}sep · Tendencia: alcista → indefinida. Se confirmó tras 3 ruedas (25, 26 y 29${NBSP}sep).`,
 		);
 	});
@@ -529,7 +636,7 @@ describe('describeEvent', () => {
 			coincidesWithLargeMove: false,
 		};
 
-		expect(toText(describeEvent(volatileSession, PESO_LINE))).toBe(
+		expect(toText(describeEvent(volatileSession, 'ars'))).toBe(
 			`8${NBSP}oct · Rueda volátil: el rango del día fue 2,0 veces su rango diario típico.`,
 		);
 	});
@@ -556,18 +663,24 @@ describe('detail', () => {
 		);
 	});
 
-	test('raw evidence states the peso close and its MEP Rate as market facts on a peso line', () => {
-		const line = {
-			latestState: ggalState,
-			pesoEquivalents: ggalPesoEquivalents,
-		} as AvailableLine;
-
-		expect(describeRawEvidence(line, PESO_LINE)[0]).toBe(
+	test('raw evidence is in the view’s currency, with the close and its rate where the snapshot has one', () => {
+		expect(describeRawEvidence(ggalLine, 'ars')).toEqual([
 			`Cierre del 9${NBSP}oct: 5.940,00${NBSP}pesos, con el dólar MEP a 1.540,00${NBSP}pesos.`,
-		);
-		expect(describeRawEvidence(line, DOLLAR_LINE)[0]).toBe(
+			`Último mínimo confirmado: 5.662,00${NBSP}pesos.`,
+			`Último máximo confirmado: 6.223,00${NBSP}pesos.`,
+			`Bordes exactos de los puntos de quiebre: alcista 7.344,00${NBSP}pesos · bajista 6.480,00${NBSP}pesos.`,
+		]);
+		expect(describeRawEvidence(ggalLine, 'usd')).toEqual([
 			`Último mínimo confirmado: US$${NBSP}3,68.`,
-		);
+			`Último máximo confirmado: US$${NBSP}4,04.`,
+			`Bordes exactos de los puntos de quiebre: alcista US$${NBSP}4,77 · bajista US$${NBSP}4,21.`,
+		]);
+		expect(describeRawEvidence(ggalLine, 'ccl')).toEqual([
+			`Cierre del 9${NBSP}oct: US$${NBSP}3,6849, con el dólar CCL a 1.612,00.`,
+			`Último mínimo confirmado: US$${NBSP}3,5124.`,
+			`Último máximo confirmado: US$${NBSP}3,8604.`,
+			`Bordes exactos de los puntos de quiebre: alcista US$${NBSP}4,5558 · bajista US$${NBSP}4,0199.`,
+		]);
 	});
 });
 
@@ -590,15 +703,17 @@ describe('describeUnavailableLine', () => {
 	});
 });
 
-describe('formatLevelPrice', () => {
-	test('a peso line shows the peso equivalent first, without an approximation sign', () => {
-		expect(formatLevelPrice(3.68, 5662.4, PESO_LINE)).toBe(
-			`5.662${NBSP}pesos (US$${NBSP}3,68)`,
-		);
+describe('selectDisplayCurrencies', () => {
+	test('a peso line offers pesos first, then MEP dollars, then CCL dollars', () => {
+		expect(selectDisplayCurrencies(ggalLine, true)).toEqual(['ars', 'usd', 'ccl']);
 	});
 
-	test('a peso line without a peso equivalent falls back to the analyzed price', () => {
-		expect(formatLevelPrice(3.68, null, PESO_LINE)).toBe(`US$${NBSP}3,68`);
+	test('a peso line without CCL figures offers no CCL view', () => {
+		expect(selectDisplayCurrencies({ cclEquivalents: null }, true)).toEqual(['ars', 'usd']);
+	});
+
+	test('a line not known to trade in pesos shows its analyzed prices alone', () => {
+		expect(selectDisplayCurrencies(ggalLine, false)).toEqual(['usd']);
 	});
 });
 

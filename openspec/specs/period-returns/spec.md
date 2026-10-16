@@ -2,32 +2,35 @@
 
 ## Purpose
 
-Measure how far a Trading Line's close moved over fixed windows of Market Sessions (about a month, three months and a year), in MEP dollars for peso lines, as of the line's last bar. Windows count the MEP calendar rather than the line's own bars, so they span the same dates for every line. A return is a pure, causal measurement that is unavailable rather than zero when the history is too short; it says how far, not why, and predicts nothing.
+Measure how far a Trading Line's close moved over calendar-month windows (one month, three months and a year) as of the line's last session, in the currency of the closes the caller passes: MEP dollars for the analysis, and pesos or CCL dollars for display. A session without a price in that currency stays in the calendar, so a return that starts or ends on it is unavailable rather than borrowed from a neighbor. A return is a pure, causal measurement that is unavailable rather than zero when the history is too short; it says how far, not why, and predicts nothing.
 
 ## Requirements
 
 ### Requirement: period returns over calendar months
 
-The period-returns module SHALL expose a pure `calculatePeriodReturns(bars)` that measures the percent change of the close over each window in `ANALYSIS_CONFIGURATION.periodReturns.windowMonths` (1, 3 and 12), as of the last input bar. `bars` SHALL be the validated, chronological Daily Bars of one Trading Line; for peso lines, the bars of a Dollarized Series, so the change is in MEP dollars. The windows SHALL NOT be caller parameters. The calculation SHALL NOT mutate its input and SHALL NOT perform I/O.
+The period-returns module SHALL expose a pure `calculatePeriodReturns(sessionCloses)` that measures the percent change of the close over each window in `ANALYSIS_CONFIGURATION.periodReturns.windowMonths` (1, 3 and 12), as of the last input session. `sessionCloses` SHALL be one Trading Line's chronological sessions, each `{ sessionDate, close }`, in one currency; validated Daily Bars qualify. A `close` MAY be `null`: the session belongs to the series' calendar but has no price in that currency, such as a session without a CCL Rate when the series is in CCL dollars. The windows SHALL NOT be caller parameters. The calculation SHALL NOT mutate its input and SHALL NOT perform I/O.
+
+The currency is the caller's: for peso lines, the run passes the Dollarized Series for MEP dollars, the corrected peso closes of the same sessions for pesos, and those peso closes divided by each session's CCL Rate for CCL dollars. The module neither converts nor knows the currency.
 
 It SHALL return one `{ windowMonths, fromSessionDate, percentChange }` per configured window, in configuration order:
 
-- The anchor SHALL be the last bar's session.
+- The anchor SHALL be the last input session.
 - The start date SHALL be the anchor's date minus `windowMonths` calendar months. When that day does not exist in the target month, the start date SHALL be that month's last day: 2026-03-31 minus one month is 2026-02-28.
-- The start bar SHALL be the last bar whose session is on or before the start date. When the start date was not a session, or the line did not trade on it, the start close is the last close known by then.
-- `fromSessionDate` SHALL be the start bar's session.
+- The start session SHALL be the last input session on or before the start date. When the start date was not a session, or the line did not trade on it, the start close is the last close known by then.
+- `fromSessionDate` SHALL be the start session.
 - `percentChange` SHALL be `(anchor close − start close) / start close × 100`, unrounded. It is positive for a rise and negative for a fall.
 
 Calendar months make "a month", "three months" and "a year" mean what a reader and a broker mean by them, whatever the number of sessions in between. Counting a fixed number of sessions does not: BYMA has fewer sessions a year than the 252 of the US convention, so 252 sessions reach about two weeks past a year.
 
 Both `fromSessionDate` and `percentChange` SHALL be `null` when:
 
-- there are no bars;
-- no bar is on or before the start date;
+- there are no sessions;
+- no session is on or before the start date;
+- the anchor's close or the start close is `null`;
 - the start close is zero;
 - the result is not finite.
 
-They SHALL NOT be `0` or any other value while unavailable. A readable change of exactly `0` SHALL be `0`.
+A `null` close SHALL NOT be skipped: when the start session's close is `null`, the return is unavailable, and no earlier or later session's close stands in for it. They SHALL NOT be `0` or any other value while unavailable. A readable change of exactly `0` SHALL be `0`.
 
 A period return describes how far the close moved over the window. It does not say why, and it predicts nothing.
 
@@ -67,3 +70,14 @@ A period return describes how far the close moved over the window. It does not s
 
 - **WHEN** returns are calculated for a history truncated at a session
 - **THEN** they depend only on bars on or before that session
+
+#### Scenario: the start session has no close in the currency
+
+- **WHEN** the one-month window starts on 2026-09-09, the series has a session on 2026-09-09 whose close is `null` and a session on 2026-09-08 that closed at 100
+- **THEN** the one-month return has `fromSessionDate` and `percentChange` `null`
+- **AND** the close of 2026-09-08 is not used
+
+#### Scenario: the anchor has no close in the currency
+
+- **WHEN** the last session's close is `null`
+- **THEN** every window's `fromSessionDate` and `percentChange` are `null`, even where the start close exists

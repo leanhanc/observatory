@@ -1,0 +1,10 @@
+- [x] Spec deltas for analysis-run, period-returns, dollarized-series and web-app; `openspec validate --strict`.
+- [x] Lean edits the per-view wording table in design.md.
+- [x] `period-returns`: `null` session closes, with tests for a `null` start and anchor.
+- [x] `dollarized-series`: `toCclEquivalent`; de-duplicate the same-session prose; strengthen the no-carry test of `calculateCclRates`.
+- [x] Analysis Run: `cclRateSource`, `cclEquivalents`, `pesoPeriodReturns`, `cclPeriodReturns`, schema v11 and validation, with tests for same-session rates, `null` endpoints, a run without CCL and an unchanged MEP analysis.
+- [x] `analyze` command: the stale CCL warning; reflow the runner's JSDoc.
+- [x] Web: the currency control, per-view wording and the stylesheet, with tests for the default view, a hidden CCL option, one currency per view and "apenas" per view.
+- [x] Run tests, typecheck, lint and format; a local dry run through 2026-10-15, kept in a scratch file, renders through the Astro build with the bucket read replaced by that file.
+- [ ] Lean reviews the diff.
+- [ ] Archive.

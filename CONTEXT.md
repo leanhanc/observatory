@@ -56,6 +56,10 @@ _Avoid_: Daily Bar when referring to the market-data record
 A MEP-dollar price of a Dollarized Series expressed in pesos at one stated session's MEP Rate, by applying that rate in reverse. It shows a reader of the peso line where a level sits in the prices their broker shows on that session. It is not a peso market price and not a fixed trigger: the same level has a different Peso Equivalent on every session whose MEP Rate differs.
 _Avoid_: Peso level, peso swing, converting with another session's rate
 
+**CCL Equivalent**:
+A price of a peso line expressed in CCL dollars at one stated session's CCL Rate: the peso price, or a MEP-dollar level's Peso Equivalent, divided by that session's CCL Rate. It is for display only. A session without a CCL Rate has no CCL Equivalent; no other session's rate stands in.
+_Avoid_: CCL price, cable-line price, converting with another session's rate
+
 **Bar History**:
 The chronological sequence of Daily Bars for one Trading Line.
 _Avoid_: Candle history, price history
@@ -145,7 +149,7 @@ A direction-neutral Event in which one completed Trading Session's True Range, i
 _Avoid_: Volatility Expansion, wide-range session, bullish or bearish signal, continuation, reversal, opportunity, price target
 
 **Period Return**:
-How much the close moved over a recent stretch, in percent, measured in MEP dollars: one month, three months or one year, counted in calendar months back from the latest State's session (the windows are set in the Analysis Configuration). It starts from the last close on or before that date. It says how far, not why. When the history is too short, it is unavailable, never zero.
+How much the close moved over a recent stretch, in percent: one month, three months or one year, counted in calendar months back from the latest State's session (the windows are set in the Analysis Configuration). It starts from the last close on or before that date. It is measured in MEP dollars, and also in pesos and in CCL dollars for display, over the same sessions: a peso return includes the peso's devaluation, which is what a holder of the peso line got. It says how far, not why. When the history is too short, it is unavailable, never zero.
 _Avoid_: Performance, gain, distance below a level when referring to the whole move
 
 **Corporate Action**:

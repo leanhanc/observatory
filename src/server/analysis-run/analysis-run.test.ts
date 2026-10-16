@@ -390,6 +390,26 @@ describe('Analysis Run command logging', () => {
 		});
 	});
 
+	test('warns about a CCL Rate older than the latest MEP Rate', async () => {
+		const { entries, outcome } = await runCommandWithProvider({
+			GGAL: ggalPesoBars,
+			THIN: thinlyTradedPesoBars,
+			AL30C: al30cBars.slice(0, -1),
+		});
+
+		expect(outcome).toBe('snapshot-written');
+		expect(entries[2]).toMatchObject({
+			level: 'warn',
+			message:
+				'CCL Rate 1050.00 on 2026-09-29, before the latest MEP Rate session 2026-09-30; lines analyzed through 2026-09-30 have no CCL figures.',
+			fields: {
+				event: 'ccl-rate-derived',
+				latestRateSessionDate: '2026-09-29',
+				latestMepRateSessionDate: '2026-09-30',
+			},
+		});
+	});
+
 	test('warns about an unavailable CCL Rate and still writes the snapshot', async () => {
 		const { entries, outcome } = await runCommandWithProvider({
 			GGAL: ggalPesoBars,

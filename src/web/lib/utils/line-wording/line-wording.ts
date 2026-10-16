@@ -1,10 +1,11 @@
 import {
+	formatDollars,
+	formatExactDollars,
 	formatExactPesos,
-	formatExactPrice,
+	formatExactRate,
 	formatOneDecimal,
 	formatPercent,
 	formatPesos,
-	formatPrice,
 	formatShortDate,
 	formatShortDateList,
 	formatSignedPercent,
@@ -14,16 +15,28 @@ import {
 import type {
 	AvailableLine,
 	SnapshotEvent,
-	SnapshotPriceUnit,
 	UnavailableLine,
 } from '#web/lib/utils/snapshot-pages/index.ts';
-import type { Phrase, PriceContext } from './line-wording.types.ts';
+import type { DisplayCurrency, Phrase } from './line-wording.types.ts';
 
 type SnapshotState = AvailableLine['latestState'];
 type ReadableRegime = NonNullable<SnapshotState['regime']>;
-type PesoEquivalents = AvailableLine['pesoEquivalents'];
 type SnapshotPeriodReturn = AvailableLine['periodReturns'][number];
 type StructureBreak = Extract<SnapshotEvent['event'], { type: 'structure-break' }>;
+
+/** The parts of an available line whose prices a view shows. */
+type PricedLine = Pick<AvailableLine, 'latestState' | 'pesoEquivalents' | 'cclEquivalents'>;
+type ReturnsLine = Pick<AvailableLine, 'periodReturns' | 'pesoPeriodReturns' | 'cclPeriodReturns'>;
+
+/** The latest State's levels in one view's currency, as the snapshot publishes them. */
+type CurrencyLevels = Readonly<{
+	lastConfirmedSwingHigh: number | null;
+	lastConfirmedSwingLow: number | null;
+	regimeTippingCloses: Readonly<{ bullishCloseAbove: number; bearishCloseBelow: number }> | null;
+}>;
+
+/** A Structure Break's close and crossed level in one view's currency. */
+type BreakPrices = Readonly<{ closePrice: number; definingSwingPrice: number }>;
 
 // A settled trend lags the close by its confirming sessions, so the sentence says what confirmed it
 // rather than where the price is today.
@@ -48,8 +61,11 @@ const TREND_NAMES: Record<ReadableRegime, string> = {
 	bearish: 'bajista',
 };
 
-const PRICE_UNIT_NAMES: Record<SnapshotPriceUnit, string> = {
-	'mep-dollar': 'dólares MEP',
+// A peso return includes the peso's devaluation, so the ARS view says so where it names the unit.
+const RETURN_CURRENCY_NAMES: Record<DisplayCurrency, string> = {
+	ars: 'en pesos, incluye la suba del dólar',
+	usd: 'en dólares MEP',
+	ccl: 'en dólares CCL',
 };
 
 const PERIOD_NAMES: Record<number, string> = {
@@ -68,13 +84,36 @@ export const LARGE_MOVE_NOTE =
 	'⚠ Movimiento inusual en una sola rueda; suele deberse a un split u otro evento corporativo.';
 
 /**
- * The tier-2 note on a peso line: levels are analyzed in MEP dollars and converted at a session's
- * MEP Rate, so the page says once that peso figures are approximate instead of marking each one.
- * "De cada día" covers both rates the page uses: the levels at the last session's, and each Event's
- * prices at its own session's.
+ * The tier-2 note of each view: levels are analyzed in MEP dollars and converted at a session's
+ * rate, so the page says once that converted figures are approximate instead of marking each one.
+ * "De cada día" and "de ese día" cover both rates the page uses: the levels at the last session's,
+ * and each Event's prices at its own session's.
  */
-export const CURRENCY_NOTE =
-	'Precios analizados en dólares MEP. Los valores en pesos son aproximados: equivalen al dólar MEP de cada día.';
+export const CURRENCY_NOTES: Record<DisplayCurrency, string> = {
+	ars: 'Precios en pesos. El análisis se hace en dólares MEP; los precios en pesos son aproximados: equivalen al dólar MEP de cada día.',
+	usd: 'Precios en dólares MEP, la moneda en la que se hace el análisis: cada precio en pesos dividido por el dólar MEP de ese día.',
+	ccl: 'Precios en dólares CCL, aproximados: cada precio en pesos dividido por el dólar CCL de ese día. El análisis se hace en dólares MEP.',
+};
+
+/**
+ * The views a line page offers, the default first. A peso line offers pesos and MEP dollars, and
+ * CCL dollars only when the analysis published CCL figures for its last session. A line not known
+ * to trade in pesos shows its analyzed prices alone.
+ */
+export function selectDisplayCurrencies(
+	line: Pick<AvailableLine, 'cclEquivalents'>,
+	isPesoLine: boolean,
+): readonly DisplayCurrency[] {
+	if (!isPesoLine) {
+		return ['usd'];
+	}
+
+	if (line.cclEquivalents === null) {
+		return ['ars', 'usd'];
+	}
+
+	return ['ars', 'usd', 'ccl'];
+}
 
 /** What the trend (Regime) reads, or that there is not enough history to read it. */
 export function describeTrend(regime: SnapshotState['regime']): Phrase {
@@ -88,25 +127,52 @@ export function describeTrend(regime: SnapshotState['regime']): Phrase {
 	return TREND_PHRASES[regime];
 }
 
-/** The period returns on one line; an unavailable window shows as a dash, never as `0`. */
-export function describePeriodReturns(
-	periodReturns: AvailableLine['periodReturns'],
-	priceUnit: SnapshotPriceUnit,
-): Phrase {
-	const windowPhrases = periodReturns.map(describePeriodReturn);
+/**
+ * The period returns in the view's currency on one line; an unavailable window shows as a dash,
+ * never as `0`. A CCL return missing where the MEP-dollar one exists lacked a CCL Rate at one of
+ * its sessions, not history, and says so.
+ */
+export function describePeriodReturns(line: ReturnsLine, currency: DisplayCurrency): Phrase {
+	const periodReturns = selectPeriodReturns(line, currency);
+	const windowPhrases = periodReturns.map((periodReturn) => {
+		const mepReturn = line.periodReturns.find(
+			({ windowMonths }) => windowMonths === periodReturn.windowMonths,
+		);
+		const lacksCclRate =
+			currency === 'ccl' &&
+			periodReturn.percentChange === null &&
+			mepReturn?.percentChange != null;
+		return describePeriodReturn(periodReturn, lacksCclRate);
+	});
 	const separatedPhrases = windowPhrases.flatMap((phrase, index) =>
 		index === 0 ? phrase : [' · ', ...phrase],
 	);
 
-	return [...separatedPhrases, ` (en ${PRICE_UNIT_NAMES[priceUnit]})`];
+	return [...separatedPhrases, ` (${RETURN_CURRENCY_NAMES[currency]})`];
 }
 
-function describePeriodReturn(periodReturn: SnapshotPeriodReturn): Phrase {
+function selectPeriodReturns(
+	line: ReturnsLine,
+	currency: DisplayCurrency,
+): readonly SnapshotPeriodReturn[] {
+	if (currency === 'ars') {
+		return line.pesoPeriodReturns;
+	}
+
+	if (currency === 'ccl') {
+		return line.cclPeriodReturns;
+	}
+
+	return line.periodReturns;
+}
+
+function describePeriodReturn(periodReturn: SnapshotPeriodReturn, lacksCclRate: boolean): Phrase {
 	const { windowMonths, percentChange } = periodReturn;
 	const periodName = PERIOD_NAMES[windowMonths] ?? `en ${windowMonths} meses`;
 
 	if (percentChange === null) {
-		return [`— ${periodName} (sin historia suficiente)`];
+		const reason = lacksCclRate ? 'sin cotización CCL' : 'sin historia suficiente';
+		return [`— ${periodName} (${reason})`];
 	}
 
 	return [{ strong: formatSignedPercent(percentChange) }, ` ${periodName}`];
@@ -138,27 +204,25 @@ export function describeLongTermDistance(
  * level reads as a Situation only when the analysis flags it beyond the noise band; otherwise, and
  * when no Situation is active, it gets the calm label with its distance.
  */
-export function describeLevels(
-	state: SnapshotState,
-	pesoEquivalents: PesoEquivalents,
-	context: PriceContext,
-): readonly Phrase[] {
+export function describeLevels(line: PricedLine, currency: DisplayCurrency): readonly Phrase[] {
+	const { latestState: state } = line;
 	const { lastConfirmedSwingLow: low, lastConfirmedSwingHigh: high } = state;
+	const levels = selectCurrencyLevels(line, currency);
 
 	if (low === null && high === null) {
 		return [['Todavía no hay máximos ni mínimos confirmados.']];
 	}
 
 	return [
-		describeLowLevel(state, pesoEquivalents.lastConfirmedSwingLow, context),
-		describeHighLevel(state, pesoEquivalents.lastConfirmedSwingHigh, context),
+		describeLowLevel(state, levels.lastConfirmedSwingLow, currency),
+		describeHighLevel(state, levels.lastConfirmedSwingHigh, currency),
 	];
 }
 
 function describeLowLevel(
 	state: SnapshotState,
-	pesoPrice: number | null,
-	context: PriceContext,
+	levelPrice: number | null,
+	currency: DisplayCurrency,
 ): Phrase {
 	const low = state.lastConfirmedSwingLow;
 
@@ -174,7 +238,9 @@ function describeLowLevel(
 			distance === null ? '' : `: el cierre está ${formatPercent(distance)} por encima`;
 		return [
 			{ strong: 'Soporte' },
-			` en ${formatLevelPrice(low.price, pesoPrice, context)}${distanceText}.`,
+			' en ',
+			...describePrice(levelPrice, currency),
+			`${distanceText}.`,
 		];
 	}
 
@@ -201,8 +267,8 @@ function describeLowLevel(
 
 function describeHighLevel(
 	state: SnapshotState,
-	pesoPrice: number | null,
-	context: PriceContext,
+	levelPrice: number | null,
+	currency: DisplayCurrency,
 ): Phrase {
 	const high = state.lastConfirmedSwingHigh;
 
@@ -217,7 +283,9 @@ function describeHighLevel(
 			distance === null ? '' : `: el cierre está ${formatPercent(distance)} por debajo`;
 		return [
 			{ strong: 'Resistencia' },
-			` en ${formatLevelPrice(high.price, pesoPrice, context)}${distanceText}.`,
+			' en ',
+			...describePrice(levelPrice, currency),
+			`${distanceText}.`,
 		];
 	}
 
@@ -248,12 +316,10 @@ function describeHighLevel(
  * own. The sentence says so without naming the current trend: the break level can lie beyond a trend
  * tipping point, where "the trend would stay as it is" would contradict the tipping-point line.
  */
-export function describePattern(
-	state: SnapshotState,
-	pesoEquivalents: PesoEquivalents,
-	context: PriceContext,
-): Phrase {
+export function describePattern(line: PricedLine, currency: DisplayCurrency): Phrase {
+	const { latestState: state } = line;
 	const { structure, regime, lastConfirmedSwingHigh: high, lastConfirmedSwingLow: low } = state;
+	const levels = selectCurrencyLevels(line, currency);
 	const trendText = regime === null ? '' : ' Por sí solo, no cambia la tendencia.';
 
 	if (structure === null) {
@@ -270,7 +336,7 @@ export function describePattern(
 
 		return [
 			'Un cierre por encima de ',
-			...describeLevelPrice(high.price, pesoEquivalents.lastConfirmedSwingHigh, context),
+			...describePrice(levels.lastConfirmedSwingHigh, currency),
 			' rompería el ',
 			{ strong: 'patrón descendente' },
 			`: los máximos dejarían de ser cada vez más bajos.${trendText}`,
@@ -284,7 +350,7 @@ export function describePattern(
 
 		return [
 			'Un cierre por debajo de ',
-			...describeLevelPrice(low.price, pesoEquivalents.lastConfirmedSwingLow, context),
+			...describePrice(levels.lastConfirmedSwingLow, currency),
 			' rompería el ',
 			{ strong: 'patrón ascendente' },
 			`: los mínimos dejarían de ser cada vez más altos.${trendText}`,
@@ -312,29 +378,20 @@ export function describePattern(
  * side of EMA200, since entering a trend needs both.
  */
 export function describeTippingPoints(
-	state: SnapshotState,
-	pesoEquivalents: PesoEquivalents,
-	context: PriceContext,
+	line: PricedLine,
+	currency: DisplayCurrency,
 ): readonly Phrase[] {
-	const { regime, regimeTippingCloses } = state;
-	const pesoTippingCloses = pesoEquivalents.regimeTippingCloses;
+	const { regime, regimeTippingCloses } = line.latestState;
+	const currencyTippingCloses = selectCurrencyLevels(line, currency).regimeTippingCloses;
 
 	if (regime === null || regimeTippingCloses === null) {
 		return [];
 	}
 
-	const { closeAbove, isFastEmaAligned: isFastEmaAboveSlow } = regimeTippingCloses.bullish;
-	const { closeBelow, isFastEmaAligned: isFastEmaBelowSlow } = regimeTippingCloses.bearish;
-	const bullishEdge = describeLevelPrice(
-		closeAbove,
-		pesoTippingCloses?.bullishCloseAbove ?? null,
-		context,
-	);
-	const bearishEdge = describeLevelPrice(
-		closeBelow,
-		pesoTippingCloses?.bearishCloseBelow ?? null,
-		context,
-	);
+	const isFastEmaAboveSlow = regimeTippingCloses.bullish.isFastEmaAligned;
+	const isFastEmaBelowSlow = regimeTippingCloses.bearish.isFastEmaAligned;
+	const bullishEdge = describePrice(currencyTippingCloses?.bullishCloseAbove ?? null, currency);
+	const bearishEdge = describePrice(currencyTippingCloses?.bearishCloseBelow ?? null, currency);
 
 	if (regime === 'bearish') {
 		return [
@@ -400,10 +457,11 @@ export function describePendingTransition(
 }
 
 /**
- * One Event, led by its session. A Structure Break's prices are written as the levels are, from its
- * own peso equivalents at its session's MEP Rate: the close is the peso close the line had that day.
+ * One Event, led by its session. A Structure Break's prices are its own, in the view's currency at
+ * its session's rates: in pesos, the close is the peso close the line had that day. Only Structure
+ * Breaks name prices, so the other kinds read the same in every view.
  */
-export function describeEvent(snapshotEvent: SnapshotEvent, context: PriceContext): Phrase {
+export function describeEvent(snapshotEvent: SnapshotEvent, currency: DisplayCurrency): Phrase {
 	const { sessionDate, event } = snapshotEvent;
 	const date = formatShortDate(sessionDate);
 
@@ -416,7 +474,7 @@ export function describeEvent(snapshotEvent: SnapshotEvent, context: PriceContex
 	}
 
 	if (event.type === 'structure-break') {
-		return describeStructureBreak(date, event, context);
+		return describeStructureBreak(date, event, currency);
 	}
 
 	return [
@@ -428,30 +486,50 @@ export function describeEvent(snapshotEvent: SnapshotEvent, context: PriceContex
 function describeStructureBreak(
 	date: string,
 	event: StructureBreak,
-	context: PriceContext,
+	currency: DisplayCurrency,
 ): Phrase {
-	const { direction, priorStructure, definingSwing, closePrice, pesoEquivalents } = event;
+	const { direction, priorStructure, definingSwing } = event;
 	const swingName = definingSwing.kind === 'low' ? 'mínimo' : 'máximo';
 	const side = direction === 'downward' ? 'por debajo' : 'por encima';
 	const swingDates = `del ${formatShortDate(definingSwing.occurredAtSession)}, confirmado el ${formatShortDate(definingSwing.confirmedAtSession)}`;
-	// The reader compares the leading figures, so a close that crossed the level by less than their
+	const lead = { strong: `${date} · Se rompió el patrón ${PATTERN_NAMES[priorStructure]}.` };
+	const prices = selectBreakPrices(event, currency);
+
+	// No other session's rate stands in for a session without a CCL Rate, so the sentence keeps the
+	// break without its prices.
+	if (prices === null) {
+		return [
+			lead,
+			` Cerró ${side} del último ${swingName} confirmado, ${swingDates}. Sin cotización CCL ese día.`,
+		];
+	}
+
+	// The reader compares the printed figures, so a close that crossed the level by less than their
 	// rounding reads as "apenas" beyond it instead of beyond an equal-looking price.
-	const closeFigure = formatLeadingFigure(closePrice, pesoEquivalents.closePrice, context);
-	const swingFigure = formatLeadingFigure(
-		definingSwing.price,
-		pesoEquivalents.definingSwingPrice,
-		context,
-	);
+	const closeFigure = formatCurrencyPrice(prices.closePrice, currency);
+	const swingFigure = formatCurrencyPrice(prices.definingSwingPrice, currency);
 	const crossing = closeFigure === swingFigure ? `apenas ${side}` : side;
 
 	return [
-		{ strong: `${date} · Se rompió el patrón ${PATTERN_NAMES[priorStructure]}.` },
+		lead,
 		' Cerró en ',
-		...describeLevelPrice(closePrice, pesoEquivalents.closePrice, context),
+		{ strong: closeFigure },
 		`, ${crossing} del último ${swingName} confirmado: `,
-		...describeLevelPrice(definingSwing.price, pesoEquivalents.definingSwingPrice, context),
+		{ strong: swingFigure },
 		`, ${swingDates}.`,
 	];
+}
+
+function selectBreakPrices(event: StructureBreak, currency: DisplayCurrency): BreakPrices | null {
+	if (currency === 'ars') {
+		return event.pesoEquivalents;
+	}
+
+	if (currency === 'ccl') {
+		return event.cclEquivalents;
+	}
+
+	return { closePrice: event.closePrice, definingSwingPrice: event.definingSwing.price };
 }
 
 /** RSI as momentum: the share of recent movement that was gains. `null` while not readable. */
@@ -507,37 +585,51 @@ export function describeSwingDates(state: SnapshotState): string | null {
 }
 
 /**
- * The tier-3 raw evidence: the session's peso close and MEP Rate on a peso line, then the exact
- * analyzed prices of the levels and tipping points the page rounds.
+ * The tier-3 raw evidence in the view's currency: the session's close with the rate that converted
+ * it, where the snapshot has one, then the exact prices of the levels and tipping points the page
+ * rounds. The analyzed MEP-dollar view has no close, since the snapshot publishes it in pesos.
  */
-export function describeRawEvidence(line: AvailableLine, context: PriceContext): readonly string[] {
-	const { latestState: state, pesoEquivalents } = line;
-	const { priceUnit } = context;
-	const pesoClose = context.isPesoLine
-		? [
-				`Cierre del ${formatShortDate(pesoEquivalents.sessionDate)}: ${formatExactPesos(pesoEquivalents.close)}, con el dólar MEP a ${formatExactPesos(pesoEquivalents.mepRate)}.`,
-			]
-		: [];
+export function describeRawEvidence(
+	line: PricedLine,
+	currency: DisplayCurrency,
+): readonly string[] {
+	const levels = selectCurrencyLevels(line, currency);
+	const formatExact = (value: number) => formatExactCurrencyPrice(value, currency);
+	const close = describeRawClose(line, currency);
 	const low =
-		state.lastConfirmedSwingLow === null
+		levels.lastConfirmedSwingLow === null
 			? []
-			: [
-					`Último mínimo confirmado: ${formatExactPrice(state.lastConfirmedSwingLow.price, priceUnit)}.`,
-				];
+			: [`Último mínimo confirmado: ${formatExact(levels.lastConfirmedSwingLow)}.`];
 	const high =
-		state.lastConfirmedSwingHigh === null
+		levels.lastConfirmedSwingHigh === null
 			? []
-			: [
-					`Último máximo confirmado: ${formatExactPrice(state.lastConfirmedSwingHigh.price, priceUnit)}.`,
-				];
+			: [`Último máximo confirmado: ${formatExact(levels.lastConfirmedSwingHigh)}.`];
 	const tippingPoints =
-		state.regimeTippingCloses === null
+		levels.regimeTippingCloses === null
 			? []
 			: [
-					`Bordes exactos de los puntos de quiebre: alcista ${formatExactPrice(state.regimeTippingCloses.bullish.closeAbove, priceUnit)} · bajista ${formatExactPrice(state.regimeTippingCloses.bearish.closeBelow, priceUnit)}.`,
+					`Bordes exactos de los puntos de quiebre: alcista ${formatExact(levels.regimeTippingCloses.bullishCloseAbove)} · bajista ${formatExact(levels.regimeTippingCloses.bearishCloseBelow)}.`,
 				];
 
-	return [...pesoClose, ...low, ...high, ...tippingPoints];
+	return [...close, ...low, ...high, ...tippingPoints];
+}
+
+function describeRawClose(line: PricedLine, currency: DisplayCurrency): readonly string[] {
+	const { pesoEquivalents, cclEquivalents } = line;
+
+	if (currency === 'ars') {
+		return [
+			`Cierre del ${formatShortDate(pesoEquivalents.sessionDate)}: ${formatExactPesos(pesoEquivalents.close)}, con el dólar MEP a ${formatExactPesos(pesoEquivalents.mepRate)}.`,
+		];
+	}
+
+	if (currency === 'ccl' && cclEquivalents !== null) {
+		return [
+			`Cierre del ${formatShortDate(cclEquivalents.sessionDate)}: ${formatExactDollars(cclEquivalents.close)}, con el dólar CCL a ${formatExactRate(cclEquivalents.cclRate)}.`,
+		];
+	}
+
+	return [];
 }
 
 /** Why a line was not analyzed. */
@@ -563,43 +655,59 @@ export function describeUnavailableLine(line: UnavailableLine): Phrase {
 }
 
 /**
- * A level's price for the reader: on a peso line, its peso equivalent first and the analyzed price
- * after it; otherwise the analyzed price alone.
+ * The latest State's levels in the view's currency: the analyzed prices in MEP dollars, or the
+ * analysis's peso or CCL equivalents. The page converts nothing.
+ *
+ * @throws {Error} for a CCL view of a line without CCL figures, which offers no such view.
  */
-export function formatLevelPrice(
-	price: number,
-	pesoPrice: number | null,
-	context: PriceContext,
-): string {
-	return describeLevelPrice(price, pesoPrice, context)
-		.map((segment) => (typeof segment === 'string' ? segment : segment.strong))
-		.join('');
-}
-
-/** A level's price as `formatLevelPrice` writes it, with the figure the reader looks for in bold. */
-function describeLevelPrice(
-	price: number,
-	pesoPrice: number | null,
-	context: PriceContext,
-): Phrase {
-	const leadingFigure = formatLeadingFigure(price, pesoPrice, context);
-
-	if (!context.isPesoLine || pesoPrice === null) {
-		return [{ strong: leadingFigure }];
+function selectCurrencyLevels(line: PricedLine, currency: DisplayCurrency): CurrencyLevels {
+	if (currency === 'ars') {
+		return line.pesoEquivalents;
 	}
 
-	return [{ strong: leadingFigure }, ` (${formatPrice(price, context.priceUnit)})`];
-}
+	if (currency === 'ccl') {
+		if (line.cclEquivalents === null) {
+			throw new Error('A line without CCL figures has no CCL view.');
+		}
 
-/** The figure a level's price leads with: its peso equivalent on a peso line, else the analyzed price. */
-function formatLeadingFigure(
-	price: number,
-	pesoPrice: number | null,
-	context: PriceContext,
-): string {
-	if (!context.isPesoLine || pesoPrice === null) {
-		return formatPrice(price, context.priceUnit);
+		return line.cclEquivalents;
 	}
 
-	return formatPesos(pesoPrice);
+	const { lastConfirmedSwingHigh, lastConfirmedSwingLow, regimeTippingCloses } = line.latestState;
+	return {
+		lastConfirmedSwingHigh: lastConfirmedSwingHigh?.price ?? null,
+		lastConfirmedSwingLow: lastConfirmedSwingLow?.price ?? null,
+		regimeTippingCloses:
+			regimeTippingCloses === null
+				? null
+				: {
+						bullishCloseAbove: regimeTippingCloses.bullish.closeAbove,
+						bearishCloseBelow: regimeTippingCloses.bearish.closeBelow,
+					},
+	};
+}
+
+/** A level's price in bold. The snapshot pairs every State level with its equivalents. */
+function describePrice(price: number | null, currency: DisplayCurrency): Phrase {
+	if (price === null) {
+		throw new Error('The snapshot has no equivalent for a level the State has.');
+	}
+
+	return [{ strong: formatCurrencyPrice(price, currency) }];
+}
+
+function formatCurrencyPrice(price: number, currency: DisplayCurrency): string {
+	if (currency === 'ars') {
+		return formatPesos(price);
+	}
+
+	return formatDollars(price);
+}
+
+function formatExactCurrencyPrice(price: number, currency: DisplayCurrency): string {
+	if (currency === 'ars') {
+		return formatExactPesos(price);
+	}
+
+	return formatExactDollars(price);
 }

@@ -3,6 +3,8 @@ import latestSnapshot from 'virtual:observatory/latest-snapshot';
 
 import { LinePage } from '#web/components/line-page.tsx';
 import PageLayout from '#web/layouts/page-layout.astro';
+// oxlint-disable-next-line no-unassigned-import -- A stylesheet is imported for its side effect.
+import '#web/styles/currency-view.css';
 import { buildLinePages } from '#web/lib/utils/snapshot-pages/index.ts';
 
 import type { LinePageProps } from '#web/lib/utils/snapshot-pages/index.ts';
@@ -11,13 +13,12 @@ export function getStaticPaths() {
 	return buildLinePages(latestSnapshot);
 }
 
-const { requestedThroughSession, priceUnit, line } = Astro.props as LinePageProps;
+const { requestedThroughSession, line } = Astro.props as LinePageProps;
 ---
 
 <PageLayout>
 	<LinePage
 		requestedThroughSession={requestedThroughSession}
-		priceUnit={priceUnit}
 		line={line}
 	/>
 </PageLayout>

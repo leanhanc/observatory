@@ -21,6 +21,7 @@ import {
 	calculateCclRates,
 	calculateMepRates,
 	dollarizeBarHistory,
+	toCclEquivalent,
 	toPesoEquivalent,
 	validateRateSourceBars,
 } from '#modules/dollarized-series/index.ts';
@@ -57,6 +58,7 @@ import type { CclRateSession, MepRateSession } from '#modules/dollarized-series/
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
 import type { InstrumentState } from '#modules/instrument-state/index.ts';
 import type { LiquidityWindow } from '#modules/liquidity-eligibility/index.ts';
+import type { SessionClose } from '#modules/period-returns/index.ts';
 import type {
 	LargeOneSessionMove,
 	RegimeTransitionEvent,
@@ -74,6 +76,7 @@ import type {
 	AnalysisSnapshotStorage,
 	AnalyzedLine,
 	AnalyzedLineFailureReason,
+	CclEquivalents,
 	PesoEquivalents,
 	TradingLineSession,
 } from './analysis-run.types.ts';
@@ -116,6 +119,8 @@ type LineAnalysisContext = Readonly<{
 	ranAt: string;
 	analyzedLineCount: number;
 	mepRates: readonly MepRateSession[];
+	/** Empty when the run has no CCL Rate. Display only: no analysis reads them. */
+	cclRates: readonly CclRateSession[];
 	liquidityWindow: LiquidityWindow;
 }>;
 
@@ -163,9 +168,10 @@ const ANALYZED_LINE_RETRY_COOL_DOWN_MS = 30_000;
 
 /**
  * Creates the Analysis Run: a fresh provider fetch of the MEP rate source, the CCL rate source's
- * cable line and every analyzed Trading Line, correction of confirmed Corporate Actions, dollarization, a liquidity-eligibility
- * gate, analysis with Large One-Session Move flags, a watch for Corporate Action Notices, and one
- * persisted Analysis Snapshot.
+ * cable line and every analyzed Trading Line, correction of confirmed Corporate Actions,
+ * dollarization, a liquidity-eligibility gate, analysis with Large One-Session Move flags, a watch
+ * for Corporate Action Notices, and one persisted Analysis Snapshot. The CCL Rates only express
+ * the results in CCL dollars for display; the analysis never reads them.
  *
  * Stored Bar Histories are neither read nor written; a single fetch keeps every bar on the
  * provider's current price scale. A line that cannot be analyzed, including one that is not
@@ -276,13 +282,14 @@ async function runAnalysis(
 		mepRates.pesoBondBars,
 		requestedThroughSession,
 	);
-	reportCclRates(reportProgress, cclRates);
+	reportCclRates(reportProgress, cclRates, mepRates.latestRateSessionDate);
 
 	const analyzedLineResults = await analyzeTradingLines(dependencies, analyzedLines, {
 		requestedThroughSession,
 		ranAt,
 		analyzedLineCount: analyzedLines.length,
 		mepRates: mepRates.rates,
+		cclRates: cclRates.ok ? cclRates.rates : [],
 		liquidityWindow: liquidityWindowSelection.window,
 	});
 	const hasAvailableLine = analyzedLineResults.some((line) => line.status === 'available');
@@ -301,7 +308,7 @@ async function runAnalysis(
 	);
 
 	const snapshot = {
-		schemaVersion: 10,
+		schemaVersion: 11,
 		priceUnit: SNAPSHOT_PRICE_UNIT,
 		ranAt,
 		requestedThroughSession,
@@ -313,6 +320,13 @@ async function runAnalysis(
 			acceptedZeroOpens: mepRates.acceptedZeroOpens,
 			rangeRepairs: mepRates.rangeRepairs,
 		},
+		cclRateSource: cclRates.ok
+			? {
+					pesoBondTradingLineId: CCL_RATE_SOURCE.pesoBondTradingLineId,
+					cableBondTradingLineId: CCL_RATE_SOURCE.cableBondTradingLineId,
+					latestRateSessionDate: cclRates.latestRate.sessionDate,
+				}
+			: null,
 		analyzedLines: analyzedLineResults,
 		corporateActionWatch,
 	} as const;
@@ -322,12 +336,7 @@ async function runAnalysis(
 		return createRunFailure('snapshot-write-failed', writeResult.message);
 	}
 
-	return {
-		ok: true,
-		snapshot,
-		locations: writeResult.locations,
-		cclRates: cclRates.ok ? cclRates.rates : null,
-	};
+	return { ok: true, snapshot, locations: writeResult.locations };
 }
 
 /**
@@ -646,7 +655,7 @@ function calculateRunMepRates(fetchedLines: ReadonlyMap<string, FetchedLine>): M
 /**
  * Fetches the cable leg once and derives the CCL Rates with the peso leg the MEP rate source fetch
  * already validated. The CCL Rate is for display only, so a failure is returned, not retried, and
- * leaves the analysis untouched.
+ * leaves the analysis untouched: the snapshot's CCL figures are then `null`.
  */
 async function deriveCclRates(
 	dependencies: AnalysisRunDependencies,
@@ -702,6 +711,7 @@ function resolveCableBondLine(catalog: InstrumentCatalog): OpenBymadataTradingLi
 function reportCclRates(
 	reportProgress: AnalysisRunDependencies['reportProgress'],
 	cclRates: CclRatesResult,
+	latestMepRateSessionDate: string,
 ): void {
 	if (!cclRates.ok) {
 		reportProgress({ type: 'ccl-rate-unavailable', message: cclRates.message });
@@ -709,7 +719,12 @@ function reportCclRates(
 	}
 
 	const { sessionDate, cclRate } = cclRates.latestRate;
-	reportProgress({ type: 'ccl-rate-derived', latestRateSessionDate: sessionDate, cclRate });
+	reportProgress({
+		type: 'ccl-rate-derived',
+		latestRateSessionDate: sessionDate,
+		cclRate,
+		latestMepRateSessionDate,
+	});
 }
 
 function labelSessions(
@@ -869,6 +884,7 @@ function completeLine(
 		fetchedLine,
 		lineCorporateActions,
 		context.mepRates,
+		context.cclRates,
 		context.liquidityWindow,
 	);
 
@@ -886,6 +902,7 @@ function analyzeTradingLine(
 	fetchedLine: FetchedLine,
 	lineCorporateActions: readonly CorporateAction[],
 	mepRates: readonly MepRateSession[],
+	cclRates: readonly CclRateSession[],
 	liquidityWindow: LiquidityWindow,
 ): AnalyzedLine {
 	const identity = {
@@ -951,13 +968,20 @@ function analyzeTradingLine(
 
 	const latestState = calculateInstrumentStates(bars).at(-1)!;
 	const largeMoves = detectLargeOneSessionMoves(bars);
+	// The returns in every currency count windows over the sessions of the Dollarized Series, so a
+	// window starts and ends on the same sessions in each and differs only by the currency's move.
+	const pesoCloses = selectPesoCloses(bars, correction.bars);
+	const cclCloses = convertClosesToCclDollars(pesoCloses, cclRates);
+	const pesoEquivalents = projectLatestStateToPesos(latestState, correction.bars, mepRates);
 
 	return {
 		status: 'available',
 		...identity,
 		latestState,
 		periodReturns: calculatePeriodReturns(bars),
-		events: collectEvents(bars, largeMoves, correction.bars, mepRates),
+		pesoPeriodReturns: calculatePeriodReturns(pesoCloses),
+		cclPeriodReturns: calculatePeriodReturns(cclCloses),
+		events: collectEvents(bars, largeMoves, correction.bars, mepRates, cclRates),
 		largeMoves,
 		corporateActions: correction.outcomes,
 		window: {
@@ -966,7 +990,8 @@ function analyzeTradingLine(
 			barCount: bars.length,
 		},
 		sessionsWithoutMepRate: dollarizedSeries.sessionsWithoutMepRate,
-		pesoEquivalents: projectLatestStateToPesos(latestState, correction.bars, mepRates),
+		pesoEquivalents,
+		cclEquivalents: projectPesoEquivalentsToCcl(pesoEquivalents, cclRates),
 		...barRepairs,
 	};
 }
@@ -996,28 +1021,86 @@ function projectLatestStateToPesos(
 }
 
 /**
- * Expresses a Structure Break's close and defining swing in pesos at its own session's MEP Rate, so
- * the close is the line's actual peso close that session. The other Event kinds carry no price the
- * page shows and are returned as they are.
+ * Expresses the latest State's peso figures in CCL dollars at that same session's CCL Rate, or
+ * returns `null` when that session has none: another session's rate would mix two sessions' prices.
  */
-function projectEventToPesos(
+function projectPesoEquivalentsToCcl(
+	pesoEquivalents: PesoEquivalents,
+	cclRates: readonly CclRateSession[],
+): CclEquivalents | null {
+	const { sessionDate, close, lastConfirmedSwingHigh, lastConfirmedSwingLow } = pesoEquivalents;
+	const cclRate = findCclRate(sessionDate, cclRates);
+
+	if (cclRate === null) {
+		return null;
+	}
+
+	const pesoTippingCloses = pesoEquivalents.regimeTippingCloses;
+	const regimeTippingCloses =
+		pesoTippingCloses === null
+			? null
+			: {
+					bullishCloseAbove: toCclEquivalent(
+						pesoTippingCloses.bullishCloseAbove,
+						cclRate,
+					),
+					bearishCloseBelow: toCclEquivalent(
+						pesoTippingCloses.bearishCloseBelow,
+						cclRate,
+					),
+				};
+
+	return {
+		sessionDate,
+		cclRate,
+		close: toCclEquivalent(close, cclRate),
+		lastConfirmedSwingHigh: convertNullablePesos(lastConfirmedSwingHigh, cclRate),
+		lastConfirmedSwingLow: convertNullablePesos(lastConfirmedSwingLow, cclRate),
+		regimeTippingCloses,
+	};
+}
+
+function convertNullablePesos(valueInPesos: number | null, cclRate: number): number | null {
+	if (valueInPesos === null) {
+		return null;
+	}
+
+	return toCclEquivalent(valueInPesos, cclRate);
+}
+
+/**
+ * Expresses a Structure Break's close and defining swing in pesos at its own session's MEP Rate, so
+ * the close is the line's actual peso close that session, and in CCL dollars at that session's CCL
+ * Rate, or `null` when it has none. The other Event kinds carry no price the page shows and are
+ * returned as they are.
+ */
+function projectEventPrices(
 	sessionDate: string,
 	event: RegimeTransitionEvent | StructureBreakEvent | VolatileSessionEvent,
 	pesoBars: readonly DailyBar[],
 	mepRates: readonly MepRateSession[],
+	cclRates: readonly CclRateSession[],
 ): AnalysisEvent {
 	if (event.type !== 'structure-break') {
 		return event;
 	}
 
 	const { mepRate, pesoClose } = findPesoSession(sessionDate, pesoBars, mepRates);
+	const pesoSwingPrice = toPesoEquivalent(event.definingSwing.price, mepRate);
+	const cclRate = findCclRate(sessionDate, cclRates);
+	const cclEquivalents =
+		cclRate === null
+			? null
+			: {
+					cclRate,
+					closePrice: toCclEquivalent(pesoClose, cclRate),
+					definingSwingPrice: toCclEquivalent(pesoSwingPrice, cclRate),
+				};
+
 	return {
 		...event,
-		pesoEquivalents: {
-			mepRate,
-			closePrice: pesoClose,
-			definingSwingPrice: toPesoEquivalent(event.definingSwing.price, mepRate),
-		},
+		pesoEquivalents: { mepRate, closePrice: pesoClose, definingSwingPrice: pesoSwingPrice },
+		cclEquivalents,
 	};
 }
 
@@ -1033,6 +1116,41 @@ function findPesoSession(
 	const { mepRate } = mepRates.find((rate) => rate.sessionDate === sessionDate)!;
 	const pesoBar = pesoBars.find((bar) => bar.sessionDate === sessionDate)!;
 	return { mepRate, pesoClose: pesoBar.close };
+}
+
+/** The CCL Rate of exactly this session, or `null`: no other session's rate stands in. */
+function findCclRate(sessionDate: string, cclRates: readonly CclRateSession[]): number | null {
+	return cclRates.find((rate) => rate.sessionDate === sessionDate)?.cclRate ?? null;
+}
+
+/** The corrected peso close of each session of the Dollarized Series, which always has one. */
+function selectPesoCloses(
+	dollarizedBars: readonly DailyBar[],
+	pesoBars: readonly DailyBar[],
+): readonly SessionClose[] {
+	const pesoClosesBySession = new Map(pesoBars.map((bar) => [bar.sessionDate, bar.close]));
+	return dollarizedBars.map(({ sessionDate }) => ({
+		sessionDate,
+		close: pesoClosesBySession.get(sessionDate)!,
+	}));
+}
+
+/**
+ * Each peso close in CCL dollars at its own session's CCL Rate. A session without one keeps its
+ * place with a `null` close, so a period return that starts or ends on it is unavailable instead of
+ * moving to a neighboring session.
+ */
+function convertClosesToCclDollars(
+	pesoCloses: readonly SessionClose[],
+	cclRates: readonly CclRateSession[],
+): readonly SessionClose[] {
+	const cclRatesBySession = new Map(cclRates.map((rate) => [rate.sessionDate, rate.cclRate]));
+
+	return pesoCloses.map(({ sessionDate, close }) => {
+		const cclRate = cclRatesBySession.get(sessionDate);
+		const hasCclClose = close !== null && cclRate !== undefined;
+		return { sessionDate, close: hasCclClose ? toCclEquivalent(close, cclRate) : null };
+	});
 }
 
 function convertTippingCloses(
@@ -1069,6 +1187,7 @@ function collectEvents(
 	largeMoves: readonly LargeOneSessionMove[],
 	pesoBars: readonly DailyBar[],
 	mepRates: readonly MepRateSession[],
+	cclRates: readonly CclRateSession[],
 ): readonly AnalysisSnapshotEvent[] {
 	const largeMoveSessions = new Set(largeMoves.map((move) => move.sessionDate));
 	const eventSessions = [
@@ -1081,7 +1200,7 @@ function collectEvents(
 			? [
 					{
 						sessionDate,
-						event: projectEventToPesos(sessionDate, event, pesoBars, mepRates),
+						event: projectEventPrices(sessionDate, event, pesoBars, mepRates, cclRates),
 						coincidesWithLargeMove: largeMoveSessions.has(sessionDate),
 					},
 				]

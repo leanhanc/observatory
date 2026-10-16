@@ -6,6 +6,7 @@ import {
 	calculateCclRates,
 	calculateMepRates,
 	dollarizeBarHistory,
+	toCclEquivalent,
 	toPesoEquivalent,
 } from './index.ts';
 
@@ -153,21 +154,26 @@ describe('calculateCclRates', () => {
 			buildBar('2026-01-05', { close: 1000 }),
 			buildBar('2026-01-06', { close: 2000 }),
 			buildBar('2026-01-07', { close: 3000 }),
-			buildBar('2026-01-08', { close: 4000, volume: 0 }),
-			buildBar('2026-01-09', { close: 5000 }),
+			buildBar('2026-01-08', { close: 4000 }),
+			buildBar('2026-01-09', { close: 5000, volume: 0 }),
+			buildBar('2026-01-12', { close: 6000 }),
 		];
+		// The cable leg trades right before each gap, so carrying its last bar, or the last rate,
+		// into the gap would yield a rate here.
 		const cableBond = [
 			buildBar('2026-01-05', { close: 1 }),
-			buildBar('2026-01-06', { close: 1, volume: 0 }),
+			buildBar('2026-01-06', { close: 2 }),
 			// 2026-01-07 has no cable bar at all
-			buildBar('2026-01-08', { close: 1 }),
-			buildBar('2026-01-09', { close: 1 }),
-			buildBar('2026-01-10', { close: 1 }),
+			buildBar('2026-01-08', { close: 4, volume: 0 }),
+			buildBar('2026-01-09', { close: 5 }),
+			buildBar('2026-01-12', { close: 6 }),
+			buildBar('2026-01-13', { close: 7 }),
 		];
 
 		expect(calculateCclRates(pesoBond, cableBond)).toEqual([
 			{ sessionDate: '2026-01-05', cclRate: 1000 },
-			{ sessionDate: '2026-01-09', cclRate: 5000 },
+			{ sessionDate: '2026-01-06', cclRate: 1000 },
+			{ sessionDate: '2026-01-12', cclRate: 1000 },
 		]);
 	});
 });
@@ -351,6 +357,24 @@ describe('toPesoEquivalent', () => {
 		).bars;
 
 		expect(toPesoEquivalent(dollarizedBar!.close, 1000)).toBeCloseTo(1050, 9);
+	});
+});
+
+describe('toCclEquivalent', () => {
+	test('divides a peso price by the stated CCL Rate', () => {
+		expect(toCclEquivalent(5940, 1612.38)).toBe(5940 / 1612.38);
+	});
+
+	test('reaches a MEP-dollar level through pesos at one session, keeping its distance from the close', () => {
+		const mepRate = 1500;
+		const cclRate = 1600;
+		const close = 3.4;
+		const swing = 4;
+		const cclClose = toCclEquivalent(toPesoEquivalent(close, mepRate), cclRate);
+		const cclSwing = toCclEquivalent(toPesoEquivalent(swing, mepRate), cclRate);
+
+		expect(cclSwing).toBe(3.75);
+		expect((cclClose - cclSwing) / cclSwing).toBeCloseTo((close - swing) / swing, 12);
 	});
 });
 

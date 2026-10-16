@@ -31,6 +31,9 @@ const availableLine = {
 		situations: [],
 	},
 	periodReturns: [{ windowMonths: 1, fromSessionDate: null, percentChange: null }],
+	pesoPeriodReturns: [{ windowMonths: 1, fromSessionDate: null, percentChange: null }],
+	cclPeriodReturns: [{ windowMonths: 1, fromSessionDate: null, percentChange: null }],
+	cclEquivalents: null,
 	pesoEquivalents: {
 		sessionDate: '2026-10-09',
 		mepRate: 1500,
@@ -49,7 +52,7 @@ const unavailableLine = {
 	message: 'The provider returned no Daily Bars for this Trading Line.',
 } as const;
 const serializedSnapshot = JSON.stringify({
-	schemaVersion: 10,
+	schemaVersion: 11,
 	priceUnit: 'mep-dollar',
 	ranAt: '2026-10-11T14:03:58.608Z',
 	requestedThroughSession: '2026-10-10',
@@ -57,7 +60,7 @@ const serializedSnapshot = JSON.stringify({
 });
 
 describe('buildLinePages', () => {
-	test('lists every analyzed line in snapshot order, available or not, with the session and unit of its run', () => {
+	test('lists every analyzed line in snapshot order, available or not, with the session of its run', () => {
 		const snapshot = requireRenderableSnapshot(
 			parseAnalysisSnapshotOverview(serializedSnapshot),
 		);
@@ -65,10 +68,7 @@ describe('buildLinePages', () => {
 		const pages = buildLinePages(snapshot);
 
 		// The run timestamp is hidden on line pages, so it is not a page prop.
-		const run = {
-			requestedThroughSession: '2026-10-10',
-			priceUnit: 'mep-dollar',
-		} as const;
+		const run = { requestedThroughSession: '2026-10-10' } as const;
 		expect(pages).toEqual([
 			{
 				params: { tradingLineId: 'ggal-stock-byma-ars' },
@@ -87,24 +87,24 @@ describe('requireRenderableSnapshot', () => {
 		const missingSnapshot: LatestAnalysisSnapshotReadResult = {
 			ok: false,
 			reason: 'not-found',
-			message: 'analysis-snapshots/v10/latest.json does not exist.',
+			message: 'analysis-snapshots/v11/latest.json does not exist.',
 		};
 
 		expect(() => requireRenderableSnapshot(missingSnapshot)).toThrow(
-			'No Analysis Snapshot to render: analysis-snapshots/v10/latest.json does not exist.',
+			'No Analysis Snapshot to render: analysis-snapshots/v11/latest.json does not exist.',
 		);
 	});
 
 	test('fails with the validation message when the snapshot is invalid', () => {
 		const invalidSnapshot = serializedSnapshot.replace(
+			'"schemaVersion":11',
 			'"schemaVersion":10',
-			'"schemaVersion":9',
 		);
 
 		expect(() =>
 			requireRenderableSnapshot(parseAnalysisSnapshotOverview(invalidSnapshot)),
 		).toThrow(
-			'No Analysis Snapshot to render: The snapshot is invalid. schemaVersion: Schema version must be 10.',
+			'No Analysis Snapshot to render: The snapshot is invalid. schemaVersion: Schema version must be 11.',
 		);
 	});
 

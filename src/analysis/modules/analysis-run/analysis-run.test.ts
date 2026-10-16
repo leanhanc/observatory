@@ -218,6 +218,7 @@ describe('createAnalysisRunner', () => {
 
 		expect(eventsWithoutPrices.length).toBeGreaterThan(0);
 		expect(eventsWithoutPrices.some(({ event }) => 'pesoEquivalents' in event)).toBe(false);
+		expect(eventsWithoutPrices.some(({ event }) => 'cclEquivalents' in event)).toBe(false);
 	});
 
 	test('detects no Event on a session without a MEP Rate, so no Event lacks one', async () => {
@@ -304,7 +305,7 @@ describe('createAnalysisRunner', () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 
 		expect(result.ok && result.snapshot).toMatchObject({
-			schemaVersion: 10,
+			schemaVersion: 11,
 			priceUnit: 'mep-dollar',
 			ranAt: RAN_AT,
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
@@ -1141,26 +1142,74 @@ describe('Analysis Run corporate-action watch', () => {
 });
 
 describe('Analysis Run CCL Rate', () => {
-	test('derives each CCL Rate from the same session’s AL30 and AL30C closes', async () => {
-		// The cable price changes every session, so a rate taken from a neighboring session differs.
-		const cablePrices = sessionDates.map((_sessionDate, index) => 0.9 + (index % 7) / 100);
-		const varyingAl30cBars = sessionDates.map((sessionDate, index) =>
-			createFlatBar(sessionDate, cablePrices[index]!),
-		);
-		const provider = { ...createHealthyProvider(), AL30C: varyingAl30cBars };
-		const { result } = await runWithProvider(provider);
+	// The cable price changes every session, so a figure converted with a neighboring session's CCL
+	// Rate, or with a flat cable premium, differs.
+	const cablePrices = sessionDates.map((_sessionDate, index) => 0.9 + (index % 7) / 100);
+	const varyingAl30cBars = sessionDates.map((sessionDate, index) =>
+		createFlatBar(sessionDate, cablePrices[index]!),
+	);
+	const selectCclRate = (sessionDate: string) =>
+		selectMepRate(sessionDate) / cablePrices[sessionDates.indexOf(sessionDate)]!;
 
-		expect(result.ok && result.cclRates).toEqual(
-			sessionDates.map((sessionDate, index) => ({
-				sessionDate,
-				cclRate: selectMepRate(sessionDate) / cablePrices[index]!,
-			})),
-		);
+	test('records where the CCL figures come from', async () => {
+		const { result } = await runWithProvider(createHealthyProvider());
+
+		expect(result.ok && result.snapshot.cclRateSource).toEqual({
+			pesoBondTradingLineId: 'al30-bond-byma-ars',
+			cableBondTradingLineId: 'al30-bond-byma-usd-ccl',
+			latestRateSessionDate: '2026-09-30',
+		});
 	});
 
-	test('gives no CCL Rate to a session where either leg did not trade, and carries none', async () => {
+	test('expresses the latest close and levels in CCL dollars at that session’s CCL Rate', async () => {
+		const provider = { ...createHealthyProvider(), AL30C: varyingAl30cBars };
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const cclRate = selectCclRate('2026-09-30');
+		const peso = ggal.pesoEquivalents;
+
+		expect(ggal.cclEquivalents).toEqual({
+			sessionDate: '2026-09-30',
+			cclRate,
+			close: peso.close / cclRate,
+			lastConfirmedSwingHigh: peso.lastConfirmedSwingHigh! / cclRate,
+			lastConfirmedSwingLow: peso.lastConfirmedSwingLow! / cclRate,
+			regimeTippingCloses: {
+				bullishCloseAbove: peso.regimeTippingCloses!.bullishCloseAbove / cclRate,
+				bearishCloseBelow: peso.regimeTippingCloses!.bearishCloseBelow / cclRate,
+			},
+		});
+		expect(cclRate).not.toBe(selectCclRate('2026-09-29'));
+	});
+
+	test('expresses each Structure Break in CCL dollars at its own session’s CCL Rate', async () => {
+		const provider = { ...createHealthyProvider(), AL30C: varyingAl30cBars };
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const structureBreaks = ggal.events.flatMap(({ sessionDate, event }) =>
+			event.type === 'structure-break' ? [{ sessionDate, event }] : [],
+		);
+		const breakRates = new Set(
+			structureBreaks.map(({ event }) => event.cclEquivalents?.cclRate),
+		);
+
+		for (const { sessionDate, event } of structureBreaks) {
+			const cclRate = selectCclRate(sessionDate);
+			const { closePrice, definingSwingPrice } = event.pesoEquivalents;
+
+			expect(event.cclEquivalents).toEqual({
+				cclRate,
+				closePrice: closePrice / cclRate,
+				definingSwingPrice: definingSwingPrice / cclRate,
+			});
+		}
+		expect(breakRates.size).toBeGreaterThan(2);
+	});
+
+	test('gives no CCL figure to a session without a CCL Rate and borrows no neighbor’s', async () => {
+		// 2026-09-14 has a Structure Break; 2026-09-30 is the latest session.
+		const missingCableSession = '2026-09-14';
 		const untradedCableSession = '2026-09-30';
-		const missingCableSession = '2026-09-28';
 		const untradedPesoSession = '2026-09-24';
 		const provider = {
 			...createHealthyProvider(),
@@ -1171,17 +1220,74 @@ describe('Analysis Run CCL Rate', () => {
 		};
 		const timeline = await recordRunTimeline(provider);
 		const { result } = await runWithProvider(provider);
-		const cclSessionDates = result.ok ? result.cclRates?.map((rate) => rate.sessionDate) : [];
-
-		expect(cclSessionDates).toEqual(
-			sessionDates.filter(
-				(sessionDate) =>
-					![untradedCableSession, missingCableSession, untradedPesoSession].includes(
-						sessionDate,
-					),
-			),
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const breakOnMissingSession = ggal.events.find(
+			({ sessionDate, event }) =>
+				sessionDate === missingCableSession && event.type === 'structure-break',
 		);
-		expect(timeline).toContain('ccl-rate-derived 2026-09-29 4300.80');
+		const otherBreaks = ggal.events.filter(
+			({ sessionDate, event }) =>
+				sessionDate !== missingCableSession && event.type === 'structure-break',
+		);
+
+		expect(ggal.cclEquivalents).toBeNull();
+		expect(result.ok && result.snapshot.cclRateSource?.latestRateSessionDate).toBe(
+			'2026-09-29',
+		);
+		expect(breakOnMissingSession?.event).toMatchObject({
+			cclEquivalents: null,
+			pesoEquivalents: { mepRate: 2048 },
+		});
+		expect(
+			otherBreaks.every(
+				({ event }) => 'cclEquivalents' in event && event.cclEquivalents !== null,
+			),
+		).toBe(true);
+		expect(timeline).toContain('ccl-rate-derived 2026-09-29 4300.80 mep=2026-09-30');
+	});
+
+	test('measures period returns in pesos and CCL dollars over the same sessions', async () => {
+		const provider = { ...createHealthyProvider(), AL30C: varyingAl30cBars };
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const pesoCloses = ggalPesoBars.map(({ sessionDate, close }) => ({ sessionDate, close }));
+		const cclCloses = pesoCloses.map(({ sessionDate, close }) => ({
+			sessionDate,
+			close: close / selectCclRate(sessionDate),
+		}));
+		const [mepMonth, pesoMonth] = [ggal.periodReturns[0]!, ggal.pesoPeriodReturns[0]!];
+
+		expect(ggal.pesoPeriodReturns).toEqual(calculatePeriodReturns(pesoCloses));
+		expect(ggal.cclPeriodReturns).toEqual(calculatePeriodReturns(cclCloses));
+		// The month spans the MEP Rate's doubling on 2026-09-15, which the peso return includes.
+		expect(pesoMonth.fromSessionDate).toBe(mepMonth.fromSessionDate);
+		expect(pesoMonth.percentChange).toBeCloseTo(
+			((1 + mepMonth.percentChange! / 100) * 2 - 1) * 100,
+			9,
+		);
+		expect(ggal.cclPeriodReturns[0]!.percentChange).not.toBeCloseTo(mepMonth.percentChange!, 3);
+	});
+
+	test('leaves a CCL return unavailable when its start session has no CCL Rate', async () => {
+		const monthStartDate = Temporal.PlainDate.from('2026-09-30').subtract({ months: 1 });
+		const monthStartSession = sessionDates.findLast(
+			(sessionDate) => sessionDate <= monthStartDate.toString(),
+		)!;
+		const provider = {
+			...createHealthyProvider(),
+			AL30C: al30cBars.filter((bar) => bar.sessionDate !== monthStartSession),
+		};
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+
+		expect(ggal.cclPeriodReturns[0]).toEqual({
+			windowMonths: 1,
+			fromSessionDate: null,
+			percentChange: null,
+		});
+		expect(ggal.cclPeriodReturns[1]!.percentChange).not.toBeNull();
+		expect(ggal.periodReturns[0]!.fromSessionDate).toBe(monthStartSession);
+		expect(ggal.pesoPeriodReturns[0]!.fromSessionDate).toBe(monthStartSession);
 	});
 
 	test.each([
@@ -1190,7 +1296,7 @@ describe('Analysis Run CCL Rate', () => {
 		['never traded', 'never-traded', 'no session in which both legs traded'],
 		['has an invalid bar', 'invalid-bar', 'invalid Daily Bar issue'],
 	] as const)(
-		'warns and still writes the same snapshot when AL30C %s',
+		'warns and writes null CCL figures when AL30C %s',
 		async (_label, cableResponse, expectedMessage) => {
 			const cableResponses = {
 				'http-error': 'http-error' as const,
@@ -1199,13 +1305,30 @@ describe('Analysis Run CCL Rate', () => {
 				'invalid-bar': replaceBar(al30cBars, '2026-09-29', { close: 5 }),
 			};
 			const provider = { ...createHealthyProvider(), AL30C: cableResponses[cableResponse] };
-			const healthyRun = await runWithProvider(createHealthyProvider());
 			const { result, writes, requestedSymbols } = await runWithProvider(provider);
 			const timeline = await recordRunTimeline(provider);
 			const cclReport = timeline.find((entry) => entry.startsWith('ccl-rate-'));
+			const availableLines = writes[0]!.analyzedLines.flatMap((line) =>
+				line.status === 'available' ? [line] : [],
+			);
+			const cclEventFigures = availableLines.flatMap((line) =>
+				line.events.flatMap(({ event }) =>
+					event.type === 'structure-break' ? [event.cclEquivalents] : [],
+				),
+			);
 
-			expect(result).toMatchObject({ ok: true, cclRates: null });
-			expect(writes).toEqual(healthyRun.writes);
+			expect(result.ok).toBe(true);
+			expect(writes[0]!.cclRateSource).toBeNull();
+			expect(availableLines.every((line) => line.cclEquivalents === null)).toBe(true);
+			expect(cclEventFigures.length).toBeGreaterThan(0);
+			expect(cclEventFigures.every((figures) => figures === null)).toBe(true);
+			expect(
+				availableLines.every((line) =>
+					line.cclPeriodReturns.every(
+						(periodReturn) => periodReturn.percentChange === null,
+					),
+				),
+			).toBe(true);
 			expect(requestedSymbols.filter((symbol) => symbol === 'AL30C')).toHaveLength(1);
 			expect(cclReport).toStartWith('ccl-rate-unavailable: ');
 			expect(cclReport).toContain(expectedMessage);
@@ -1218,23 +1341,27 @@ describe('Analysis Run CCL Rate', () => {
 			AL30C: replaceBar(al30cBars, '2026-09-30', { open: 0 }),
 		};
 		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
 
-		expect(result.ok && result.cclRates?.at(-1)).toEqual({
-			sessionDate: '2026-09-30',
-			cclRate: 4096 / CABLE_PRICE,
-		});
+		expect(ggal.cclEquivalents?.cclRate).toBe(4096 / CABLE_PRICE);
 	});
 
-	test('keeps CCL Rates out of the snapshot and its analysis', async () => {
-		const provider = createHealthyProvider();
-		const { result, writes } = await runWithProvider(provider);
-		const withoutCableRun = await runWithProvider({ ...provider, AL30C: 'no-data' as const });
-		const writtenSnapshot = JSON.stringify(writes[0]);
+	test('leaves the MEP analysis byte-identical apart from the CCL figures', async () => {
+		const withCableRun = await runWithProvider({
+			...createHealthyProvider(),
+			AL30C: varyingAl30cBars,
+		});
+		const withoutCableRun = await runWithProvider({
+			...createHealthyProvider(),
+			AL30C: 'no-data' as const,
+		});
+		const [withCable, withoutCable] = [withCableRun.writes[0]!, withoutCableRun.writes[0]!];
 
-		expect(result.ok && result.cclRates).toHaveLength(sessionDates.length);
-		expect(writes[0]?.schemaVersion).toBe(10);
-		expect(writtenSnapshot).not.toMatch(/ccl|al30c|cable/i);
-		expect(writes).toEqual(withoutCableRun.writes);
+		expect(withCable.schemaVersion).toBe(11);
+		expect(JSON.stringify(removeCclFigures(withCable))).toBe(
+			JSON.stringify(removeCclFigures(withoutCable)),
+		);
+		expect(JSON.stringify(withCable)).not.toBe(JSON.stringify(withoutCable));
 	});
 });
 
@@ -1253,7 +1380,7 @@ describe('Analysis Run progress', () => {
 			'mep-rate-source-fetched 2026-09-30',
 			'pause 2000',
 			'request AL30C',
-			'ccl-rate-derived 2026-09-30 4300.80',
+			'ccl-rate-derived 2026-09-30 4300.80 mep=2026-09-30',
 			'pause 2000',
 			'request GGAL',
 			'line 1/3 galicia-stock-byma-ars available',
@@ -1303,7 +1430,7 @@ describe('Analysis Run fetch retries', () => {
 		'mep-rate-source-fetched 2026-09-30',
 		'pause 2000',
 		'request AL30C',
-		'ccl-rate-derived 2026-09-30 4300.80',
+		'ccl-rate-derived 2026-09-30 4300.80 mep=2026-09-30',
 	];
 	const newPesoBars = convertDollarBarsToPeso(shortHistoryDollarBars);
 	const WATCH = ['pause 2000', 'request relevant-facts', 'corporate-action-watch available: '];
@@ -1642,7 +1769,8 @@ function describeProgress(progress: AnalysisRunProgress): string {
 	}
 
 	if (progress.type === 'ccl-rate-derived') {
-		return `ccl-rate-derived ${progress.latestRateSessionDate} ${progress.cclRate.toFixed(2)}`;
+		const { latestRateSessionDate, cclRate, latestMepRateSessionDate } = progress;
+		return `ccl-rate-derived ${latestRateSessionDate} ${cclRate.toFixed(2)} mep=${latestMepRateSessionDate}`;
 	}
 
 	if (progress.type === 'ccl-rate-unavailable') {
@@ -1960,4 +2088,31 @@ function selectAvailableLine(result: AnalysisRunResult, tradingLineId: string) {
 	}
 
 	return line;
+}
+
+/** The snapshot without its CCL figures, which must be the only fields CCL Rates change. */
+function removeCclFigures(snapshot: AnalysisSnapshot): unknown {
+	const { cclRateSource: _cclRateSource, ...rest } = snapshot;
+	const analyzedLines = snapshot.analyzedLines.map((line) => {
+		if (line.status !== 'available') {
+			return line;
+		}
+
+		const {
+			cclEquivalents: _cclEquivalents,
+			cclPeriodReturns: _cclPeriodReturns,
+			...lineRest
+		} = line;
+		const events = line.events.map((entry) => {
+			if (entry.event.type !== 'structure-break') {
+				return entry;
+			}
+
+			const { cclEquivalents: _eventCclEquivalents, ...eventRest } = entry.event;
+			return { ...entry, event: eventRest };
+		});
+		return { ...lineRest, events };
+	});
+
+	return { ...rest, analyzedLines };
 }

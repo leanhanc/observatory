@@ -1,0 +1,58 @@
+/*
+ * The line page's currency switch, without JavaScript. The build renders each price phrase once per
+ * view, marked with `data-currency-view`; these rules show the checked view's variants. Without
+ * `:has()` support, the pesos view shows, as it is checked in the HTML.
+ */
+@layer currency-view {
+	.currency-control {
+		border: 0;
+		margin: 0;
+		padding: 0;
+	}
+
+	.currency-control legend {
+		float: left;
+		margin-right: 0.5em;
+		padding: 0;
+	}
+
+	.currency-control label {
+		display: inline-block;
+		position: relative;
+		margin-right: -1px;
+		padding: 0.125em 0.625em;
+		border: 1px solid;
+		cursor: pointer;
+	}
+
+	.currency-control label:has(input:checked) {
+		background: CanvasText;
+		color: Canvas;
+	}
+
+	.currency-control label:has(input:focus-visible) {
+		outline: 2px solid;
+		outline-offset: 2px;
+	}
+
+	/* The input stays in the accessibility tree and keyboard order; its label is the control. */
+	.currency-control input {
+		position: absolute;
+		inset: 0;
+		margin: 0;
+		opacity: 0;
+		cursor: pointer;
+	}
+
+	[data-currency-view='usd'],
+	[data-currency-view='ccl'],
+	:root:has(#currency-usd:checked) [data-currency-view='ars'],
+	:root:has(#currency-ccl:checked) [data-currency-view='ars'] {
+		display: none;
+	}
+
+	:root:has(#currency-usd:checked) [data-currency-view='usd'],
+	:root:has(#currency-ccl:checked) [data-currency-view='ccl'] {
+		display: revert;
+	}
+}

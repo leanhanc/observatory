@@ -1,5 +1,3 @@
-import type { SnapshotPriceUnit } from '#web/lib/utils/snapshot-pages/index.ts';
-
 // A non-breaking space keeps a number together with its unit or sign when a line wraps.
 const NBSP = ' ';
 const MINUS_SIGN = '−';
@@ -36,9 +34,8 @@ const SHORT_MONTHS = [
 	'dic',
 ];
 
-const PRICE_UNIT_PREFIXES: Record<SnapshotPriceUnit, string> = {
-	'mep-dollar': 'US$',
-};
+// MEP and CCL dollars are both written `US$`; the page's currency view and note say which.
+const DOLLAR_PREFIX = 'US$';
 
 const oneDecimalFormat = new Intl.NumberFormat('es-AR', {
 	minimumFractionDigits: 1,
@@ -84,17 +81,22 @@ export function formatSignedPercent(value: number): string {
 	return `${useMinusSign(signedOneDecimalFormat.format(value))}${NBSP}%`;
 }
 
-/** Formats a price in the snapshot's price unit, for example `US$ 4,04`. */
-export function formatPrice(value: number, priceUnit: SnapshotPriceUnit): string {
+/** Formats a price in MEP or CCL dollars, for example `US$ 4,04`. */
+export function formatDollars(value: number): string {
 	// Chosen by the rounded value, so 0,9996 shows as 1,00 rather than with three significant digits.
 	const isUnderOne = Math.abs(value) < 0.995;
 	const amount = isUnderOne ? smallPriceFormat.format(value) : twoDecimalFormat.format(value);
-	return `${PRICE_UNIT_PREFIXES[priceUnit]}${NBSP}${useMinusSign(amount)}`;
+	return `${DOLLAR_PREFIX}${NBSP}${useMinusSign(amount)}`;
 }
 
-/** Formats a price with up to four decimals, for raw evidence, for example `US$ 3,6812`. */
-export function formatExactPrice(value: number, priceUnit: SnapshotPriceUnit): string {
-	return `${PRICE_UNIT_PREFIXES[priceUnit]}${NBSP}${useMinusSign(exactPriceFormat.format(value))}`;
+/** Formats a dollar price with up to four decimals, for raw evidence, for example `US$ 3,6812`. */
+export function formatExactDollars(value: number): string {
+	return `${DOLLAR_PREFIX}${NBSP}${useMinusSign(exactPriceFormat.format(value))}`;
+}
+
+/** Formats an exchange rate with two decimals and no unit, for raw evidence, for example `1.612,38`. */
+export function formatExactRate(value: number): string {
+	return useMinusSign(twoDecimalFormat.format(value));
 }
 
 /** Formats an amount in pesos with two decimals, for raw evidence, for example `5.790,50 pesos`. */

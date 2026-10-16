@@ -4,12 +4,14 @@ import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
 import { checkIfIsoDateIsValid } from '#lib/utils/validation/index.ts';
 
 const messages = {
-	invalidSchemaVersion: 'Schema version must be 10.',
+	invalidSchemaVersion: 'Schema version must be 11.',
 	invalidSessionDate: 'Value must be a real YYYY-MM-DD date.',
 	invalidTimestamp: 'Value must be an ISO timestamp.',
 	invalidType: 'Value has an invalid type or shape.',
 	inconsistentPesoEquivalents:
 		'Peso equivalents must describe the latest State: its session, its confirmed swings and its Regime tipping closes.',
+	inconsistentCclEquivalents:
+		'CCL equivalents must describe the latest State: its session, its confirmed swings and its Regime tipping closes.',
 	inconsistentSituations:
 		'Each Situation must agree with the latest State: its Regime and the swing the close is beyond.',
 	inconsistentPeriodReturn:
@@ -169,7 +171,7 @@ const latestStateSchema = v.object(
 	messages.invalidType,
 );
 
-const mepRateSchema = v.pipe(numberSchema, v.gtValue(0, messages.invalidType));
+const exchangeRateSchema = v.pipe(numberSchema, v.gtValue(0, messages.invalidType));
 
 const analysisEventSchema = v.variant(
 	'type',
@@ -198,11 +200,21 @@ const analysisEventSchema = v.variant(
 				closePrice: numberSchema,
 				pesoEquivalents: v.object(
 					{
-						mepRate: mepRateSchema,
+						mepRate: exchangeRateSchema,
 						closePrice: numberSchema,
 						definingSwingPrice: numberSchema,
 					},
 					messages.invalidType,
+				),
+				cclEquivalents: v.nullable(
+					v.object(
+						{
+							cclRate: exchangeRateSchema,
+							closePrice: numberSchema,
+							definingSwingPrice: numberSchema,
+						},
+						messages.invalidType,
+					),
 				),
 			},
 			messages.invalidType,
@@ -221,22 +233,30 @@ const analysisEventSchema = v.variant(
 	messages.invalidType,
 );
 
-const pesoEquivalentsSchema = v.object(
-	{
-		sessionDate: sessionDateSchema,
-		mepRate: mepRateSchema,
-		close: numberSchema,
-		lastConfirmedSwingHigh: v.nullable(numberSchema),
-		lastConfirmedSwingLow: v.nullable(numberSchema),
-		regimeTippingCloses: v.nullable(
-			v.object(
-				{ bullishCloseAbove: numberSchema, bearishCloseBelow: numberSchema },
-				messages.invalidType,
-			),
+const latestStateEquivalentEntries = {
+	sessionDate: sessionDateSchema,
+	close: numberSchema,
+	lastConfirmedSwingHigh: v.nullable(numberSchema),
+	lastConfirmedSwingLow: v.nullable(numberSchema),
+	regimeTippingCloses: v.nullable(
+		v.object(
+			{ bullishCloseAbove: numberSchema, bearishCloseBelow: numberSchema },
+			messages.invalidType,
 		),
-	},
+	),
+};
+
+const pesoEquivalentsSchema = v.object(
+	{ mepRate: exchangeRateSchema, ...latestStateEquivalentEntries },
 	messages.invalidType,
 );
+
+const cclEquivalentsSchema = v.object(
+	{ cclRate: exchangeRateSchema, ...latestStateEquivalentEntries },
+	messages.invalidType,
+);
+
+const periodReturnsSchema = v.pipe(v.array(periodReturnSchema, messages.invalidType), v.readonly());
 
 const snapshotEventSchema = v.object(
 	{
@@ -260,11 +280,11 @@ const analyzedLineVariantSchema = v.variant(
 				status: v.literal('available'),
 				...lineIdentityEntries,
 				latestState: latestStateSchema,
-				periodReturns: v.pipe(
-					v.array(periodReturnSchema, messages.invalidType),
-					v.readonly(),
-				),
+				periodReturns: periodReturnsSchema,
+				pesoPeriodReturns: periodReturnsSchema,
+				cclPeriodReturns: periodReturnsSchema,
 				pesoEquivalents: pesoEquivalentsSchema,
+				cclEquivalents: v.nullable(cclEquivalentsSchema),
 				events: v.pipe(v.array(snapshotEventSchema, messages.invalidType), v.readonly()),
 			},
 			messages.invalidType,
@@ -315,6 +335,7 @@ const analyzedLineVariantSchema = v.variant(
 const analyzedLineSchema = v.pipe(
 	analyzedLineVariantSchema,
 	v.check(checkIfPesoEquivalentsMatchState, messages.inconsistentPesoEquivalents),
+	v.check(checkIfCclEquivalentsMatchState, messages.inconsistentCclEquivalents),
 	v.check(checkIfSituationsMatchState, messages.inconsistentSituations),
 );
 
@@ -324,7 +345,7 @@ const analyzedLineSchema = v.pipe(
  */
 export const analysisSnapshotOverviewSchema = v.object(
 	{
-		schemaVersion: v.literal(10, messages.invalidSchemaVersion),
+		schemaVersion: v.literal(11, messages.invalidSchemaVersion),
 		priceUnit: v.picklist(['mep-dollar'], messages.invalidType),
 		ranAt: v.pipe(stringSchema, v.isoTimestamp(messages.invalidTimestamp)),
 		requestedThroughSession: sessionDateSchema,
@@ -335,6 +356,9 @@ export const analysisSnapshotOverviewSchema = v.object(
 
 type AnalyzedLineOverview = v.InferOutput<typeof analyzedLineVariantSchema>;
 
+type AvailableLineOverview = Extract<AnalyzedLineOverview, { status: 'available' }>;
+type LatestStateEquivalents = AvailableLineOverview['pesoEquivalents'];
+
 // Peso equivalents convert the latest State's own swings at its own session's rate, so a reader
 // that finds them on another session or for a missing swing has a snapshot it cannot trust.
 function checkIfPesoEquivalentsMatchState(line: AnalyzedLineOverview): boolean {
@@ -342,17 +366,32 @@ function checkIfPesoEquivalentsMatchState(line: AnalyzedLineOverview): boolean {
 		return true;
 	}
 
-	const { latestState, pesoEquivalents } = line;
-	const isSameSession = pesoEquivalents.sessionDate === latestState.sessionDate;
+	return checkIfEquivalentsMatchState(line.pesoEquivalents, line.latestState);
+}
+
+// CCL equivalents are `null` when the State's session has no CCL Rate; otherwise they follow the
+// peso rule.
+function checkIfCclEquivalentsMatchState(line: AnalyzedLineOverview): boolean {
+	if (line.status !== 'available' || line.cclEquivalents === null) {
+		return true;
+	}
+
+	return checkIfEquivalentsMatchState(line.cclEquivalents, line.latestState);
+}
+
+function checkIfEquivalentsMatchState(
+	equivalents: Omit<LatestStateEquivalents, 'mepRate'>,
+	latestState: AvailableLineOverview['latestState'],
+): boolean {
+	const isSameSession = equivalents.sessionDate === latestState.sessionDate;
 	const hasMatchingHigh =
-		(pesoEquivalents.lastConfirmedSwingHigh === null) ===
+		(equivalents.lastConfirmedSwingHigh === null) ===
 		(latestState.lastConfirmedSwingHigh === null);
 	const hasMatchingLow =
-		(pesoEquivalents.lastConfirmedSwingLow === null) ===
+		(equivalents.lastConfirmedSwingLow === null) ===
 		(latestState.lastConfirmedSwingLow === null);
 	const hasMatchingTippingCloses =
-		(pesoEquivalents.regimeTippingCloses === null) ===
-		(latestState.regimeTippingCloses === null);
+		(equivalents.regimeTippingCloses === null) === (latestState.regimeTippingCloses === null);
 
 	return isSameSession && hasMatchingHigh && hasMatchingLow && hasMatchingTippingCloses;
 }

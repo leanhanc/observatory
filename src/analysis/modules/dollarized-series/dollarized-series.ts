@@ -66,3 +66,17 @@ function divideBarPrices(bar: DailyBar, mepRate: number): DailyBar {
 export function toPesoEquivalent(valueInMepDollars: number, mepRate: number): number {
 	return valueInMepDollars * mepRate;
 }
+
+/**
+ * Expresses a peso price in CCL dollars at one session's CCL Rate. A MEP-dollar price gets there
+ * through pesos at the same session: `toCclEquivalent(toPesoEquivalent(price, mepRate), cclRate)`.
+ * The result describes that session only, so callers state the session whose rate they pass and
+ * never pass another session's rate when that one has none.
+ *
+ * For display only: a CCL equivalent never enters the Dollarized Series or any analysis.
+ *
+ * Precondition, not checked: `cclRate` is positive and finite.
+ */
+export function toCclEquivalent(valueInPesos: number, cclRate: number): number {
+	return valueInPesos / cclRate;
+}

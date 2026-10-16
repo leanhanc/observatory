@@ -105,6 +105,37 @@ describe('calculatePeriodReturns', () => {
 		expect(calculatePeriodReturns(bars.slice(1))[0]!.fromSessionDate).toBeNull();
 	});
 
+	test('is null when the start session has no close in the currency, without borrowing an earlier one', () => {
+		const sessions = WEEKDAY_SESSIONS.filter((date) => date <= '2026-10-09');
+		const closes = buildBars(sessions, () => 100).map(({ sessionDate, close }) => ({
+			sessionDate,
+			close: sessionDate === '2026-09-09' ? null : close,
+		}));
+
+		// Skipping the null session would start the month from 2026-09-08 and measure 0 %.
+		expect(calculatePeriodReturns(closes)).toEqual([
+			{ windowMonths: 1, fromSessionDate: null, percentChange: null },
+			{ windowMonths: 3, fromSessionDate: '2026-07-09', percentChange: 0 },
+			{ windowMonths: 12, fromSessionDate: '2025-10-09', percentChange: 0 },
+		]);
+	});
+
+	test('is null for every window when the anchor has no close in the currency', () => {
+		const sessions = WEEKDAY_SESSIONS.filter((date) => date <= '2026-10-09');
+		const closes = buildBars(sessions, () => 100).map(({ sessionDate, close }) => ({
+			sessionDate,
+			close: sessionDate === '2026-10-09' ? null : close,
+		}));
+
+		expect(calculatePeriodReturns(closes)).toEqual(
+			[1, 3, 12].map((windowMonths) => ({
+				windowMonths,
+				fromSessionDate: null,
+				percentChange: null,
+			})),
+		);
+	});
+
 	test('is null for every window without bars', () => {
 		expect(calculatePeriodReturns([])).toEqual(
 			[1, 3, 12].map((windowMonths) => ({

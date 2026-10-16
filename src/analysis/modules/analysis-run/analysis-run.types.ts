@@ -78,6 +78,7 @@ export type AnalyzedLine =
 			instrumentId: string;
 			tradingLineId: string;
 			latestState: InstrumentState;
+			latestClose: LatestClose;
 			/**
 			 * The close's change over each configured window of calendar months, as of `latestState`,
 			 * in MEP dollars.
@@ -179,6 +180,34 @@ export type CclEquivalents = Readonly<{
 	regimeTippingCloses: Readonly<{ bullishCloseAbove: number; bearishCloseBelow: number }> | null;
 }>;
 
+/**
+ * The latest State's close and its change since the line's previous session, in one currency.
+ * `previousClose`, `change` and `percentChange` are `null` together, when there is no previous
+ * session or it has no rate in this currency.
+ */
+export type CloseChange = Readonly<{
+	close: number;
+	previousClose: number | null;
+	/** `close − previousClose`, unrounded. */
+	change: number | null;
+	/** `change / previousClose × 100`, unrounded. */
+	percentChange: number | null;
+}>;
+
+/**
+ * The latest State's close in each currency and its day change. Each previous close is converted
+ * at its own session's rate, so a dollar change leaves out the peso's move between the sessions.
+ */
+export type LatestClose = Readonly<{
+	sessionDate: string;
+	/** The line's last peso bar before `sessionDate`, whether or not it had a rate. */
+	previousSessionDate: string | null;
+	peso: CloseChange;
+	mep: CloseChange;
+	/** `null` when `sessionDate` has no CCL Rate, as `cclEquivalents` is. */
+	ccl: CloseChange | null;
+}>;
+
 /** One session of one Trading Line, used to report bars the run accepted with a defect. */
 export type TradingLineSession = Readonly<{
 	tradingLineId: string;
@@ -189,7 +218,7 @@ export type TradingLineSession = Readonly<{
 export type PriceUnit = 'mep-dollar';
 
 export type AnalysisSnapshot = Readonly<{
-	schemaVersion: 11;
+	schemaVersion: 12;
 	priceUnit: PriceUnit;
 	ranAt: string;
 	requestedThroughSession: string;

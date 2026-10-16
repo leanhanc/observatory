@@ -30,6 +30,13 @@ const availableLine = {
 		priceRelativeToLongTermEmaInPercent: -4.2,
 		situations: [],
 	},
+	latestClose: {
+		sessionDate: '2026-10-09',
+		previousSessionDate: '2026-10-08',
+		peso: { close: 10_687.5, previousClose: 10_500, change: 187.5, percentChange: 1.7857 },
+		mep: { close: 7.125, previousClose: 7.1, change: 0.025, percentChange: 0.3521 },
+		ccl: null,
+	},
 	periodReturns: [{ windowMonths: 1, fromSessionDate: null, percentChange: null }],
 	pesoPeriodReturns: [{ windowMonths: 1, fromSessionDate: null, percentChange: null }],
 	cclPeriodReturns: [{ windowMonths: 1, fromSessionDate: null, percentChange: null }],
@@ -52,7 +59,7 @@ const unavailableLine = {
 	message: 'The provider returned no Daily Bars for this Trading Line.',
 } as const;
 const serializedSnapshot = JSON.stringify({
-	schemaVersion: 11,
+	schemaVersion: 12,
 	priceUnit: 'mep-dollar',
 	ranAt: '2026-10-11T14:03:58.608Z',
 	requestedThroughSession: '2026-10-10',
@@ -87,24 +94,24 @@ describe('requireRenderableSnapshot', () => {
 		const missingSnapshot: LatestAnalysisSnapshotReadResult = {
 			ok: false,
 			reason: 'not-found',
-			message: 'analysis-snapshots/v11/latest.json does not exist.',
+			message: 'analysis-snapshots/v12/latest.json does not exist.',
 		};
 
 		expect(() => requireRenderableSnapshot(missingSnapshot)).toThrow(
-			'No Analysis Snapshot to render: analysis-snapshots/v11/latest.json does not exist.',
+			'No Analysis Snapshot to render: analysis-snapshots/v12/latest.json does not exist.',
 		);
 	});
 
 	test('fails with the validation message when the snapshot is invalid', () => {
 		const invalidSnapshot = serializedSnapshot.replace(
+			'"schemaVersion":12',
 			'"schemaVersion":11',
-			'"schemaVersion":10',
 		);
 
 		expect(() =>
 			requireRenderableSnapshot(parseAnalysisSnapshotOverview(invalidSnapshot)),
 		).toThrow(
-			'No Analysis Snapshot to render: The snapshot is invalid. schemaVersion: Schema version must be 11.',
+			'No Analysis Snapshot to render: The snapshot is invalid. schemaVersion: Schema version must be 12.',
 		);
 	});
 

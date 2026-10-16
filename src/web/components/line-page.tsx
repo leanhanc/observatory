@@ -1,10 +1,15 @@
 import { formatLongDate } from '#web/lib/utils/es-ar-formatting/index.ts';
 import { describeLineIdentity } from '#web/lib/utils/line-identity/index.ts';
-import { CURRENCY_NOTES, selectDisplayCurrencies } from '#web/lib/utils/line-wording/index.ts';
+import {
+	CURRENCY_NOTES,
+	describeLatestClose,
+	selectDisplayCurrencies,
+} from '#web/lib/utils/line-wording/index.ts';
 
 import { AvailableLineDetails } from './available-line-details.tsx';
 import { CurrencyControl } from './currency-control.tsx';
 import { CurrencyVariants } from './currency-variants.tsx';
+import { PhraseText } from './phrase-text.tsx';
 import { UnavailableLineDetails } from './unavailable-line-details.tsx';
 
 import type { LinePageProps } from '#web/lib/utils/snapshot-pages/index.ts';
@@ -31,6 +36,16 @@ export function LinePage({ requestedThroughSession, line }: LinePageProps) {
 				<h1>{ticker}</h1>
 				{typeLabel !== null && <p>{typeLabel}</p>}
 				<p>{sessionText}</p>
+				{line.status === 'available' && (
+					<p>
+						<CurrencyVariants
+							currencies={currencies}
+							render={(currency) => (
+								<PhraseText phrase={describeLatestClose(line, currency)} />
+							)}
+						/>
+					</p>
+				)}
 				<CurrencyControl currencies={currencies} />
 				{hasAboutDetails && (
 					<details open>

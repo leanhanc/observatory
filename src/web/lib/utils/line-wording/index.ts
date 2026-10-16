@@ -2,6 +2,7 @@ export {
 	CURRENCY_NOTES,
 	LARGE_MOVE_NOTE,
 	describeEvent,
+	describeLatestClose,
 	describeLevels,
 	describeLongTermDistance,
 	describeMomentum,

@@ -1,0 +1,7 @@
+- [x] Spec deltas for analysis-run and web-app; `openspec validate --strict`.
+- [x] Analysis Run: `latestClose` and schema v12, with tests that reject the latest session's rate for the previous close and a carried rate.
+- [x] Snapshot validation of `latestClose`, with tests.
+- [x] Lean edits the wording in design.md.
+- [x] Web: the last close in each currency view, and `$` for every peso amount, with tests.
+- [x] Run tests, typecheck, lint and format.
+- [ ] Archive.

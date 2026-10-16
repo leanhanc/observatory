@@ -10,7 +10,9 @@ import {
 	formatPesos,
 	formatShortDate,
 	formatShortDateList,
+	formatSignedDollarChange,
 	formatSignedPercent,
+	formatSignedPesoChange,
 	formatWholeNumber,
 } from './es-ar-formatting.ts';
 
@@ -37,30 +39,43 @@ describe('es-AR numbers', () => {
 		expect(formatPercent(-4.53)).toBe(`4,5${NBSP}%`);
 	});
 
-	test('a MEP or CCL dollar price is US$ with two decimals', () => {
-		expect(formatDollars(4.0412)).toBe(`US$${NBSP}4,04`);
-		expect(formatDollars(1234.5)).toBe(`US$${NBSP}1.234,50`);
+	test('a MEP or CCL dollar price is U$S with two decimals', () => {
+		expect(formatDollars(4.0412)).toBe(`U$S${NBSP}4,04`);
+		expect(formatDollars(1234.5)).toBe(`U$S${NBSP}1.234,50`);
 	});
 
 	test('a price under one keeps three significant digits', () => {
-		expect(formatDollars(0.01234)).toBe(`US$${NBSP}0,0123`);
-		expect(formatDollars(0.5)).toBe(`US$${NBSP}0,50`);
+		expect(formatDollars(0.01234)).toBe(`U$S${NBSP}0,0123`);
+		expect(formatDollars(0.5)).toBe(`U$S${NBSP}0,50`);
 	});
 
 	test('raw evidence keeps four decimals for dollars and two for a rate, which has no unit', () => {
-		expect(formatExactDollars(3.684)).toBe(`US$${NBSP}3,684`);
-		expect(formatExactDollars(3.51293)).toBe(`US$${NBSP}3,5129`);
+		expect(formatExactDollars(3.684)).toBe(`U$S${NBSP}3,684`);
+		expect(formatExactDollars(3.51293)).toBe(`U$S${NBSP}3,5129`);
 		expect(formatExactRate(1612.384)).toBe('1.612,38');
 	});
 
+	test('a peso change takes its close’s decimals, sign first', () => {
+		expect(formatSignedPesoChange(60, 5940)).toBe(`+$${NBSP}60`);
+		expect(formatSignedPesoChange(-0.3, 45.3)).toBe(`−$${NBSP}0,30`);
+		expect(formatSignedPesoChange(0.2, 5940)).toBe(`$${NBSP}0`);
+	});
+
+	test('a dollar change is written as a dollar price, sign first, and zero has no sign', () => {
+		expect(formatSignedDollarChange(0.0376)).toBe(`+U$S${NBSP}0,0376`);
+		expect(formatSignedDollarChange(-0.01049)).toBe(`−U$S${NBSP}0,0105`);
+		expect(formatSignedDollarChange(-1.234)).toBe(`−U$S${NBSP}1,23`);
+		expect(formatSignedDollarChange(0.001)).toBe(`U$S${NBSP}0,00`);
+	});
+
 	test('pesos are whole from a thousand up, with two decimals below', () => {
-		expect(formatPesos(5662.4)).toBe(`5.662${NBSP}pesos`);
-		expect(formatPesos(45.3)).toBe(`45,30${NBSP}pesos`);
+		expect(formatPesos(5662.4)).toBe(`$${NBSP}5.662`);
+		expect(formatPesos(45.3)).toBe(`$${NBSP}45,30`);
 	});
 
 	test('the format follows the rounded value at each cutoff', () => {
-		expect(formatDollars(0.99951)).toBe(`US$${NBSP}1,00`);
-		expect(formatPesos(999.996)).toBe(`1.000${NBSP}pesos`);
+		expect(formatDollars(0.99951)).toBe(`U$S${NBSP}1,00`);
+		expect(formatPesos(999.996)).toBe(`$${NBSP}1.000`);
 	});
 });
 

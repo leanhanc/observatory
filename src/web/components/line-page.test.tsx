@@ -42,6 +42,13 @@ const ggalLine: AvailableLine = {
 		priceRelativeToLongTermEmaInPercent: -17.7,
 		situations: [],
 	},
+	latestClose: {
+		sessionDate: '2026-10-13',
+		previousSessionDate: '2026-10-10',
+		peso: { close: 5940, previousClose: 5880, change: 60, percentChange: 1.0204 },
+		mep: { close: 3.8573, previousClose: 3.8197, change: 0.0376, percentChange: 0.9844 },
+		ccl: { close: 3.684, previousClose: 3.6944, change: -0.0104, percentChange: -0.2815 },
+	},
 	periodReturns: [
 		{ windowMonths: 1, fromSessionDate: '2026-09-11', percentChange: -15.2 },
 		{ windowMonths: 3, fromSessionDate: '2026-07-13', percentChange: -27.3 },
@@ -122,6 +129,19 @@ describe('LinePage', () => {
 		expect(html).not.toContain('<script');
 	});
 
+	test('the last close follows the data date in each view, before the control', async () => {
+		const html = renderLinePage(ggalLine);
+		const closeIndex = html.indexOf('5.940');
+
+		expect(closeIndex).toBeGreaterThan(html.indexOf('Datos al cierre'));
+		expect(closeIndex).toBeLessThan(html.indexOf('currency-control'));
+		expect(html).toContain('(+$\u00a060, +1,0\u00a0%)');
+		expect((await selectVariants(html, 'ccl'))[0]).toBe(
+			'U$S\u00a03,68 (−U$S\u00a00,0104, −0,3\u00a0%)',
+		);
+		expect(html).not.toContain('Último cierre');
+	});
+
 	test('the control comes after the data date, near the top', () => {
 		const html = renderLinePage(ggalLine);
 
@@ -136,13 +156,13 @@ describe('LinePage', () => {
 			...(await selectVariants(html, 'usd')),
 			...(await selectVariants(html, 'ccl')),
 		];
-		const pesoAmount = /\d\spesos/;
+		const pesoAmount = /(?<!U)\$\s\d/;
 
 		expect(pesoVariants.length).toBeGreaterThan(0);
-		expect(pesoVariants.some((variant) => variant.includes('US$'))).toBe(false);
+		expect(pesoVariants.some((variant) => variant.includes('U$S'))).toBe(false);
 		expect(pesoVariants.some((variant) => pesoAmount.test(variant))).toBe(true);
 		expect(dollarVariants.some((variant) => pesoAmount.test(variant))).toBe(false);
-		expect(html).not.toMatch(/pesos\s\(US\$/);
+		expect(html).not.toMatch(/(?<!U)\$\s[\d.,]+\s\(US\$/);
 	});
 
 	test('every view writes every phrase that names a price', async () => {
@@ -154,9 +174,9 @@ describe('LinePage', () => {
 			(variants) => variants.length,
 		);
 
-		// The currency note, returns, levels, pattern, tipping points and raw evidence, and the
-		// Structure Break twice: in the last month's changes and in the full history.
-		expect(variantCounts).toEqual([8, 8, 8]);
+		// The last close, the currency note, returns, levels, pattern, tipping points and raw
+		// evidence, and the Structure Break twice: in the last month's changes and in the history.
+		expect(variantCounts).toEqual([9, 9, 9]);
 		expect(cclVariants.join(' ')).toContain('Sin cotización CCL ese día.');
 		expect(cclVariants.join(' ')).toContain('Precios en dólares CCL');
 	});
@@ -184,8 +204,8 @@ describe('LinePage', () => {
 
 		expect(html).not.toContain('<input');
 		expect(html).not.toContain('data-currency-view');
-		expect(html).toContain('Soporte</strong> en <strong>US$');
-		expect(html).not.toMatch(/\d\spesos/);
+		expect(html).toContain('Soporte</strong> en <strong>U$S');
+		expect(html).not.toMatch(/(?<!U)\$\s\d/);
 	});
 
 	test('an unavailable peso line shows no currency note or control, since it shows no prices', () => {

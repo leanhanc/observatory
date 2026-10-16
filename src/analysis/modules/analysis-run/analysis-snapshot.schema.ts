@@ -4,7 +4,7 @@ import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
 import { checkIfIsoDateIsValid } from '#lib/utils/validation/index.ts';
 
 const messages = {
-	invalidSchemaVersion: 'Schema version must be 11.',
+	invalidSchemaVersion: 'Schema version must be 12.',
 	invalidSessionDate: 'Value must be a real YYYY-MM-DD date.',
 	invalidTimestamp: 'Value must be an ISO timestamp.',
 	invalidType: 'Value has an invalid type or shape.',
@@ -14,6 +14,10 @@ const messages = {
 		'CCL equivalents must describe the latest State: its session, its confirmed swings and its Regime tipping closes.',
 	inconsistentSituations:
 		'Each Situation must agree with the latest State: its Regime and the swing the close is beyond.',
+	inconsistentCloseChange:
+		'A close change must have its previous close, change and percent change, or none of them.',
+	inconsistentLatestClose:
+		'The latest close must describe the latest State: its session, an earlier previous session, and a CCL part exactly when the line has CCL equivalents.',
 	inconsistentPeriodReturn:
 		'A period return must have both its start session and change, or neither.',
 } as const;
@@ -256,6 +260,35 @@ const cclEquivalentsSchema = v.object(
 	messages.invalidType,
 );
 
+const closeChangeSchema = v.pipe(
+	v.object(
+		{
+			close: numberSchema,
+			previousClose: v.nullable(numberSchema),
+			change: v.nullable(numberSchema),
+			percentChange: v.nullable(numberSchema),
+		},
+		messages.invalidType,
+	),
+	v.check(
+		({ previousClose, change, percentChange }) =>
+			(previousClose === null) === (change === null) &&
+			(change === null) === (percentChange === null),
+		messages.inconsistentCloseChange,
+	),
+);
+
+const latestCloseSchema = v.object(
+	{
+		sessionDate: sessionDateSchema,
+		previousSessionDate: v.nullable(sessionDateSchema),
+		peso: closeChangeSchema,
+		mep: closeChangeSchema,
+		ccl: v.nullable(closeChangeSchema),
+	},
+	messages.invalidType,
+);
+
 const periodReturnsSchema = v.pipe(v.array(periodReturnSchema, messages.invalidType), v.readonly());
 
 const snapshotEventSchema = v.object(
@@ -280,6 +313,7 @@ const analyzedLineVariantSchema = v.variant(
 				status: v.literal('available'),
 				...lineIdentityEntries,
 				latestState: latestStateSchema,
+				latestClose: latestCloseSchema,
 				periodReturns: periodReturnsSchema,
 				pesoPeriodReturns: periodReturnsSchema,
 				cclPeriodReturns: periodReturnsSchema,
@@ -336,6 +370,7 @@ const analyzedLineSchema = v.pipe(
 	analyzedLineVariantSchema,
 	v.check(checkIfPesoEquivalentsMatchState, messages.inconsistentPesoEquivalents),
 	v.check(checkIfCclEquivalentsMatchState, messages.inconsistentCclEquivalents),
+	v.check(checkIfLatestCloseMatchesLine, messages.inconsistentLatestClose),
 	v.check(checkIfSituationsMatchState, messages.inconsistentSituations),
 );
 
@@ -345,7 +380,7 @@ const analyzedLineSchema = v.pipe(
  */
 export const analysisSnapshotOverviewSchema = v.object(
 	{
-		schemaVersion: v.literal(11, messages.invalidSchemaVersion),
+		schemaVersion: v.literal(12, messages.invalidSchemaVersion),
 		priceUnit: v.picklist(['mep-dollar'], messages.invalidType),
 		ranAt: v.pipe(stringSchema, v.isoTimestamp(messages.invalidTimestamp)),
 		requestedThroughSession: sessionDateSchema,
@@ -377,6 +412,22 @@ function checkIfCclEquivalentsMatchState(line: AnalyzedLineOverview): boolean {
 	}
 
 	return checkIfEquivalentsMatchState(line.cclEquivalents, line.latestState);
+}
+
+// The latest close describes the State's session, and its CCL part exists exactly when the CCL
+// equivalents do, since both need that session's CCL Rate.
+function checkIfLatestCloseMatchesLine(line: AnalyzedLineOverview): boolean {
+	if (line.status !== 'available') {
+		return true;
+	}
+
+	const { latestClose, latestState, cclEquivalents } = line;
+	const { sessionDate, previousSessionDate } = latestClose;
+	const isSameSession = sessionDate === latestState.sessionDate;
+	const isPreviousEarlier = previousSessionDate === null || previousSessionDate < sessionDate;
+	const hasMatchingCcl = (latestClose.ccl === null) === (cclEquivalents === null);
+
+	return isSameSession && isPreviousEarlier && hasMatchingCcl;
 }
 
 function checkIfEquivalentsMatchState(

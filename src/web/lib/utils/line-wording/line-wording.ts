@@ -8,7 +8,9 @@ import {
 	formatPesos,
 	formatShortDate,
 	formatShortDateList,
+	formatSignedDollarChange,
 	formatSignedPercent,
+	formatSignedPesoChange,
 	formatWholeNumber,
 } from '#web/lib/utils/es-ar-formatting/index.ts';
 
@@ -530,6 +532,52 @@ function selectBreakPrices(event: StructureBreak, currency: DisplayCurrency): Br
 	}
 
 	return { closePrice: event.closePrice, definingSwingPrice: event.definingSwing.price };
+}
+
+/**
+ * The latest close in the view's currency, with its change since the line's previous session as a
+ * signed figure and percentage. Its place under the line's name says what it is, so it has no
+ * label. A change the analysis left `null`, for a previous session without a rate in this
+ * currency, is left out rather than shown as `0`.
+ *
+ * @throws {Error} for a CCL view of a line without a CCL close, which offers no such view.
+ */
+export function describeLatestClose(
+	line: Pick<AvailableLine, 'latestClose'>,
+	currency: DisplayCurrency,
+): Phrase {
+	const closeChange = selectCloseChange(line.latestClose, currency);
+	const closeText = formatCurrencyPrice(closeChange.close, currency);
+	const { change, percentChange } = closeChange;
+
+	if (change === null || percentChange === null) {
+		return [{ strong: closeText }];
+	}
+
+	const changeText =
+		currency === 'ars'
+			? formatSignedPesoChange(change, closeChange.close)
+			: formatSignedDollarChange(change);
+	return [{ strong: closeText }, ` (${changeText}, ${formatSignedPercent(percentChange)})`];
+}
+
+function selectCloseChange(
+	latestClose: AvailableLine['latestClose'],
+	currency: DisplayCurrency,
+): NonNullable<AvailableLine['latestClose']['ccl']> {
+	if (currency === 'ars') {
+		return latestClose.peso;
+	}
+
+	if (currency === 'usd') {
+		return latestClose.mep;
+	}
+
+	if (latestClose.ccl === null) {
+		throw new Error('A line without a CCL close has no CCL view.');
+	}
+
+	return latestClose.ccl;
 }
 
 /** RSI as momentum: the share of recent movement that was gains. `null` while not readable. */

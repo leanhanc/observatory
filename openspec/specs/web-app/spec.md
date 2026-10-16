@@ -169,7 +169,7 @@ For an available line, the page SHALL render:
 - **Trend tipping points** as described in their requirement.
 - **Trend change in progress** from `pendingRegimeTransition`: "Posible cambio a tendencia <alcista|bajista|indefinida> en curso (n de m ruedas).", and nothing when `null`.
 - **Recent changes** as described in their requirement.
-- **Detail:** RSI as "Momentum: n sobre 100. En las últimas ruedas, las subas fueron el n % del movimiento total.", omitted when `null`; `priceRelativeToEmaInAtr` as "x movimientos diarios típicos por debajo|por encima de su media móvil de 20 ruedas."; the swing dates as "Mínimo del <date>, confirmado el <date> · Máximo del <date>, confirmado el <date>."; and the raw evidence in the view's currency: in ARS, the peso close with the MEP Rate, "Cierre del 13 oct: 5.940,00 pesos, con el dólar MEP a 1.539,94 pesos.", then the exact peso swings and tipping closes; in USD, the exact analyzed swings and tipping closes; in CCL, the CCL close with the CCL Rate, "Cierre del 13 oct: US$ 3,6840, con el dólar CCL a 1.612,38.", then the exact CCL swings and tipping closes.
+- **Detail:** RSI as "Momentum: n sobre 100. En las últimas ruedas, las subas fueron el n % del movimiento total.", omitted when `null`; `priceRelativeToEmaInAtr` as "x movimientos diarios típicos por debajo|por encima de su media móvil de 20 ruedas."; the swing dates as "Mínimo del <date>, confirmado el <date> · Máximo del <date>, confirmado el <date>."; and the raw evidence in the view's currency: in ARS, the peso close with the MEP Rate, "Cierre del 13 oct: $ 5.940,00, con el dólar MEP a $ 1.539,94.", then the exact peso swings and tipping closes; in USD, the exact analyzed swings and tipping closes; in CCL, the CCL close with the CCL Rate, "Cierre del 13 oct: U$S 3,6840, con el dólar CCL a 1.612,38.", then the exact CCL swings and tipping closes.
 
 Events SHALL be worded as:
 
@@ -184,8 +184,8 @@ For an unavailable line it SHALL render "Sin analizar: opera muy poco volumen." 
 
 - **WHEN** GGAL's State on 2026-10-09 is `bearish` and `downtrend`, its last confirmed swing low is 3.68 with the close 4.9% above it and `closePosition` `at-or-above`, its last confirmed swing high is 4.04 with the close 4.5% below it and `closePosition` `at-or-below`, its peso equivalents are 5,662 and 6,223, its MEP-dollar returns are −16.5%, −24.9% and +18.5%, and it is 17.8% below its 200-session average
 - **THEN** its page shows "Tendencia bajista.", "−16,5 % en un mes · −24,9 % en tres meses · +18,5 % en un año (en dólares MEP)" in the USD view and "El cierre está 17,8 % por debajo de su media móvil de 200 ruedas."
-- **AND** in the ARS view "Soporte en 5.662 pesos: el cierre está 4,9 % por encima." and "Resistencia en 6.223 pesos: el cierre está 4,5 % por debajo."
-- **AND** in the ARS view "Un cierre por encima de 6.223 pesos rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia."
+- **AND** in the ARS view "Soporte en $ 5.662: el cierre está 4,9 % por encima." and "Resistencia en $ 6.223: el cierre está 4,5 % por debajo."
+- **AND** in the ARS view "Un cierre por encima de $ 6.223 rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia."
 
 #### Scenario: a short history
 
@@ -202,7 +202,7 @@ For an unavailable line it SHALL render "Sin analizar: opera muy poco volumen." 
 #### Scenario: Events
 
 - **WHEN** a line not traded in pesos has a downward Structure Break on 2026-10-09 from an `uptrend`, closing at 3.50 against a low of 3.68 that occurred 2026-10-01 and was confirmed 2026-10-06, and a Regime Transition from `bullish` to `mixed` on 2026-09-29 confirmed on 2026-09-25, 2026-09-26 and 2026-09-29
-- **THEN** its page shows "9 oct · Se rompió el patrón ascendente. Cerró en US$ 3,50, por debajo del último mínimo confirmado: US$ 3,68, del 1 oct, confirmado el 6 oct."
+- **THEN** its page shows "9 oct · Se rompió el patrón ascendente. Cerró en U$S 3,50, por debajo del último mínimo confirmado: U$S 3,68, del 1 oct, confirmado el 6 oct."
 - **AND** "29 sep · Tendencia: alcista → indefinida. Se confirmó tras 3 ruedas (25, 26 y 29 sep)."
 
 #### Scenario: an insufficiently liquid line
@@ -219,7 +219,7 @@ For an unavailable line it SHALL render "Sin analizar: opera muy poco volumen." 
 #### Scenario: a rising pattern in a mixed trend
 
 - **WHEN** a line's State is `mixed` and `uptrend`, and its last confirmed swing low is 3.68 MEP dollars with peso equivalent 5,662
-- **THEN** its ARS view shows "Un cierre por debajo de 5.662 pesos rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos. Por sí solo, no cambia la tendencia."
+- **THEN** its ARS view shows "Un cierre por debajo de $ 5.662 rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos. Por sí solo, no cambia la tendencia."
 
 #### Scenario: a pattern without a level to break
 
@@ -229,31 +229,31 @@ For an unavailable line it SHALL render "Sin analizar: opera muy poco volumen." 
 #### Scenario: a break level beyond a trend tipping point (PAMP)
 
 - **WHEN** PAMP's State on 2026-10-13 is `mixed` and `downtrend`, its last confirmed swing high has a peso equivalent of 5,336, and its bullish tipping close has a peso equivalent of 5,288
-- **THEN** its ARS view shows "Un cierre por encima de 5.336 pesos rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia."
+- **THEN** its ARS view shows "Un cierre por encima de $ 5.336 rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia."
 - **AND** it does not say that the trend would stay "indefinida"
 
 #### Scenario: a Structure Break that crossed by less than the rounding (PAMP)
 
 - **WHEN** PAMP's downward Structure Break on 2026-05-08 from an `uptrend` has a peso close of 4,702.50 and a defining swing low of 4,703.45 in pesos, which both read 4.703, and 3.2954 and 3.2960 MEP dollars, which both read 3,30
-- **THEN** its ARS view shows "8 may · Se rompió el patrón ascendente. Cerró en 4.703 pesos, apenas por debajo del último mínimo confirmado: 4.703 pesos, del 27 abr, confirmado el 30 abr."
-- **AND** its USD view shows "Cerró en US$ 3,30, apenas por debajo del último mínimo confirmado: US$ 3,30"
+- **THEN** its ARS view shows "8 may · Se rompió el patrón ascendente. Cerró en $ 4.703, apenas por debajo del último mínimo confirmado: $ 4.703, del 27 abr, confirmado el 30 abr."
+- **AND** its USD view shows "Cerró en U$S 3,30, apenas por debajo del último mínimo confirmado: U$S 3,30"
 
 #### Scenario: "apenas" follows the leading figure
 
 - **WHEN** an upward Structure Break has a peso close of 8,330 and a high of 8,328 in pesos, both 5,41 in MEP dollars
 - **THEN** the ARS view reads "por encima del último máximo confirmado", since 8.330 and 8.328 differ
-- **AND** the USD view reads "apenas por encima del último máximo confirmado", since both read US$ 5,41
+- **AND** the USD view reads "apenas por encima del último máximo confirmado", since both read U$S 5,41
 
 ### Requirement: line pages are in Spanish with es-AR formats
 
-Line pages and the not-found page SHALL be in impersonal Spanish and declare `lang="es"`. The home page stays in English until its own wording is settled. Numbers SHALL use es-AR formatting: a dot groups thousands, a comma separates decimals, a negative number uses the minus sign `−`, and a unit or sign stays on the same line as its number. Percentages SHALL have one decimal and a space before `%`, with a sign where the wording does not name the side. Prices in MEP dollars and in CCL dollars SHALL be written `US$ 4,04`, with two decimals, or three significant digits when the price rounds to less than one; the view and its currency note say which dollar it is. Exact prices in raw evidence SHALL have up to four decimals, and exact peso amounts two. Peso amounts SHALL be written `5.662 pesos`, whole when they round to a thousand or more and with two decimals below. Header dates SHALL be written "viernes 9 de octubre de 2026", and list dates "9 oct", with months abbreviated as ene, feb, mar, abr, may, jun, jul, ago, sep, oct, nov and dic. A list of dates SHALL name each month once, after its last day: "25, 26 y 29 sep" or "30 sep, 1 y 2 oct".
+Line pages and the not-found page SHALL be in impersonal Spanish and declare `lang="es"`. The home page stays in English until its own wording is settled. Numbers SHALL use es-AR formatting: a dot groups thousands, a comma separates decimals, a negative number uses the minus sign `−`, and a unit or sign stays on the same line as its number. Percentages SHALL have one decimal and a space before `%`, with a sign where the wording does not name the side. Prices in MEP dollars and in CCL dollars SHALL be written `U$S 4,04`, with two decimals, or three significant digits when the price rounds to less than one; the view and its currency note say which dollar it is. Exact prices in raw evidence SHALL have up to four decimals, and exact peso amounts two. Peso amounts SHALL be written `$ 5.662`, with `$` for pesos as Argentine brokers write them, whole when they round to a thousand or more and with two decimals below. The word "pesos" stays only in sentences that name the currency, such as the currency note and the returns' unit. Header dates SHALL be written "viernes 9 de octubre de 2026", and list dates "9 oct", with months abbreviated as ene, feb, mar, abr, may, jun, jul, ago, sep, oct, nov and dic. A list of dates SHALL name each month once, after its last day: "25, 26 y 29 sep" or "30 sep, 1 y 2 oct".
 
 The table's English column is kept in the design for a later English version; this change builds no language routing.
 
 #### Scenario: es-AR numbers
 
 - **WHEN** a page shows −17.83%, +41.6%, 4.0412 MEP dollars, 3.5129 CCL dollars and 5,662.4 pesos
-- **THEN** it shows "−17,8 %", "+41,6 %", "US$ 4,04", "US$ 3,51" and "5.662 pesos"
+- **THEN** it shows "−17,8 %", "+41,6 %", "U$S 4,04", "U$S 3,51" and "$ 5.662"
 
 #### Scenario: a zero percentage
 
@@ -264,7 +264,7 @@ The table's English column is kept in the design for a later English version; th
 
 A line page SHALL render, in order:
 
-0. identity: the ticker, the type, the data date, the currency control on an available peso line, and in tier 2 the CEDEAR's Underlying and, on an available peso line, the currency note;
+0. identity: the ticker, the type, the data date, the last close and its day change on an available line, the currency control on an available peso line, and in tier 2 the CEDEAR's Underlying and, on an available peso line, the currency note;
 1. what the line is doing: the trend and the period returns, then the distance from the 200-session average in tier 2;
 2. support and resistance;
 3. what would change it: the pattern with its break level, the trend tipping points and the trend change in progress;
@@ -280,6 +280,11 @@ The currency note SHALL change with the view:
 - CCL: "Precios en dólares CCL, aproximados: cada precio en pesos dividido por el dólar CCL de ese día. El análisis se hace en dólares MEP."
 
 It is the only place the page says that converted figures are approximate. "De cada día" and "de ese día" cover both rates the page uses: the levels in "Soporte y resistencia" and "Qué observar" are at the last session's rate, and each Event's prices at its own session's.
+
+#### Scenario: the last close leads the page
+
+- **WHEN** the build writes GGAL's page
+- **THEN** the last close comes right after "Datos al cierre del …" and before the currency control
 
 #### Scenario: tiers without JavaScript
 
@@ -354,13 +359,13 @@ Leaving a trend needs only its price condition to fail, so the bearish and bulli
 #### Scenario: a bearish trend (GGAL)
 
 - **WHEN** GGAL is `bearish`, its bearish tipping close is 4.62 MEP dollars with peso equivalent 7,109, and its bullish tipping close is 4.77
-- **THEN** its ARS view shows "Con cierres por encima de 7.109 pesos, la tendencia dejaría de ser bajista." and its USD view the same with "US$ 4,62"
+- **THEN** its ARS view shows "Con cierres por encima de $ 7.109, la tendencia dejaría de ser bajista." and its USD view the same with "U$S 4,62"
 - **AND** not the bullish close
 
 #### Scenario: a bullish trend (XP)
 
 - **WHEN** XP is `bullish`, its bullish tipping close is 4.95 MEP dollars with peso equivalent 7,619, and EMA50 is not below EMA200
-- **THEN** its ARS view shows "Con cierres por debajo de 7.619 pesos, la tendencia dejaría de ser alcista." without the 50-session sentence
+- **THEN** its ARS view shows "Con cierres por debajo de $ 7.619, la tendencia dejaría de ser alcista." without the 50-session sentence
 
 #### Scenario: a mixed trend (PATH)
 
@@ -432,7 +437,7 @@ Each view SHALL name prices, levels and returns only in its own currency, everyw
 - USD: the analyzed prices from the State and the Events, and the period returns from `periodReturns`;
 - CCL: the levels from `cclEquivalents`, the period returns from `cclPeriodReturns`, and each Structure Break's prices from its own `cclEquivalents`.
 
-A view SHALL NOT pair its price with another currency's: the ARS view writes "5.662 pesos", not "5.662 pesos (US$ 3,68)". The page SHALL NOT convert any value, and SHALL NOT use the line's equivalents, at the last session's rate, for an Event. Distances in percent are the same in every view, since the analysis converts the close and its levels with one session's rates, so the page reads them from the State once.
+A view SHALL NOT pair its price with another currency's: the ARS view writes "$ 5.662", not "$ 5.662 (U$S 3,68)". The page SHALL NOT convert any value, and SHALL NOT use the line's equivalents, at the last session's rate, for an Event. Distances in percent are the same in every view, since the analysis converts the close and its levels with one session's rates, so the page reads them from the State once.
 
 The "apenas" rule SHALL be evaluated in each view's own currency and formatting: a Structure Break reads "apenas por debajo" or "apenas por encima" in a view exactly when that view's close and level print the same figure.
 
@@ -441,14 +446,14 @@ In the CCL view, a Structure Break whose `cclEquivalents` is `null` SHALL keep i
 #### Scenario: GGAL's levels in each view
 
 - **WHEN** GGAL's last confirmed swing low is 3.68 MEP dollars, 5,662 pesos in `pesoEquivalents` and 3.51 in `cclEquivalents`, with the close 4.9% above it
-- **THEN** the ARS view shows "Soporte en 5.662 pesos: el cierre está 4,9 % por encima."
-- **AND** the USD view shows "Soporte en US$ 3,68: el cierre está 4,9 % por encima."
-- **AND** the CCL view shows "Soporte en US$ 3,51: el cierre está 4,9 % por encima."
+- **THEN** the ARS view shows "Soporte en $ 5.662: el cierre está 4,9 % por encima."
+- **AND** the USD view shows "Soporte en U$S 3,68: el cierre está 4,9 % por encima."
+- **AND** the CCL view shows "Soporte en U$S 3,51: el cierre está 4,9 % por encima."
 
 #### Scenario: no view names another currency's price
 
 - **WHEN** the build writes GGAL's page with all three views
-- **THEN** no ARS variant contains "US$"
+- **THEN** no ARS variant contains "U$S"
 - **AND** no USD or CCL variant contains a peso amount
 
 #### Scenario: period returns in each view
@@ -467,9 +472,9 @@ In the CCL view, a Structure Break whose `cclEquivalents` is `null` SHALL keep i
 #### Scenario: a Structure Break in each view (PAMP)
 
 - **WHEN** PAMP's downward Structure Break on 2026-09-18 from an `uptrend` has a close of 3.39 MEP dollars and a defining swing low of 3.46 that occurred 2026-09-07 and was confirmed 2026-09-10, its `pesoEquivalents` are a close of 5,215 and a swing of 5,325, and its `cclEquivalents` a close of 3.25 and a swing of 3.32
-- **THEN** the ARS view shows "18 sep · Se rompió el patrón ascendente. Cerró en 5.215 pesos, por debajo del último mínimo confirmado: 5.325 pesos, del 7 sep, confirmado el 10 sep."
-- **AND** the USD view shows "… Cerró en US$ 3,39, por debajo del último mínimo confirmado: US$ 3,46, …"
-- **AND** the CCL view shows "… Cerró en US$ 3,25, por debajo del último mínimo confirmado: US$ 3,32, …"
+- **THEN** the ARS view shows "18 sep · Se rompió el patrón ascendente. Cerró en $ 5.215, por debajo del último mínimo confirmado: $ 5.325, del 7 sep, confirmado el 10 sep."
+- **AND** the USD view shows "… Cerró en U$S 3,39, por debajo del último mínimo confirmado: U$S 3,46, …"
+- **AND** the CCL view shows "… Cerró en U$S 3,25, por debajo del último mínimo confirmado: U$S 3,32, …"
 
 #### Scenario: a Structure Break on a session without a CCL Rate
 
@@ -479,7 +484,23 @@ In the CCL view, a Structure Break whose `cclEquivalents` is `null` SHALL keep i
 
 #### Scenario: "apenas" in each view's own figures
 
-- **WHEN** an upward Structure Break has a peso close of 8,330 and a high of 8,328, both US$ 5,41 in MEP dollars, and 5.18 and 5.17 in CCL dollars
+- **WHEN** an upward Structure Break has a peso close of 8,330 and a high of 8,328, both U$S 5,41 in MEP dollars, and 5.18 and 5.17 in CCL dollars
 - **THEN** the ARS view reads "por encima del último máximo confirmado", since 8.330 and 8.328 differ
-- **AND** the USD view reads "apenas por encima del último máximo confirmado", since both read US$ 5,41
-- **AND** the CCL view reads "por encima del último máximo confirmado", since US$ 5,18 and US$ 5,17 differ
+- **AND** the USD view reads "apenas por encima del último máximo confirmado", since both read U$S 5,41
+- **AND** the CCL view reads "por encima del último máximo confirmado", since U$S 5,18 and U$S 5,17 differ
+
+### Requirement: a line page shows the last close and its day change
+
+An available line's page SHALL show its last close from `latestClose`, in each currency view: the `peso` part in ARS, `mep` in USD and `ccl` in CCL, rendered as a price phrase of the currency-view requirements. It SHALL show the close as a price, with no label, followed, when the part's `change` is not `null`, by the change as a signed absolute figure in the view's currency and a signed percentage: "$ 5.940 (+$ 60, +1,0 %)". Its place under the line's name and data date says it is the last close and its change since the previous session, so the page names neither. A part whose change is `null` SHALL show the close alone, never a change of `0`. The page SHALL read every figure from the snapshot and SHALL NOT compute a change. The sign carries the direction; the page adds no color.
+
+#### Scenario: GGAL's last close in each view
+
+- **WHEN** GGAL's `latestClose` has a peso close of 5940 up 60 pesos (+1.02 %), a MEP close of 4 with a change of 0, and a CCL close of 3.8077 down 0.0105 (−0.27 %)
+- **THEN** the ARS view shows "$ 5.940 (+$ 60, +1,0 %)"
+- **AND** the USD view shows "U$S 4,00 (U$S 0,00, 0,0 %)"
+- **AND** the CCL view shows "U$S 3,81 (−U$S 0,0105, −0,3 %)"
+
+#### Scenario: no rate on the previous session
+
+- **WHEN** the line's `latestClose.mep` has a `null` change
+- **THEN** the USD view shows "U$S 4,00" and no change

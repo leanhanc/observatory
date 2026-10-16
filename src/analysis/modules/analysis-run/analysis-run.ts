@@ -77,6 +77,8 @@ import type {
 	AnalyzedLine,
 	AnalyzedLineFailureReason,
 	CclEquivalents,
+	CloseChange,
+	LatestClose,
 	PesoEquivalents,
 	TradingLineSession,
 } from './analysis-run.types.ts';
@@ -308,7 +310,7 @@ async function runAnalysis(
 	);
 
 	const snapshot = {
-		schemaVersion: 11,
+		schemaVersion: 12,
 		priceUnit: SNAPSHOT_PRICE_UNIT,
 		ranAt,
 		requestedThroughSession,
@@ -978,6 +980,7 @@ function analyzeTradingLine(
 		status: 'available',
 		...identity,
 		latestState,
+		latestClose: describeLatestClose(lastBar, correction.bars, mepRates, cclRates),
 		periodReturns: calculatePeriodReturns(bars),
 		pesoPeriodReturns: calculatePeriodReturns(pesoCloses),
 		cclPeriodReturns: calculatePeriodReturns(cclCloses),
@@ -1018,6 +1021,64 @@ function projectLatestStateToPesos(
 		lastConfirmedSwingLow: convertSwingPrice(lastConfirmedSwingLow, mepRate),
 		regimeTippingCloses: convertTippingCloses(regimeTippingCloses, mepRate),
 	};
+}
+
+/**
+ * The latest State's close in each currency and its change since the line's previous peso bar,
+ * which is the close the reader saw before, rate or not. Each previous close uses only its own
+ * session's rate: the latest session's rate would leave the peso's move out of a dollar change.
+ */
+function describeLatestClose(
+	lastDollarizedBar: DailyBar,
+	pesoBars: readonly DailyBar[],
+	mepRates: readonly MepRateSession[],
+	cclRates: readonly CclRateSession[],
+): LatestClose {
+	const { sessionDate } = lastDollarizedBar;
+	const sessionIndex = pesoBars.findIndex((bar) => bar.sessionDate === sessionDate);
+	const pesoClose = pesoBars[sessionIndex]!.close;
+	const previousBar = sessionIndex > 0 ? pesoBars[sessionIndex - 1]! : null;
+	const previousSessionDate = previousBar?.sessionDate ?? null;
+	const previousMepRate = findMepRate(previousSessionDate, mepRates);
+	const previousCclRate = findCclRate(previousSessionDate, cclRates);
+	const cclRate = findCclRate(sessionDate, cclRates);
+	const previousMepClose =
+		previousBar === null || previousMepRate === null
+			? null
+			: previousBar.close / previousMepRate;
+	const previousCclClose =
+		previousBar === null || previousCclRate === null
+			? null
+			: toCclEquivalent(previousBar.close, previousCclRate);
+	const ccl =
+		cclRate === null
+			? null
+			: measureCloseChange(toCclEquivalent(pesoClose, cclRate), previousCclClose);
+
+	return {
+		sessionDate,
+		previousSessionDate,
+		peso: measureCloseChange(pesoClose, previousBar?.close ?? null),
+		mep: measureCloseChange(lastDollarizedBar.close, previousMepClose),
+		ccl,
+	};
+}
+
+function measureCloseChange(close: number, previousClose: number | null): CloseChange {
+	if (previousClose === null) {
+		return { close, previousClose: null, change: null, percentChange: null };
+	}
+
+	const change = close - previousClose;
+	return { close, previousClose, change, percentChange: (change / previousClose) * 100 };
+}
+
+/** The MEP Rate of exactly this session, or `null`: no other session's rate stands in. */
+function findMepRate(
+	sessionDate: string | null,
+	mepRates: readonly MepRateSession[],
+): number | null {
+	return mepRates.find((rate) => rate.sessionDate === sessionDate)?.mepRate ?? null;
 }
 
 /**
@@ -1119,7 +1180,10 @@ function findPesoSession(
 }
 
 /** The CCL Rate of exactly this session, or `null`: no other session's rate stands in. */
-function findCclRate(sessionDate: string, cclRates: readonly CclRateSession[]): number | null {
+function findCclRate(
+	sessionDate: string | null,
+	cclRates: readonly CclRateSession[],
+): number | null {
 	return cclRates.find((rate) => rate.sessionDate === sessionDate)?.cclRate ?? null;
 }
 

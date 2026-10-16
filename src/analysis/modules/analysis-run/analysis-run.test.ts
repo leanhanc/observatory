@@ -257,6 +257,66 @@ describe('createAnalysisRunner', () => {
 		);
 	});
 
+	test('records the latest close in pesos and MEP dollars, each previous close at its own session’s rate', async () => {
+		// The line's last session, 2026-09-15, is the first at a MEP Rate of 4096; the session before
+		// was at 2048. The latest session's rate for both closes would halve the previous MEP close.
+		const provider = {
+			...createHealthyProvider(),
+			GGAL: ggalPesoBars.filter((bar) => bar.sessionDate <= '2026-09-15'),
+		};
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const [previousPesoBar, lastPesoBar] = ggalPesoBars
+			.filter((bar) => bar.sessionDate <= '2026-09-15')
+			.slice(-2);
+		const [previousDollarBar, lastDollarBar] = ggalDollarBars
+			.filter((bar) => bar.sessionDate <= '2026-09-15')
+			.slice(-2);
+		const mepChange = lastDollarBar!.close - previousDollarBar!.close;
+		const pesoChange = lastPesoBar!.close - previousPesoBar!.close;
+
+		expect(ggal.latestClose).toMatchObject({
+			sessionDate: '2026-09-15',
+			previousSessionDate: previousPesoBar!.sessionDate,
+			peso: {
+				close: lastPesoBar!.close,
+				previousClose: previousPesoBar!.close,
+				change: pesoChange,
+				percentChange: (pesoChange / previousPesoBar!.close) * 100,
+			},
+		});
+		expect(ggal.latestClose.mep.close).toBe(lastDollarBar!.close);
+		expect(ggal.latestClose.mep.previousClose).toBeCloseTo(previousDollarBar!.close, 9);
+		expect(ggal.latestClose.mep.percentChange).toBeCloseTo(
+			(mepChange / previousDollarBar!.close) * 100,
+			9,
+		);
+		// The peso change includes the rate's doubling; the MEP change does not.
+		expect(ggal.latestClose.peso.percentChange).toBeGreaterThan(
+			ggal.latestClose.mep.percentChange! + 90,
+		);
+	});
+
+	test('leaves the MEP day change null when the previous session has no MEP Rate', async () => {
+		const previousSession = '2026-09-29';
+		const provider = {
+			...createHealthyProvider(),
+			AL30D: al30dBars.filter((bar) => bar.sessionDate !== previousSession),
+		};
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+
+		// The previous session is the line's previous peso bar, not the last one with a rate.
+		expect(ggal.latestClose.previousSessionDate).toBe(previousSession);
+		expect(ggal.latestClose.peso.change).not.toBeNull();
+		expect(ggal.latestClose.mep).toEqual({
+			close: ggalDollarBars.at(-1)!.close,
+			previousClose: null,
+			change: null,
+			percentChange: null,
+		});
+	});
+
 	test('gives a short history a State with unavailable parts as null', async () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 		const shortLine = selectAvailableLine(result, 'new-stock-byma-ars');
@@ -305,7 +365,7 @@ describe('createAnalysisRunner', () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 
 		expect(result.ok && result.snapshot).toMatchObject({
-			schemaVersion: 11,
+			schemaVersion: 12,
 			priceUnit: 'mep-dollar',
 			ranAt: RAN_AT,
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
@@ -1290,6 +1350,55 @@ describe('Analysis Run CCL Rate', () => {
 		expect(ggal.pesoPeriodReturns[0]!.fromSessionDate).toBe(monthStartSession);
 	});
 
+	test('records the latest close in CCL dollars, each close at its own session’s CCL Rate', async () => {
+		const provider = { ...createHealthyProvider(), AL30C: varyingAl30cBars };
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const [previousPesoBar, lastPesoBar] = ggalPesoBars.slice(-2);
+		const close = lastPesoBar!.close / selectCclRate(lastPesoBar!.sessionDate);
+		const previousClose = previousPesoBar!.close / selectCclRate(previousPesoBar!.sessionDate);
+		const previousCloseAtLatestRate =
+			previousPesoBar!.close / selectCclRate(lastPesoBar!.sessionDate);
+
+		expect(ggal.latestClose.ccl).toEqual({
+			close,
+			previousClose,
+			change: close - previousClose,
+			percentChange: ((close - previousClose) / previousClose) * 100,
+		});
+		expect(previousClose).not.toBeCloseTo(previousCloseAtLatestRate, 6);
+	});
+
+	test('leaves the CCL day change null without a CCL Rate on the previous session, and the part null without one on the latest', async () => {
+		const withoutPreviousRate = await runWithProvider({
+			...createHealthyProvider(),
+			AL30C: al30cBars.filter((bar) => bar.sessionDate !== '2026-09-29'),
+		});
+		const withoutLatestRate = await runWithProvider({
+			...createHealthyProvider(),
+			AL30C: al30cBars.filter((bar) => bar.sessionDate !== '2026-09-30'),
+		});
+		const previousRateLine = selectAvailableLine(
+			withoutPreviousRate.result,
+			'galicia-stock-byma-ars',
+		);
+		const latestRateLine = selectAvailableLine(
+			withoutLatestRate.result,
+			'galicia-stock-byma-ars',
+		);
+
+		expect(previousRateLine.latestClose.ccl).toMatchObject({
+			previousClose: null,
+			change: null,
+			percentChange: null,
+		});
+		expect(previousRateLine.latestClose.ccl?.close).toBe(
+			(ggalPesoBars.at(-1)!.close / selectMepRate('2026-09-30')) * CABLE_PRICE,
+		);
+		expect(latestRateLine.latestClose.ccl).toBeNull();
+		expect(latestRateLine.latestClose.mep.change).not.toBeNull();
+	});
+
 	test.each([
 		['fails transiently', 'http-error', 'Open BYMADATA returned HTTP 500.'],
 		['has no data', 'no-data', 'no Daily Bars'],
@@ -1357,7 +1466,7 @@ describe('Analysis Run CCL Rate', () => {
 		});
 		const [withCable, withoutCable] = [withCableRun.writes[0]!, withoutCableRun.writes[0]!];
 
-		expect(withCable.schemaVersion).toBe(11);
+		expect(withCable.schemaVersion).toBe(12);
 		expect(JSON.stringify(removeCclFigures(withCable))).toBe(
 			JSON.stringify(removeCclFigures(withoutCable)),
 		);
@@ -2111,7 +2220,8 @@ function removeCclFigures(snapshot: AnalysisSnapshot): unknown {
 			const { cclEquivalents: _eventCclEquivalents, ...eventRest } = entry.event;
 			return { ...entry, event: eventRest };
 		});
-		return { ...lineRest, events };
+		const { ccl: _cclClose, ...latestClose } = line.latestClose;
+		return { ...lineRest, latestClose, events };
 	});
 
 	return { ...rest, analyzedLines };

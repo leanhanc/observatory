@@ -34,8 +34,10 @@ const SHORT_MONTHS = [
 	'dic',
 ];
 
-// MEP and CCL dollars are both written `US$`; the page's currency view and note say which.
-const DOLLAR_PREFIX = 'US$';
+// Pesos are written `$` and dollars `U$S`, as Argentines write them. MEP and CCL dollars share
+// `U$S`; the page's currency view and note say which.
+const PESO_PREFIX = '$';
+const DOLLAR_PREFIX = 'U$S';
 
 const oneDecimalFormat = new Intl.NumberFormat('es-AR', {
 	minimumFractionDigits: 1,
@@ -81,7 +83,7 @@ export function formatSignedPercent(value: number): string {
 	return `${useMinusSign(signedOneDecimalFormat.format(value))}${NBSP}%`;
 }
 
-/** Formats a price in MEP or CCL dollars, for example `US$ 4,04`. */
+/** Formats a price in MEP or CCL dollars, for example `U$S 4,04`. */
 export function formatDollars(value: number): string {
 	// Chosen by the rounded value, so 0,9996 shows as 1,00 rather than with three significant digits.
 	const isUnderOne = Math.abs(value) < 0.995;
@@ -89,7 +91,7 @@ export function formatDollars(value: number): string {
 	return `${DOLLAR_PREFIX}${NBSP}${useMinusSign(amount)}`;
 }
 
-/** Formats a dollar price with up to four decimals, for raw evidence, for example `US$ 3,6812`. */
+/** Formats a dollar price with up to four decimals, for raw evidence, for example `U$S 3,6812`. */
 export function formatExactDollars(value: number): string {
 	return `${DOLLAR_PREFIX}${NBSP}${useMinusSign(exactPriceFormat.format(value))}`;
 }
@@ -99,19 +101,57 @@ export function formatExactRate(value: number): string {
 	return useMinusSign(twoDecimalFormat.format(value));
 }
 
-/** Formats an amount in pesos with two decimals, for raw evidence, for example `5.790,50 pesos`. */
+/** Formats an amount in pesos with two decimals, for raw evidence, for example `$ 5.790,50`. */
 export function formatExactPesos(value: number): string {
-	return `${useMinusSign(twoDecimalFormat.format(value))}${NBSP}pesos`;
+	return `${PESO_PREFIX}${NBSP}${useMinusSign(twoDecimalFormat.format(value))}`;
 }
 
-/** Formats an amount in pesos, whole from a thousand up, for example `5.662 pesos` or `45,30 pesos`. */
+/** Formats an amount in pesos, whole from a thousand up, for example `$ 5.662` or `$ 45,30`. */
 export function formatPesos(value: number): string {
 	// Chosen by the rounded value, so 999,996 shows as 1.000 rather than 1.000,00.
 	const isUnderAThousand = Math.abs(value) < 999.995;
 	const amount = isUnderAThousand
 		? twoDecimalFormat.format(value)
 		: wholeNumberFormat.format(value);
-	return `${useMinusSign(amount)}${NBSP}pesos`;
+	return `${PESO_PREFIX}${NBSP}${useMinusSign(amount)}`;
+}
+
+/**
+ * Formats a change in pesos with its sign first, in the decimals its close is written with, so a
+ * change on a close of thousands is whole: `+$ 60` on 5.940, `−$ 0,30` on 45,30. A change
+ * that rounds to zero has no sign.
+ */
+export function formatSignedPesoChange(change: number, close: number): string {
+	const isWholeClose = Math.abs(close) >= 999.995;
+	const format = isWholeClose ? wholeNumberFormat : twoDecimalFormat;
+	const amount = `${PESO_PREFIX}${NBSP}${format.format(Math.abs(change))}`;
+	return signAmount(change, amount);
+}
+
+/**
+ * Formats a change in MEP or CCL dollars with its sign first, as a dollar price is written:
+ * `+U$S 0,04` or `−U$S 0,0105`. A change that rounds to zero reads `U$S 0,00`, without a sign.
+ */
+export function formatSignedDollarChange(change: number): string {
+	const isZero = twoDecimalFormat.format(Math.abs(change)) === twoDecimalFormat.format(0);
+
+	if (isZero) {
+		return `${DOLLAR_PREFIX}${NBSP}${twoDecimalFormat.format(0)}`;
+	}
+
+	const sign = change > 0 ? '+' : MINUS_SIGN;
+	return `${sign}${formatDollars(Math.abs(change))}`;
+}
+
+function signAmount(change: number, amount: string): string {
+	const isZero = !/[1-9]/.test(amount);
+
+	if (isZero) {
+		return amount;
+	}
+
+	const sign = change > 0 ? '+' : MINUS_SIGN;
+	return `${sign}${amount}`;
 }
 
 /** Formats a session date for a heading, for example `viernes 9 de octubre de 2026`. */

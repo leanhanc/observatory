@@ -9,6 +9,8 @@ export {
 	formatPesos,
 	formatShortDate,
 	formatShortDateList,
+	formatSignedDollarChange,
 	formatSignedPercent,
+	formatSignedPesoChange,
 	formatWholeNumber,
 } from './es-ar-formatting.ts';

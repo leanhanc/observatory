@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import {
 	describeEvent,
+	describeLatestClose,
 	describeLevels,
 	describeLongTermDistance,
 	describeMomentum,
@@ -173,6 +174,47 @@ describe('describePeriodReturns', () => {
 	});
 });
 
+describe('describeLatestClose', () => {
+	const latestCloseLine = {
+		latestClose: {
+			sessionDate: '2026-10-14',
+			previousSessionDate: '2026-10-13',
+			peso: { close: 5940, previousClose: 5880, change: 60, percentChange: 1.0204 },
+			mep: { close: 4, previousClose: 4, change: 0, percentChange: 0 },
+			ccl: { close: 3.8077, previousClose: 3.8182, change: -0.0105, percentChange: -0.2747 },
+		},
+	};
+
+	test('each view shows its own close and signed change, with no label', () => {
+		expect(toText(describeLatestClose(latestCloseLine, 'ars'))).toBe(
+			`$${NBSP}5.940 (+$${NBSP}60, +1,0${NBSP}%)`,
+		);
+		expect(toText(describeLatestClose(latestCloseLine, 'ccl'))).toBe(
+			`U$S${NBSP}3,81 (−U$S${NBSP}0,0105, −0,3${NBSP}%)`,
+		);
+		expect(describeLatestClose(latestCloseLine, 'ars')[0]).toEqual({
+			strong: `$${NBSP}5.940`,
+		});
+	});
+
+	test('a change of zero has no sign', () => {
+		expect(toText(describeLatestClose(latestCloseLine, 'usd'))).toBe(
+			`U$S${NBSP}4,00 (U$S${NBSP}0,00, 0,0${NBSP}%)`,
+		);
+	});
+
+	test('a change the analysis left null is left out, not shown as zero', () => {
+		const line = {
+			latestClose: {
+				...latestCloseLine.latestClose,
+				mep: { close: 4, previousClose: null, change: null, percentChange: null },
+			},
+		};
+
+		expect(describeLatestClose(line, 'usd')).toEqual([{ strong: `U$S${NBSP}4,00` }]);
+	});
+});
+
 describe('describeLongTermDistance', () => {
 	test('says how far and on which side of the 200-session average the close is', () => {
 		expect(toText(describeLongTermDistance(-17.8)!)).toBe(
@@ -189,16 +231,16 @@ describe('describeLongTermDistance', () => {
 describe('describeLevels', () => {
 	test('between both levels: each view names its own currency only, at the same distance', () => {
 		expect(describeLevels(ggalLine, 'ars').map(toText)).toEqual([
-			`Soporte en 5.662${NBSP}pesos: el cierre está 4,9${NBSP}% por encima.`,
-			`Resistencia en 6.223${NBSP}pesos: el cierre está 4,5${NBSP}% por debajo.`,
+			`Soporte en $${NBSP}5.662: el cierre está 4,9${NBSP}% por encima.`,
+			`Resistencia en $${NBSP}6.223: el cierre está 4,5${NBSP}% por debajo.`,
 		]);
 		expect(describeLevels(ggalLine, 'usd').map(toText)).toEqual([
-			`Soporte en US$${NBSP}3,68: el cierre está 4,9${NBSP}% por encima.`,
-			`Resistencia en US$${NBSP}4,04: el cierre está 4,5${NBSP}% por debajo.`,
+			`Soporte en U$S${NBSP}3,68: el cierre está 4,9${NBSP}% por encima.`,
+			`Resistencia en U$S${NBSP}4,04: el cierre está 4,5${NBSP}% por debajo.`,
 		]);
 		expect(describeLevels(ggalLine, 'ccl').map(toText)).toEqual([
-			`Soporte en US$${NBSP}3,51: el cierre está 4,9${NBSP}% por encima.`,
-			`Resistencia en US$${NBSP}3,86: el cierre está 4,5${NBSP}% por debajo.`,
+			`Soporte en U$S${NBSP}3,51: el cierre está 4,9${NBSP}% por encima.`,
+			`Resistencia en U$S${NBSP}3,86: el cierre está 4,5${NBSP}% por debajo.`,
 		]);
 	});
 
@@ -297,9 +339,9 @@ describe('describePattern', () => {
 		const phrase = describePattern(ggalLine, 'ars');
 
 		expect(toText(phrase)).toBe(
-			`Un cierre por encima de 6.223${NBSP}pesos rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
+			`Un cierre por encima de $${NBSP}6.223 rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
 		);
-		expect(phrase).toContainEqual({ strong: `6.223${NBSP}pesos` });
+		expect(phrase).toContainEqual({ strong: `$${NBSP}6.223` });
 		expect(phrase).toContainEqual({ strong: 'patrón descendente' });
 	});
 
@@ -307,7 +349,7 @@ describe('describePattern', () => {
 		const uptrendState: SnapshotState = { ...ggalState, structure: 'uptrend', regime: 'mixed' };
 
 		expect(toText(describePattern(withState(uptrendState), 'ars'))).toBe(
-			`Un cierre por debajo de 5.662${NBSP}pesos rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos. Por sí solo, no cambia la tendencia.`,
+			`Un cierre por debajo de $${NBSP}5.662 rompería el patrón ascendente: los mínimos dejarían de ser cada vez más altos. Por sí solo, no cambia la tendencia.`,
 		);
 	});
 
@@ -315,16 +357,16 @@ describe('describePattern', () => {
 		const warmUpTrend: SnapshotState = { ...ggalState, regime: null };
 
 		expect(toText(describePattern(withState(warmUpTrend), 'ars'))).toBe(
-			`Un cierre por encima de 6.223${NBSP}pesos rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos.`,
+			`Un cierre por encima de $${NBSP}6.223 rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos.`,
 		);
 	});
 
 	test('the USD and CCL views name the level in their own dollars', () => {
 		expect(toText(describePattern(ggalLine, 'ccl'))).toContain(
-			`Un cierre por encima de US$${NBSP}3,86 rompería`,
+			`Un cierre por encima de U$S${NBSP}3,86 rompería`,
 		);
 		expect(toText(describePattern(ggalLine, 'usd'))).toBe(
-			`Un cierre por encima de US$${NBSP}4,04 rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
+			`Un cierre por encima de U$S${NBSP}4,04 rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
 		);
 	});
 
@@ -354,7 +396,7 @@ describe('describePattern', () => {
 		const patternText = toText(describePattern(pampLine, 'ars'));
 
 		expect(patternText).toBe(
-			`Un cierre por encima de 5.336${NBSP}pesos rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
+			`Un cierre por encima de $${NBSP}5.336 rompería el patrón descendente: los máximos dejarían de ser cada vez más bajos. Por sí solo, no cambia la tendencia.`,
 		);
 		expect(patternText).not.toContain('seguiría siendo');
 	});
@@ -387,7 +429,7 @@ describe('describePattern', () => {
 describe('describeTippingPoints', () => {
 	test('a bearish trend shows where it would stop being bearish: the near, bearish edge', () => {
 		expect(describeTippingPoints(ggalLine, 'ars').map(toText)).toEqual([
-			`Con cierres por encima de 6.480${NBSP}pesos, la tendencia dejaría de ser bajista.`,
+			`Con cierres por encima de $${NBSP}6.480, la tendencia dejaría de ser bajista.`,
 		]);
 	});
 
@@ -396,7 +438,7 @@ describe('describeTippingPoints', () => {
 		const bullishState: SnapshotState = { ...ggalState, regime: 'bullish' };
 
 		expect(describeTippingPoints(withState(bullishState), 'ars').map(toText)).toEqual([
-			`Con cierres por debajo de 7.344${NBSP}pesos, la tendencia dejaría de ser alcista.`,
+			`Con cierres por debajo de $${NBSP}7.344, la tendencia dejaría de ser alcista.`,
 		]);
 	});
 
@@ -405,17 +447,17 @@ describe('describeTippingPoints', () => {
 		const points = describeTippingPoints(withState(mixedState), 'ars');
 
 		expect(points.map(toText)).toEqual([
-			`Con cierres por encima de 7.344${NBSP}pesos, la tendencia pasaría a ser alcista. Además, la media de 50 ruedas tendría que pasar por encima de la de 200.`,
-			`Con cierres por debajo de 6.480${NBSP}pesos, la tendencia pasaría a ser bajista.`,
+			`Con cierres por encima de $${NBSP}7.344, la tendencia pasaría a ser alcista. Además, la media de 50 ruedas tendría que pasar por encima de la de 200.`,
+			`Con cierres por debajo de $${NBSP}6.480, la tendencia pasaría a ser bajista.`,
 		]);
 	});
 
 	test('each view names the tipping point in its own currency', () => {
 		expect(describeTippingPoints(ggalLine, 'usd').map(toText)).toEqual([
-			`Con cierres por encima de US$${NBSP}4,21, la tendencia dejaría de ser bajista.`,
+			`Con cierres por encima de U$S${NBSP}4,21, la tendencia dejaría de ser bajista.`,
 		]);
 		expect(describeTippingPoints(ggalLine, 'ccl').map(toText)).toEqual([
-			`Con cierres por encima de US$${NBSP}4,02, la tendencia dejaría de ser bajista.`,
+			`Con cierres por encima de U$S${NBSP}4,02, la tendencia dejaría de ser bajista.`,
 		]);
 	});
 
@@ -478,14 +520,14 @@ describe('describeEvent', () => {
 		const pesoPhrase = describeEvent(pampBreak, 'ars');
 
 		expect(toText(pesoPhrase)).toBe(
-			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró en 5.215${NBSP}pesos, por debajo del último mínimo confirmado: 5.325${NBSP}pesos, del 7${NBSP}sep, confirmado el 10${NBSP}sep.`,
+			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró en $${NBSP}5.215, por debajo del último mínimo confirmado: $${NBSP}5.325, del 7${NBSP}sep, confirmado el 10${NBSP}sep.`,
 		);
-		expect(pesoPhrase).toContainEqual({ strong: `5.215${NBSP}pesos` });
+		expect(pesoPhrase).toContainEqual({ strong: `$${NBSP}5.215` });
 		expect(toText(describeEvent(pampBreak, 'usd'))).toBe(
-			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró en US$${NBSP}3,39, por debajo del último mínimo confirmado: US$${NBSP}3,46, del 7${NBSP}sep, confirmado el 10${NBSP}sep.`,
+			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró en U$S${NBSP}3,39, por debajo del último mínimo confirmado: U$S${NBSP}3,46, del 7${NBSP}sep, confirmado el 10${NBSP}sep.`,
 		);
 		expect(toText(describeEvent(pampBreak, 'ccl'))).toBe(
-			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró en US$${NBSP}3,25, por debajo del último mínimo confirmado: US$${NBSP}3,32, del 7${NBSP}sep, confirmado el 10${NBSP}sep.`,
+			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró en U$S${NBSP}3,25, por debajo del último mínimo confirmado: U$S${NBSP}3,32, del 7${NBSP}sep, confirmado el 10${NBSP}sep.`,
 		);
 	});
 
@@ -498,7 +540,7 @@ describe('describeEvent', () => {
 		expect(toText(describeEvent(breakWithoutCcl, 'ccl'))).toBe(
 			`18${NBSP}sep · Se rompió el patrón ascendente. Cerró por debajo del último mínimo confirmado, del 7${NBSP}sep, confirmado el 10${NBSP}sep. Sin cotización CCL ese día.`,
 		);
-		expect(toText(describeEvent(breakWithoutCcl, 'ars'))).toContain(`5.215${NBSP}pesos`);
+		expect(toText(describeEvent(breakWithoutCcl, 'ars'))).toContain(`$${NBSP}5.215`);
 	});
 
 	test('an upward Structure Break names the falling pattern and the high', () => {
@@ -517,7 +559,7 @@ describe('describeEvent', () => {
 		};
 
 		expect(toText(describeEvent(structureBreak, 'ars'))).toContain(
-			`Se rompió el patrón descendente. Cerró en 6.314${NBSP}pesos, por encima del último máximo confirmado: 6.222${NBSP}pesos, del 6${NBSP}oct`,
+			`Se rompió el patrón descendente. Cerró en $${NBSP}6.314, por encima del último máximo confirmado: $${NBSP}6.222, del 6${NBSP}oct`,
 		);
 	});
 
@@ -548,16 +590,16 @@ describe('describeEvent', () => {
 		};
 
 		expect(toText(describeEvent(pampNarrowBreak, 'ars'))).toBe(
-			`8${NBSP}may · Se rompió el patrón ascendente. Cerró en 4.703${NBSP}pesos, apenas por debajo del último mínimo confirmado: 4.703${NBSP}pesos, del 27${NBSP}abr, confirmado el 30${NBSP}abr.`,
+			`8${NBSP}may · Se rompió el patrón ascendente. Cerró en $${NBSP}4.703, apenas por debajo del último mínimo confirmado: $${NBSP}4.703, del 27${NBSP}abr, confirmado el 30${NBSP}abr.`,
 		);
 		expect(toText(describeEvent(pampNarrowBreak, 'usd'))).toContain(
-			`Cerró en US$${NBSP}3,30, apenas por debajo del último mínimo confirmado: US$${NBSP}3,30`,
+			`Cerró en U$S${NBSP}3,30, apenas por debajo del último mínimo confirmado: U$S${NBSP}3,30`,
 		);
 	});
 
 	test('"apenas" follows each view’s own printed figures', () => {
-		// YPF's break of 13 Oct 2026: 8.330 against 8.328 pesos, US$ 5,41 for both in MEP dollars,
-		// and US$ 5,18 against US$ 5,17 in CCL dollars.
+		// YPF's break of 13 Oct 2026: 8.330 against 8.328 pesos, U$S 5,41 for both in MEP dollars,
+		// and U$S 5,18 against U$S 5,17 in CCL dollars.
 		const ypfBreak: SnapshotEvent = {
 			sessionDate: '2026-10-13',
 			event: {
@@ -573,13 +615,13 @@ describe('describeEvent', () => {
 		};
 
 		expect(toText(describeEvent(ypfBreak, 'ars'))).toContain(
-			`Cerró en 8.330${NBSP}pesos, por encima del último máximo confirmado`,
+			`Cerró en $${NBSP}8.330, por encima del último máximo confirmado`,
 		);
 		expect(toText(describeEvent(ypfBreak, 'usd'))).toContain(
-			`Cerró en US$${NBSP}5,41, apenas por encima del último máximo confirmado`,
+			`Cerró en U$S${NBSP}5,41, apenas por encima del último máximo confirmado`,
 		);
 		expect(toText(describeEvent(ypfBreak, 'ccl'))).toContain(
-			`Cerró en US$${NBSP}5,18, por encima del último máximo confirmado: US$${NBSP}5,17`,
+			`Cerró en U$S${NBSP}5,18, por encima del último máximo confirmado: U$S${NBSP}5,17`,
 		);
 	});
 
@@ -599,10 +641,10 @@ describe('describeEvent', () => {
 		};
 
 		expect(toText(describeEvent(cclOnlyCollision, 'ccl'))).toContain(
-			`Cerró en US$${NBSP}5,18, apenas por encima del último máximo confirmado: US$${NBSP}5,18`,
+			`Cerró en U$S${NBSP}5,18, apenas por encima del último máximo confirmado: U$S${NBSP}5,18`,
 		);
 		expect(toText(describeEvent(cclOnlyCollision, 'usd'))).toContain(
-			`Cerró en US$${NBSP}5,41, por encima del último máximo confirmado: US$${NBSP}5,38`,
+			`Cerró en U$S${NBSP}5,41, por encima del último máximo confirmado: U$S${NBSP}5,38`,
 		);
 	});
 
@@ -665,21 +707,21 @@ describe('detail', () => {
 
 	test('raw evidence is in the view’s currency, with the close and its rate where the snapshot has one', () => {
 		expect(describeRawEvidence(ggalLine, 'ars')).toEqual([
-			`Cierre del 9${NBSP}oct: 5.940,00${NBSP}pesos, con el dólar MEP a 1.540,00${NBSP}pesos.`,
-			`Último mínimo confirmado: 5.662,00${NBSP}pesos.`,
-			`Último máximo confirmado: 6.223,00${NBSP}pesos.`,
-			`Bordes exactos de los puntos de quiebre: alcista 7.344,00${NBSP}pesos · bajista 6.480,00${NBSP}pesos.`,
+			`Cierre del 9${NBSP}oct: $${NBSP}5.940,00, con el dólar MEP a $${NBSP}1.540,00.`,
+			`Último mínimo confirmado: $${NBSP}5.662,00.`,
+			`Último máximo confirmado: $${NBSP}6.223,00.`,
+			`Bordes exactos de los puntos de quiebre: alcista $${NBSP}7.344,00 · bajista $${NBSP}6.480,00.`,
 		]);
 		expect(describeRawEvidence(ggalLine, 'usd')).toEqual([
-			`Último mínimo confirmado: US$${NBSP}3,68.`,
-			`Último máximo confirmado: US$${NBSP}4,04.`,
-			`Bordes exactos de los puntos de quiebre: alcista US$${NBSP}4,77 · bajista US$${NBSP}4,21.`,
+			`Último mínimo confirmado: U$S${NBSP}3,68.`,
+			`Último máximo confirmado: U$S${NBSP}4,04.`,
+			`Bordes exactos de los puntos de quiebre: alcista U$S${NBSP}4,77 · bajista U$S${NBSP}4,21.`,
 		]);
 		expect(describeRawEvidence(ggalLine, 'ccl')).toEqual([
-			`Cierre del 9${NBSP}oct: US$${NBSP}3,6849, con el dólar CCL a 1.612,00.`,
-			`Último mínimo confirmado: US$${NBSP}3,5124.`,
-			`Último máximo confirmado: US$${NBSP}3,8604.`,
-			`Bordes exactos de los puntos de quiebre: alcista US$${NBSP}4,5558 · bajista US$${NBSP}4,0199.`,
+			`Cierre del 9${NBSP}oct: U$S${NBSP}3,6849, con el dólar CCL a 1.612,00.`,
+			`Último mínimo confirmado: U$S${NBSP}3,5124.`,
+			`Último máximo confirmado: U$S${NBSP}3,8604.`,
+			`Bordes exactos de los puntos de quiebre: alcista U$S${NBSP}4,5558 · bajista U$S${NBSP}4,0199.`,
 		]);
 	});
 });

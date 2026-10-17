@@ -1,10 +1,12 @@
 import {
+	checkIfAmountIsZero,
 	formatDollars,
 	formatExactDollars,
 	formatExactPesos,
 	formatExactRate,
 	formatOneDecimal,
 	formatPercent,
+	formatPercentOfNonzeroChange,
 	formatPesos,
 	formatShortDate,
 	formatShortDateList,
@@ -558,7 +560,12 @@ export function describeLatestClose(
 		currency === 'ars'
 			? formatSignedPesoChange(change, closeChange.close)
 			: formatSignedDollarChange(change, closeChange.close);
-	return [{ strong: closeText }, ` (${changeText}, ${formatSignedPercent(percentChange)})`];
+	// A change that moved keeps its sign on a percentage that rounds to zero: `−$ 50, −0,0 %`.
+	const isZeroChange = checkIfAmountIsZero(changeText);
+	const percentText = isZeroChange
+		? formatSignedPercent(percentChange)
+		: formatPercentOfNonzeroChange(percentChange);
+	return [{ strong: closeText }, ` (${changeText}, ${percentText})`];
 }
 
 function selectCloseChange(

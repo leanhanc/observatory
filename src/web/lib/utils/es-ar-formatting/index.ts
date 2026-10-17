@@ -1,4 +1,5 @@
 export {
+	checkIfAmountIsZero,
 	formatDollars,
 	formatExactDollars,
 	formatExactPesos,
@@ -6,6 +7,7 @@ export {
 	formatLongDate,
 	formatOneDecimal,
 	formatPercent,
+	formatPercentOfNonzeroChange,
 	formatPesos,
 	formatShortDate,
 	formatShortDateList,

@@ -318,6 +318,26 @@ describe('createAnalysisRunner', () => {
 		});
 	});
 
+	test('measures the day change from the bar before a dropped previous bar', async () => {
+		const droppedSession = sessionDates.at(-2)!;
+		const earlierSession = sessionDates.at(-3)!;
+		const droppedBar = ggalPesoBars.find((bar) => bar.sessionDate === droppedSession)!;
+		const earlierPesoBar = ggalPesoBars.find((bar) => bar.sessionDate === earlierSession)!;
+		const earlierDollarBar = ggalDollarBars.find((bar) => bar.sessionDate === earlierSession)!;
+		// 1.2% below the low: beyond the adapter's 1% repair tolerance, so the bar is dropped.
+		const provider = {
+			...createHealthyProvider(),
+			AAPL: replaceBar(ggalPesoBars, droppedSession, { close: droppedBar.low * 0.988 }),
+		};
+		const { result } = await runWithProvider(provider);
+		const apple = selectAvailableLine(result, 'apple-cedear-byma-ars');
+
+		expect(apple.droppedBarSessions).toEqual([droppedSession]);
+		expect(apple.latestClose.previousSessionDate).toBe(earlierSession);
+		expect(apple.latestClose.peso.previousClose).toBe(earlierPesoBar.close);
+		expect(apple.latestClose.mep.previousClose).toBeCloseTo(earlierDollarBar.close, 9);
+	});
+
 	test('gives a short history a State with unavailable parts as null', async () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 		const shortLine = selectAvailableLine(result, 'new-stock-byma-ars');

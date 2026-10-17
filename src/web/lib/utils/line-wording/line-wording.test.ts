@@ -215,6 +215,37 @@ describe('describeLatestClose', () => {
 		);
 	});
 
+	test('a change that moved keeps its sign on a percentage that rounds to zero', () => {
+		const line = {
+			latestClose: {
+				...latestCloseLine.latestClose,
+				peso: {
+					close: 107_775,
+					previousClose: 107_825,
+					change: -50,
+					percentChange: -0.0464,
+				},
+			},
+		};
+
+		expect(toText(describeLatestClose(line, 'ars'))).toBe(
+			`$${NBSP}107.775 (−$${NBSP}50, −0,0${NBSP}%)`,
+		);
+	});
+
+	test('a change that rounds to zero keeps the percentage as it rounds', () => {
+		const line = {
+			latestClose: {
+				...latestCloseLine.latestClose,
+				peso: { close: 5940, previousClose: 5940.2, change: -0.2, percentChange: -0.0034 },
+			},
+		};
+
+		expect(toText(describeLatestClose(line, 'ars'))).toBe(
+			`$${NBSP}5.940 ($${NBSP}0, 0,0${NBSP}%)`,
+		);
+	});
+
 	test('a change of zero has no sign', () => {
 		expect(toText(describeLatestClose(latestCloseLine, 'usd'))).toBe(
 			`U$S${NBSP}4,00 (U$S${NBSP}0,00, 0,0${NBSP}%)`,

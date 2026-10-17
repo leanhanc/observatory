@@ -5,5 +5,6 @@
 - [x] Analysis Run: a test that a split inside a return window and on the latest session is corrected in the peso returns and the day change.
 - [x] Nits: the raw-evidence comment, the design's MEP close row, rename the analysis's `describeLatestClose` to `measureLatestClose`, a helper for the previous MEP close, CONTEXT.md, `skills-lock.json` formatting.
 - [x] Run tests, typecheck, lint and format; check the live snapshot passes the read.
-- [ ] Lean reviews the diff.
+- [x] Lean reviews the diff.
+- [x] After review: the change takes the decimals its close prints; the percentage of a nonzero change keeps its sign; tests for a short CCL return list, the CCL source's peso line and a dropped previous bar.
 - [x] Archive.

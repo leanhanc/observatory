@@ -11,7 +11,8 @@ A review of the currency views and the latest close found the analysis correct, 
 
 ## What Changes
 
-- A day change is written with the decimals its close is written with, and is zero only when it rounds to zero at them, in dollars as in pesos: "U$S 0,343 (−U$S 0,002, −0,7 %)", and "U$S 3,81 (−U$S 0,01, −0,3 %)" where it was "−U$S 0,0105".
+- A day change is written with exactly the decimals its close prints, and is zero only when it rounds to zero at them, in dollars as in pesos: "U$S 0,343 (−U$S 0,002, −0,7 %)", and "U$S 3,81 (−U$S 0,01, −0,3 %)" where it was "−U$S 0,0105".
+- The percentage of a change that moved keeps the change's sign when it rounds to zero: "$ 107.775 (−$ 50, −0,0 %)".
 - The default-hide rule of the currency view stands alone, every `:has()` rule moves into an `@supports selector(:has(*))` block so the build's minifier cannot merge them again, and without `:has()` the radio inputs show the checked view.
 - The snapshot read validates `cclRateSource`, requires every CCL figure to be `null` when it is, the latest close's peso and CCL closes to equal the equivalents' closes, and the three return lists to share their start sessions. The shape is the same, so the schema stays at 12.
 - The period-returns spec says a session without a MEP Rate moves a window's start to the previous session in all three currencies, while one without a CCL Rate makes only the CCL return `null`. The latest-close spec says a dropped previous bar makes the day change span two sessions.

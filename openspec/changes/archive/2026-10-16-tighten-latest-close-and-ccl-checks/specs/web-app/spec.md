@@ -41,7 +41,9 @@ The control's CSS SHALL be plain CSS inside a cascade layer, and minimal: a segm
 
 An available line's page SHALL show its last close from `latestClose`, in each currency view: the `peso` part in ARS, `mep` in USD and `ccl` in CCL, rendered as a price phrase of the currency-view requirements. It SHALL show the close as a price, with no label, followed, when the part's `change` is not `null`, by the change as a signed absolute figure in the view's currency and a signed percentage: "$ 5.940 (+$ 60, +1,0 %)". Its place under the line's name and data date says it is the last close and its change since the previous session, so the page names neither. A part whose change is `null` SHALL show the close alone, never a change of `0`. The page SHALL read every figure from the snapshot and SHALL NOT compute a change. The sign carries the direction; the page adds no color.
 
-A change SHALL be written with the decimals its close is written with, so the two read at one precision: a peso change whole on a close of a thousand pesos or more and with two decimals below; a dollar change with two decimals on a close of one dollar or more, and on a close under one dollar with as many decimals as the close's third significant digit needs: three on U$S 0,343, four on U$S 0,0237. A change SHALL be written as zero, without a sign, only when it rounds to zero at those decimals; otherwise it SHALL carry its sign. A change smaller than the close's last digit reads as zero even when its percentage does not round to zero, as a change smaller than the close's own precision cannot be written in it: "U$S 1,18 (U$S 0,00, +0,3 %)".
+A change SHALL be written with exactly the decimals its close is printed with, so the two read at one precision: a peso change whole on a close of a thousand pesos or more and with two decimals below; a dollar change with the decimals the close prints, two from one dollar up and, under one dollar, those of its three significant digits after trailing zeros are dropped: three on U$S 0,343, two on U$S 0,33, four on U$S 0,0237. A change SHALL be written as zero, without a sign, only when it rounds to zero at those decimals; otherwise it SHALL carry its sign. A change smaller than the close's last printed digit reads as zero even when its percentage does not round to zero, as it cannot be written at the close's precision: "U$S 1,18 (U$S 0,00, +0,3 %)".
+
+The percentage SHALL carry the sign of a change that does not read as zero, even when the percentage rounds to zero: "$ 107.775 (−$ 50, −0,0 %)". Next to a change that reads as zero, the percentage SHALL keep its own sign, and none when it rounds to zero.
 
 #### Scenario: GGAL's last close in each view
 
@@ -54,6 +56,16 @@ A change SHALL be written with the decimals its close is written with, so the tw
 
 - **WHEN** VALO's `latestClose.mep` has a close of 0.3427 down 0.0023 (−0.67 %)
 - **THEN** the USD view shows "U$S 0,343 (−U$S 0,002, −0,7 %)", not a change of "U$S 0,00"
+
+#### Scenario: a close that drops a trailing zero
+
+- **WHEN** BIOX's `latestClose.mep` has a close of 0.3303 down 0.00039 (−0.12 %)
+- **THEN** the USD view shows "U$S 0,33 (U$S 0,00, −0,1 %)", at the two decimals the close prints
+
+#### Scenario: a nonzero change on a percentage that rounds to zero
+
+- **WHEN** PLTR's `latestClose.peso` has a close of 107775 down 50 (−0.046 %)
+- **THEN** the ARS view shows "$ 107.775 (−$ 50, −0,0 %)"
 
 #### Scenario: a change smaller than the close's last digit
 

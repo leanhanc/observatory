@@ -693,6 +693,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 			],
 		],
 		['a peso return list missing a window', 'pesoPeriodReturns', pesoPeriodReturns.slice(0, 2)],
+		['a CCL return list missing a window', 'cclPeriodReturns', cclPeriodReturns.slice(0, 2)],
 		[
 			'a peso return over another window',
 			'pesoPeriodReturns',
@@ -758,6 +759,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 			'a source without its cable line',
 			{ ...snapshot.cclRateSource, cableBondTradingLineId: 7 },
 		],
+		['a source without its peso line', { ...snapshot.cclRateSource, pesoBondTradingLineId: 7 }],
 	])('rejects %s', (_case, cclRateSource) => {
 		const result = parseAnalysisSnapshotOverview(
 			JSON.stringify({ ...v12Snapshot, cclRateSource }),

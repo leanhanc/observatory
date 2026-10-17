@@ -48,6 +48,11 @@ const signedOneDecimalFormat = new Intl.NumberFormat('es-AR', {
 	maximumFractionDigits: 1,
 	signDisplay: 'exceptZero',
 });
+const alwaysSignedOneDecimalFormat = new Intl.NumberFormat('es-AR', {
+	minimumFractionDigits: 1,
+	maximumFractionDigits: 1,
+	signDisplay: 'always',
+});
 const wholeNumberFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
 const twoDecimalFormat = new Intl.NumberFormat('es-AR', {
 	minimumFractionDigits: 2,
@@ -56,10 +61,6 @@ const twoDecimalFormat = new Intl.NumberFormat('es-AR', {
 const exactPriceFormat = new Intl.NumberFormat('es-AR', {
 	minimumFractionDigits: 2,
 	maximumFractionDigits: 4,
-});
-const threeSignificantDigitsFormat = new Intl.NumberFormat('es-AR', {
-	minimumSignificantDigits: 3,
-	maximumSignificantDigits: 3,
 });
 // Prices under one keep three significant digits, so a cheap line does not round to a few cents.
 const smallPriceFormat = new Intl.NumberFormat('es-AR', {
@@ -87,12 +88,24 @@ export function formatSignedPercent(value: number): string {
 	return `${useMinusSign(signedOneDecimalFormat.format(value))}${NBSP}%`;
 }
 
+/**
+ * Formats the percentage of a change whose amount does not round to zero, with the change's sign
+ * even when the percentage rounds to zero: `−0,0 %` next to `−$ 50`.
+ */
+export function formatPercentOfNonzeroChange(value: number): string {
+	return `${useMinusSign(alwaysSignedOneDecimalFormat.format(value))}${NBSP}%`;
+}
+
 /** Formats a price in MEP or CCL dollars, for example `U$S 4,04`. */
 export function formatDollars(value: number): string {
-	// Chosen by the rounded value, so 0,9996 shows as 1,00 rather than with three significant digits.
-	const isUnderOne = Math.abs(value) < 0.995;
-	const amount = isUnderOne ? smallPriceFormat.format(value) : twoDecimalFormat.format(value);
+	const amount = selectDollarPriceFormat(value).format(value);
 	return `${DOLLAR_PREFIX}${NBSP}${useMinusSign(amount)}`;
+}
+
+// Chosen by the rounded value, so 0,9996 shows as 1,00 rather than with three significant digits.
+function selectDollarPriceFormat(value: number): Intl.NumberFormat {
+	const isUnderOne = Math.abs(value) < 0.995;
+	return isUnderOne ? smallPriceFormat : twoDecimalFormat;
 }
 
 /** Formats a dollar price with up to four decimals, for raw evidence, for example `U$S 3,6812`. */
@@ -133,10 +146,10 @@ export function formatSignedPesoChange(change: number, close: number): string {
 }
 
 /**
- * Formats a change in MEP or CCL dollars with its sign first, in the decimals its close is written
- * with: two on a close of a dollar or more, `−U$S 0,01` on 3,81, and the decimals of the close's
- * third significant digit below, `−U$S 0,002` on 0,343. A change that rounds to zero there has no
- * sign, even when its percentage does not round to zero.
+ * Formats a change in MEP or CCL dollars with its sign first, in exactly the decimals its close is
+ * printed with: `−U$S 0,01` on 3,81, `−U$S 0,002` on 0,343, and two on 0,33, which drops its third
+ * digit as a trailing zero. A change that rounds to zero there has no sign, even when its
+ * percentage does not round to zero.
  */
 export function formatSignedDollarChange(change: number, close: number): string {
 	const fractionDigits = countDollarFractionDigits(close);
@@ -148,23 +161,21 @@ export function formatSignedDollarChange(change: number, close: number): string 
 	return signAmount(change, amount);
 }
 
-// The precision `formatDollars` writes a close with. Under one, it is the close's third significant
-// digit even where the close drops it as a trailing zero: 0,025 is 0,0250, so its change has four.
+// The decimals `formatDollars` prints the close with, after it drops trailing zeros.
 function countDollarFractionDigits(close: number): number {
-	const isUnderOne = Math.abs(close) < 0.995;
-
-	if (!isUnderOne) {
-		return 2;
-	}
-
-	const fraction = threeSignificantDigitsFormat
+	const fraction = selectDollarPriceFormat(close)
 		.formatToParts(close)
 		.find((part) => part.type === 'fraction');
-	return fraction?.value.length ?? 2;
+	return fraction?.value.length ?? 0;
+}
+
+/** Whether a formatted amount, such as `U$S 0,00` or `−$ 50`, reads as zero. */
+export function checkIfAmountIsZero(formattedAmount: string): boolean {
+	return !/[1-9]/.test(formattedAmount);
 }
 
 function signAmount(change: number, amount: string): string {
-	const isZero = !/[1-9]/.test(amount);
+	const isZero = checkIfAmountIsZero(amount);
 
 	if (isZero) {
 		return amount;

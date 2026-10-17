@@ -7,6 +7,7 @@ import {
 	formatLongDate,
 	formatOneDecimal,
 	formatPercent,
+	formatPercentOfNonzeroChange,
 	formatPesos,
 	formatShortDate,
 	formatShortDateList,
@@ -33,6 +34,12 @@ describe('es-AR numbers', () => {
 		expect(formatSignedPercent(-17.83)).toBe(`−17,8${NBSP}%`);
 		expect(formatSignedPercent(41.6)).toBe(`+41,6${NBSP}%`);
 		expect(formatSignedPercent(-0.04)).toBe(`0,0${NBSP}%`);
+	});
+
+	test('the percentage of a nonzero change keeps its sign when it rounds to zero', () => {
+		expect(formatPercentOfNonzeroChange(-0.046)).toBe(`−0,0${NBSP}%`);
+		expect(formatPercentOfNonzeroChange(0.04)).toBe(`+0,0${NBSP}%`);
+		expect(formatPercentOfNonzeroChange(1.02)).toBe(`+1,0${NBSP}%`);
 	});
 
 	test('an unsigned percentage drops the sign, for wording that says above or below', () => {
@@ -74,9 +81,18 @@ describe('es-AR numbers', () => {
 		expect(formatSignedDollarChange(0.0108, 0.5515)).toBe(`+U$S${NBSP}0,011`);
 	});
 
-	test('a dollar change follows the close’s third significant digit, even a dropped zero', () => {
-		expect(formatSignedDollarChange(-0.000053, 0.02498)).toBe(`−U$S${NBSP}0,0001`);
+	test('a dollar change takes exactly the decimals its close prints, after dropped zeros', () => {
+		expect(formatDollars(0.33)).toBe(`U$S${NBSP}0,33`);
+		expect(formatSignedDollarChange(-0.00039, 0.33)).toBe(`U$S${NBSP}0,00`);
+		expect(formatSignedDollarChange(-0.006, 0.33)).toBe(`−U$S${NBSP}0,01`);
+		expect(formatSignedDollarChange(-0.006, 0.1)).toBe(`−U$S${NBSP}0,01`);
 		expect(formatSignedDollarChange(-0.000053, 0.0237)).toBe(`−U$S${NBSP}0,0001`);
+	});
+
+	test('a close that rounds up to a dollar prints two decimals, and so does its change', () => {
+		expect(formatDollars(0.9996)).toBe(`U$S${NBSP}1,00`);
+		expect(formatSignedDollarChange(0.004, 0.9996)).toBe(`U$S${NBSP}0,00`);
+		expect(formatSignedDollarChange(0.006, 0.9996)).toBe(`+U$S${NBSP}0,01`);
 	});
 
 	test('a dollar change is zero, without a sign, only when it rounds to zero at its close’s decimals', () => {

@@ -1,7 +1,7 @@
 /*
  * The line page's currency switch, without JavaScript. The build renders each price phrase once per
  * view, marked with `data-currency-view`; these rules show the checked view's variants. Without
- * `:has()` support, the pesos view shows, as it is checked in the HTML.
+ * `:has()` support, the pesos view shows, as it is checked in the HTML, and so do the radio inputs.
  */
 @layer currency-view {
 	.currency-control {
@@ -25,34 +25,45 @@
 		cursor: pointer;
 	}
 
-	.currency-control label:has(input:checked) {
-		background: CanvasText;
-		color: Canvas;
-	}
-
-	.currency-control label:has(input:focus-visible) {
-		outline: 2px solid;
-		outline-offset: 2px;
-	}
-
-	/* The input stays in the accessibility tree and keyboard order; its label is the control. */
-	.currency-control input {
-		position: absolute;
-		inset: 0;
-		margin: 0;
-		opacity: 0;
-		cursor: pointer;
-	}
-
+	/*
+	 * Outside the `@supports` block, so a browser without `:has()` hides these too. A browser drops a
+	 * whole rule over one selector it does not support, and the build's minifier merges adjacent
+	 * rules with the same declarations into one selector list; the block keeps them apart.
+	 */
 	[data-currency-view='usd'],
-	[data-currency-view='ccl'],
-	:root:has(#currency-usd:checked) [data-currency-view='ars'],
-	:root:has(#currency-ccl:checked) [data-currency-view='ars'] {
+	[data-currency-view='ccl'] {
 		display: none;
 	}
 
-	:root:has(#currency-usd:checked) [data-currency-view='usd'],
-	:root:has(#currency-ccl:checked) [data-currency-view='ccl'] {
-		display: revert;
+	/* Without `:has()` no label can be marked, so the radio inputs stay visible to show the view. */
+	@supports selector(:has(*)) {
+		.currency-control label:has(input:checked) {
+			background: CanvasText;
+			color: Canvas;
+		}
+
+		.currency-control label:has(input:focus-visible) {
+			outline: 2px solid;
+			outline-offset: 2px;
+		}
+
+		/* The input stays in the accessibility tree and keyboard order; its label is the control. */
+		.currency-control input {
+			position: absolute;
+			inset: 0;
+			margin: 0;
+			opacity: 0;
+			cursor: pointer;
+		}
+
+		:root:has(#currency-usd:checked) [data-currency-view='ars'],
+		:root:has(#currency-ccl:checked) [data-currency-view='ars'] {
+			display: none;
+		}
+
+		:root:has(#currency-usd:checked) [data-currency-view='usd'],
+		:root:has(#currency-ccl:checked) [data-currency-view='ccl'] {
+			display: revert;
+		}
 	}
 }

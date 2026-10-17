@@ -137,7 +137,7 @@ describe('LinePage', () => {
 		expect(closeIndex).toBeLessThan(html.indexOf('currency-control'));
 		expect(html).toContain('(+$\u00a060, +1,0\u00a0%)');
 		expect((await selectVariants(html, 'ccl'))[0]).toBe(
-			'U$S\u00a03,68 (−U$S\u00a00,0104, −0,3\u00a0%)',
+			'U$S\u00a03,68 (−U$S\u00a00,01, −0,3\u00a0%)',
 		);
 		expect(html).not.toContain('Último cierre');
 	});

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Measure how far a Trading Line's close moved over calendar-month windows (one month, three months and a year) as of the line's last session, in the currency of the closes the caller passes: MEP dollars for the analysis, and pesos or CCL dollars for display. A session without a price in that currency stays in the calendar, so a return that starts or ends on it is unavailable rather than borrowed from a neighbor. A return is a pure, causal measurement that is unavailable rather than zero when the history is too short; it says how far, not why, and predicts nothing.
+Measure how far a Trading Line's close moved over calendar-month windows (one month, three months and a year) as of the line's last session, in the currency of the closes the caller passes: MEP dollars for the analysis, and pesos or CCL dollars for display. A session the caller keeps with no price in that currency stays in the calendar, so a return that starts or ends on it is unavailable rather than borrowed from a neighbor: for the run, a session without a CCL Rate makes only the CCL return unavailable. A session without a MEP Rate is not in the Dollarized Series, so the run's three series all leave it out, and a window that would start on it starts on the previous session in every currency. A return is a pure, causal measurement that is unavailable rather than zero when the history is too short; it says how far, not why, and predicts nothing.
 
 ## Requirements
 
@@ -11,6 +11,11 @@ Measure how far a Trading Line's close moved over calendar-month windows (one mo
 The period-returns module SHALL expose a pure `calculatePeriodReturns(sessionCloses)` that measures the percent change of the close over each window in `ANALYSIS_CONFIGURATION.periodReturns.windowMonths` (1, 3 and 12), as of the last input session. `sessionCloses` SHALL be one Trading Line's chronological sessions, each `{ sessionDate, close }`, in one currency; validated Daily Bars qualify. A `close` MAY be `null`: the session belongs to the series' calendar but has no price in that currency, such as a session without a CCL Rate when the series is in CCL dollars. The windows SHALL NOT be caller parameters. The calculation SHALL NOT mutate its input and SHALL NOT perform I/O.
 
 The currency is the caller's: for peso lines, the run passes the Dollarized Series for MEP dollars, the corrected peso closes of the same sessions for pesos, and those peso closes divided by each session's CCL Rate for CCL dollars. The module neither converts nor knows the currency.
+
+The two rates are missing differently, so the run's three series do not treat a missing rate alike:
+
+- A session without a MEP Rate has no bar in the Dollarized Series, so it is in none of the three series: the run builds the peso and CCL series on the Dollarized Series' sessions. A window whose start date falls on it starts on the previous session in all three currencies, which keeps their windows on the same sessions.
+- A session without a CCL Rate keeps its place in the CCL series with a `null` close, so a CCL return that starts or ends on it is `null` while the MEP and peso returns over the same window are measured.
 
 It SHALL return one `{ windowMonths, fromSessionDate, percentChange }` per configured window, in configuration order:
 
@@ -76,6 +81,12 @@ A period return describes how far the close moved over the window. It does not s
 - **WHEN** the one-month window starts on 2026-09-09, the series has a session on 2026-09-09 whose close is `null` and a session on 2026-09-08 that closed at 100
 - **THEN** the one-month return has `fromSessionDate` and `percentChange` `null`
 - **AND** the close of 2026-09-08 is not used
+
+#### Scenario: the start date has no MEP Rate
+
+- **WHEN** the run's one-month window starts on 2026-09-09, the line traded on 2026-09-09 and 2026-09-08, and only 2026-09-09 has no MEP Rate
+- **THEN** the MEP, peso and CCL one-month returns all have `fromSessionDate` 2026-09-08
+- **AND** none of them is `null` for the missing MEP Rate
 
 #### Scenario: the anchor has no close in the currency
 

@@ -48,12 +48,23 @@ export function dollarizeBarHistory(
 function divideBarPrices(bar: DailyBar, mepRate: number): DailyBar {
 	return {
 		sessionDate: bar.sessionDate,
-		open: bar.open / mepRate,
-		high: bar.high / mepRate,
-		low: bar.low / mepRate,
-		close: bar.close / mepRate,
+		open: dollarizePrice(bar.open, mepRate),
+		high: dollarizePrice(bar.high, mepRate),
+		low: dollarizePrice(bar.low, mepRate),
+		close: dollarizePrice(bar.close, mepRate),
 		volume: bar.volume,
 	};
+}
+
+/**
+ * Expresses a peso price in MEP dollars at one session's MEP Rate, as dollarization does. The
+ * result describes that session only, so callers state the session whose rate they pass and never
+ * pass another session's rate when that one has none.
+ *
+ * Precondition, not checked: `mepRate` is positive and finite.
+ */
+export function dollarizePrice(valueInPesos: number, mepRate: number): number {
+	return valueInPesos / mepRate;
 }
 
 /**

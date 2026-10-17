@@ -214,7 +214,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 		previousSessionDate: '2026-10-01',
 		peso: { close: 10_687.5, previousClose: 10_500, change: 187.5, percentChange: 1.7857 },
 		mep: { close: 7.125, previousClose: 7.1, change: 0.025, percentChange: 0.3521 },
-		ccl: { close: 6.6797, previousClose: null, change: null, percentChange: null },
+		ccl: { close: 6.679_687_5, previousClose: null, change: null, percentChange: null },
 	} as const;
 	const availableLine = {
 		status: 'available',
@@ -252,6 +252,7 @@ describe('parseAnalysisSnapshotOverview', () => {
 				priceUnit: 'mep-dollar',
 				ranAt: '2026-10-04T15:00:00.000Z',
 				requestedThroughSession: '2026-10-02',
+				cclRateSource: snapshot.cclRateSource,
 				analyzedLines: [
 					{
 						status: 'available',
@@ -614,6 +615,11 @@ describe('parseAnalysisSnapshotOverview', () => {
 			...availableLine,
 			cclEquivalents: null,
 			latestClose: { ...latestClose, ccl: null },
+			cclPeriodReturns: cclPeriodReturns.map((entry) => ({
+				...entry,
+				fromSessionDate: null,
+				percentChange: null,
+			})),
 			events: [{ ...structureBreak, event }],
 		};
 
@@ -632,7 +638,8 @@ describe('parseAnalysisSnapshotOverview', () => {
 	});
 
 	test.each([
-		['another session', { sessionDate: '2026-10-01' }],
+		// A later session keeps the previous session earlier, so only the same-session check rejects it.
+		['another session', { sessionDate: '2026-10-05' }],
 		['a previous session that is not earlier', { previousSessionDate: '2026-10-02' }],
 		['no CCL part while the line has CCL equivalents', { ccl: null }],
 		[
@@ -644,6 +651,116 @@ describe('parseAnalysisSnapshotOverview', () => {
 
 		const result = parseAnalysisSnapshotOverview(
 			JSON.stringify({ ...v12Snapshot, analyzedLines: [line] }),
+		);
+
+		expect(result).toMatchObject({ ok: false, reason: 'invalid-snapshot' });
+	});
+
+	test.each([
+		['a peso close other than the peso equivalents’ close', 'peso', 10_687],
+		['a CCL close other than the CCL equivalents’ close', 'ccl', 6.6797],
+	] as const)('rejects a latest close with %s', (_case, part, close) => {
+		const line = {
+			...availableLine,
+			latestClose: { ...latestClose, [part]: { ...latestClose[part], close } },
+		};
+
+		const result = parseAnalysisSnapshotOverview(
+			JSON.stringify({ ...v12Snapshot, analyzedLines: [line] }),
+		);
+
+		expect(result).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('must equal the peso and CCL equivalents’ close'),
+		});
+	});
+
+	test.each([
+		[
+			'a peso return from another session',
+			'pesoPeriodReturns',
+			[
+				{ ...pesoPeriodReturns[0], fromSessionDate: '2026-09-01' },
+				...pesoPeriodReturns.slice(1),
+			],
+		],
+		[
+			'a CCL return from another session',
+			'cclPeriodReturns',
+			[
+				{ ...cclPeriodReturns[1], windowMonths: 1, fromSessionDate: '2026-09-01' },
+				...cclPeriodReturns.slice(1),
+			],
+		],
+		['a peso return list missing a window', 'pesoPeriodReturns', pesoPeriodReturns.slice(0, 2)],
+		[
+			'a peso return over another window',
+			'pesoPeriodReturns',
+			[{ ...pesoPeriodReturns[0], windowMonths: 2 }, ...pesoPeriodReturns.slice(1)],
+		],
+		[
+			'a CCL return over another window',
+			'cclPeriodReturns',
+			[...cclPeriodReturns.slice(0, 2), { ...cclPeriodReturns[2], windowMonths: 6 }],
+		],
+	] as const)('rejects %s than the MEP returns', (_case, field, returns) => {
+		const line = { ...availableLine, [field]: returns };
+
+		const result = parseAnalysisSnapshotOverview(
+			JSON.stringify({ ...v12Snapshot, analyzedLines: [line] }),
+		);
+
+		expect(result).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('from the same start sessions'),
+		});
+	});
+
+	// The line's CCL equivalents and CCL close come together, or the line's own check rejects them
+	// first.
+	test.each([
+		['line CCL equivalents and a CCL close', { cclEquivalents, latestClose }],
+		['a CCL return with a start session', { cclPeriodReturns }],
+		['a Structure Break with CCL equivalents', { events: [structureBreak] }],
+	])('rejects %s in a snapshot without a CCL Rate source', (_case, cclFigure) => {
+		const lineWithoutCcl = {
+			...availableLine,
+			cclEquivalents: null,
+			latestClose: { ...latestClose, ccl: null },
+			cclPeriodReturns: cclPeriodReturns.map((entry) => ({
+				...entry,
+				fromSessionDate: null,
+				percentChange: null,
+			})),
+			events: [
+				{ ...structureBreak, event: { ...structureBreak.event, cclEquivalents: null } },
+			],
+		};
+		const line = { ...lineWithoutCcl, ...cclFigure };
+
+		const result = parseAnalysisSnapshotOverview(
+			JSON.stringify({ ...v12Snapshot, cclRateSource: null, analyzedLines: [line] }),
+		);
+
+		expect(result).toMatchObject({
+			ok: false,
+			message: expect.stringContaining('A snapshot without a CCL Rate source'),
+		});
+	});
+
+	test.each([
+		['a missing CCL Rate source', undefined],
+		[
+			'a source without its latest session',
+			{ ...snapshot.cclRateSource, latestRateSessionDate: null },
+		],
+		[
+			'a source without its cable line',
+			{ ...snapshot.cclRateSource, cableBondTradingLineId: 7 },
+		],
+	])('rejects %s', (_case, cclRateSource) => {
+		const result = parseAnalysisSnapshotOverview(
+			JSON.stringify({ ...v12Snapshot, cclRateSource }),
 		);
 
 		expect(result).toMatchObject({ ok: false, reason: 'invalid-snapshot' });

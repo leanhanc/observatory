@@ -9,6 +9,7 @@ import { calculatePeriodReturns } from '#modules/period-returns/index.ts';
 import { loadGgalFixture } from '#modules/technical-analysis/tests/support/index.ts';
 
 import { createAnalysisRunner } from './analysis-run.ts';
+import { parseAnalysisSnapshotOverview } from './analysis-snapshot-storage.ts';
 
 import type { DailyBar } from '#modules/bar-history/index.ts';
 import type {
@@ -893,6 +894,36 @@ describe('Analysis Run corporate actions and large moves', () => {
 		expect(apple.latestState).toEqual(ggal.latestState);
 	});
 
+	// An unadjusted 1:1 share distribution halves the price on its ex-date, so a return or a day
+	// change measured across it on the provider's bars reads about −50 %.
+	test.each([
+		['inside the one-month window', 10],
+		['on the latest session', 1],
+	])(
+		'corrects the peso returns and the day change for a distribution %s',
+		async (_case, sessionsBack) => {
+			const latestExDate = sessionDates.at(-sessionsBack)!;
+			const action = { ...shareDistribution, exDate: latestExDate };
+			const unadjustedBars = ggalPesoBars.map((bar) =>
+				bar.sessionDate < latestExDate
+					? { ...scaleBarPrices(bar, 2), volume: bar.volume / 2 }
+					: bar,
+			);
+			const provider = { ...createHealthyProvider(), AAPL: unadjustedBars };
+			const { result } = await runWithProvider(provider, REQUESTED_THROUGH_SESSION, [action]);
+			const apple = selectAvailableLine(result, 'apple-cedear-byma-ars');
+			const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+			const oneMonthPesoReturn = apple.pesoPeriodReturns[0]!.percentChange!;
+
+			expect(apple.corporateActions[0]!.status).toBe('applied');
+			expect(oneMonthPesoReturn).toBeGreaterThan(-40);
+			expect(apple.latestClose.peso.percentChange!).toBeGreaterThan(-40);
+			expect(apple.pesoPeriodReturns).toEqual(ggal.pesoPeriodReturns);
+			expect(apple.cclPeriodReturns).toEqual(ggal.cclPeriodReturns);
+			expect(apple.latestClose).toEqual(ggal.latestClose);
+		},
+	);
+
 	test('does not apply a listed action whose step is not in the history', async () => {
 		const { result } = await runWithProvider(
 			createHealthyProvider(),
@@ -1348,6 +1379,63 @@ describe('Analysis Run CCL Rate', () => {
 		expect(ggal.cclPeriodReturns[1]!.percentChange).not.toBeNull();
 		expect(ggal.periodReturns[0]!.fromSessionDate).toBe(monthStartSession);
 		expect(ggal.pesoPeriodReturns[0]!.fromSessionDate).toBe(monthStartSession);
+	});
+
+	// A session without a MEP Rate has no bar in the Dollarized Series, so it leaves every currency's
+	// calendar, while one without a CCL Rate stays in the CCL one with a `null` close.
+	test('starts every currency’s window one session earlier when its start session has no MEP Rate', async () => {
+		const monthStartDate = Temporal.PlainDate.from('2026-09-30').subtract({ months: 1 });
+		const monthStartSession = sessionDates.findLast(
+			(sessionDate) => sessionDate <= monthStartDate.toString(),
+		)!;
+		const previousSession = sessionDates[sessionDates.indexOf(monthStartSession) - 1]!;
+		const provider = {
+			...createHealthyProvider(),
+			AL30D: al30dBars.filter((bar) => bar.sessionDate !== monthStartSession),
+		};
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const oneMonthReturns = [
+			ggal.periodReturns[0]!,
+			ggal.pesoPeriodReturns[0]!,
+			ggal.cclPeriodReturns[0]!,
+		];
+
+		expect(oneMonthReturns.map((entry) => entry.fromSessionDate)).toEqual([
+			previousSession,
+			previousSession,
+			previousSession,
+		]);
+		expect(oneMonthReturns.every((entry) => entry.percentChange !== null)).toBe(true);
+	});
+
+	test.each([
+		['with a CCL Rate on every session', createHealthyProvider()],
+		[
+			'with a varying CCL Rate',
+			{
+				...createHealthyProvider(),
+				AL30C: sessionDates.map((sessionDate, index) =>
+					createFlatBar(sessionDate, 0.9 + (index % 7) / 100),
+				),
+			},
+		],
+		[
+			'without a CCL Rate on some sessions',
+			{
+				...createHealthyProvider(),
+				AL30C: al30cBars.filter(
+					(bar) => !['2026-08-29', '2026-09-29'].includes(bar.sessionDate),
+				),
+			},
+		],
+		['without any CCL Rate', { ...createHealthyProvider(), AL30C: 'no-data' as const }],
+	])('writes a snapshot the web’s read accepts, %s', async (_case, provider) => {
+		const { writes } = await runWithProvider(provider);
+
+		const readResult = parseAnalysisSnapshotOverview(JSON.stringify(writes[0]));
+
+		expect(readResult).toMatchObject({ ok: true });
 	});
 
 	test('records the latest close in CCL dollars, each close at its own session’s CCL Rate', async () => {

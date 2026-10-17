@@ -63,6 +63,11 @@ const serializedSnapshot = JSON.stringify({
 	priceUnit: 'mep-dollar',
 	ranAt: '2026-10-11T14:03:58.608Z',
 	requestedThroughSession: '2026-10-10',
+	cclRateSource: {
+		pesoBondTradingLineId: 'al30-bond-byma-ars',
+		cableBondTradingLineId: 'al30-bond-byma-usd-ccl',
+		latestRateSessionDate: '2026-10-10',
+	},
 	analyzedLines: [availableLine, unavailableLine],
 });
 

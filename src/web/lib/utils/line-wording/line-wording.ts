@@ -557,7 +557,7 @@ export function describeLatestClose(
 	const changeText =
 		currency === 'ars'
 			? formatSignedPesoChange(change, closeChange.close)
-			: formatSignedDollarChange(change);
+			: formatSignedDollarChange(change, closeChange.close);
 	return [{ strong: closeText }, ` (${changeText}, ${formatSignedPercent(percentChange)})`];
 }
 
@@ -635,7 +635,8 @@ export function describeSwingDates(state: SnapshotState): string | null {
 /**
  * The tier-3 raw evidence in the view's currency: the session's close with the rate that converted
  * it, where the snapshot has one, then the exact prices of the levels and tipping points the page
- * rounds. The analyzed MEP-dollar view has no close, since the snapshot publishes it in pesos.
+ * rounds. The USD view lists no close here: its MEP-dollar close, from `latestClose.mep`, is the last
+ * close at the top of the page.
  */
 export function describeRawEvidence(
 	line: PricedLine,

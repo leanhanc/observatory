@@ -61,11 +61,28 @@ describe('es-AR numbers', () => {
 		expect(formatSignedPesoChange(0.2, 5940)).toBe(`$${NBSP}0`);
 	});
 
-	test('a dollar change is written as a dollar price, sign first, and zero has no sign', () => {
-		expect(formatSignedDollarChange(0.0376)).toBe(`+U$S${NBSP}0,0376`);
-		expect(formatSignedDollarChange(-0.01049)).toBe(`−U$S${NBSP}0,0105`);
-		expect(formatSignedDollarChange(-1.234)).toBe(`−U$S${NBSP}1,23`);
-		expect(formatSignedDollarChange(0.001)).toBe(`U$S${NBSP}0,00`);
+	test('a dollar change takes its close’s two decimals from a dollar up, sign first', () => {
+		expect(formatSignedDollarChange(-0.0105, 3.8077)).toBe(`−U$S${NBSP}0,01`);
+		expect(formatSignedDollarChange(0.1046, 3.85)).toBe(`+U$S${NBSP}0,10`);
+		expect(formatSignedDollarChange(-1.234, 18.05)).toBe(`−U$S${NBSP}1,23`);
+	});
+
+	test('a dollar change under a cent keeps its sign on a close under one dollar', () => {
+		expect(formatSignedDollarChange(-0.0023, 0.3427)).toBe(`−U$S${NBSP}0,002`);
+		expect(formatSignedDollarChange(0.0049, 0.3427)).toBe(`+U$S${NBSP}0,005`);
+		expect(formatSignedDollarChange(0.0006, 0.1679)).toBe(`+U$S${NBSP}0,001`);
+		expect(formatSignedDollarChange(0.0108, 0.5515)).toBe(`+U$S${NBSP}0,011`);
+	});
+
+	test('a dollar change follows the close’s third significant digit, even a dropped zero', () => {
+		expect(formatSignedDollarChange(-0.000053, 0.02498)).toBe(`−U$S${NBSP}0,0001`);
+		expect(formatSignedDollarChange(-0.000053, 0.0237)).toBe(`−U$S${NBSP}0,0001`);
+	});
+
+	test('a dollar change is zero, without a sign, only when it rounds to zero at its close’s decimals', () => {
+		expect(formatSignedDollarChange(0.0041, 1.1827)).toBe(`U$S${NBSP}0,00`);
+		expect(formatSignedDollarChange(-0.0004, 0.3427)).toBe(`U$S${NBSP}0,000`);
+		expect(formatSignedDollarChange(0, 4)).toBe(`U$S${NBSP}0,00`);
 	});
 
 	test('pesos are whole from a thousand up, with two decimals below', () => {

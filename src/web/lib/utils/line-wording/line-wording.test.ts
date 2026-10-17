@@ -190,11 +190,29 @@ describe('describeLatestClose', () => {
 			`$${NBSP}5.940 (+$${NBSP}60, +1,0${NBSP}%)`,
 		);
 		expect(toText(describeLatestClose(latestCloseLine, 'ccl'))).toBe(
-			`U$S${NBSP}3,81 (−U$S${NBSP}0,0105, −0,3${NBSP}%)`,
+			`U$S${NBSP}3,81 (−U$S${NBSP}0,01, −0,3${NBSP}%)`,
 		);
 		expect(describeLatestClose(latestCloseLine, 'ars')[0]).toEqual({
 			strong: `$${NBSP}5.940`,
 		});
+	});
+
+	test('a dollar change takes the decimals of its own view’s close', () => {
+		const line = {
+			latestClose: {
+				...latestCloseLine.latestClose,
+				mep: {
+					close: 0.3427,
+					previousClose: 0.345,
+					change: -0.0023,
+					percentChange: -0.6733,
+				},
+			},
+		};
+
+		expect(toText(describeLatestClose(line, 'usd'))).toBe(
+			`U$S${NBSP}0,343 (−U$S${NBSP}0,002, −0,7${NBSP}%)`,
+		);
 	});
 
 	test('a change of zero has no sign', () => {

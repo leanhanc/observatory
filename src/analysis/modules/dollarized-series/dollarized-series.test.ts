@@ -6,6 +6,7 @@ import {
 	calculateCclRates,
 	calculateMepRates,
 	dollarizeBarHistory,
+	dollarizePrice,
 	toCclEquivalent,
 	toPesoEquivalent,
 } from './index.ts';
@@ -357,6 +358,26 @@ describe('toPesoEquivalent', () => {
 		).bars;
 
 		expect(toPesoEquivalent(dollarizedBar!.close, 1000)).toBeCloseTo(1050, 9);
+	});
+});
+
+describe('dollarizePrice', () => {
+	test('divides one peso price by its session’s MEP Rate, as a dollarized bar does', () => {
+		const pesoBar = {
+			sessionDate: '2026-10-13',
+			open: 5880,
+			high: 5880,
+			low: 5880,
+			close: 5880,
+			volume: 1,
+		};
+		const [dollarizedBar] = dollarizeBarHistory(
+			[pesoBar],
+			[{ sessionDate: '2026-10-13', mepRate: 1470 }],
+		).bars;
+
+		expect(dollarizePrice(5880, 1470)).toBe(4);
+		expect(dollarizePrice(5880, 1470)).toBe(dollarizedBar!.close);
 	});
 });
 

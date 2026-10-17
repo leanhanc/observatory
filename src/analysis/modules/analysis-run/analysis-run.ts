@@ -21,6 +21,7 @@ import {
 	calculateCclRates,
 	calculateMepRates,
 	dollarizeBarHistory,
+	dollarizePrice,
 	toCclEquivalent,
 	toPesoEquivalent,
 	validateRateSourceBars,
@@ -980,7 +981,7 @@ function analyzeTradingLine(
 		status: 'available',
 		...identity,
 		latestState,
-		latestClose: describeLatestClose(lastBar, correction.bars, mepRates, cclRates),
+		latestClose: measureLatestClose(lastBar, correction.bars, mepRates, cclRates),
 		periodReturns: calculatePeriodReturns(bars),
 		pesoPeriodReturns: calculatePeriodReturns(pesoCloses),
 		cclPeriodReturns: calculatePeriodReturns(cclCloses),
@@ -1028,7 +1029,7 @@ function projectLatestStateToPesos(
  * which is the close the reader saw before, rate or not. Each previous close uses only its own
  * session's rate: the latest session's rate would leave the peso's move out of a dollar change.
  */
-function describeLatestClose(
+function measureLatestClose(
 	lastDollarizedBar: DailyBar,
 	pesoBars: readonly DailyBar[],
 	mepRates: readonly MepRateSession[],
@@ -1045,7 +1046,7 @@ function describeLatestClose(
 	const previousMepClose =
 		previousBar === null || previousMepRate === null
 			? null
-			: previousBar.close / previousMepRate;
+			: dollarizePrice(previousBar.close, previousMepRate);
 	const previousCclClose =
 		previousBar === null || previousCclRate === null
 			? null

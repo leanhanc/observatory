@@ -1,0 +1,9 @@
+- [x] Spec deltas for web-app, analysis-run and period-returns; `openspec validate --all --strict`.
+- [x] Lean confirms the dollar change on live examples.
+- [x] Web: the change at its close's precision; the currency-view fallback, with a test of the stylesheet's rules.
+- [x] Snapshot read: `cclRateSource`, CCL figures `null` without it, latest-close closes equal to the equivalents', shared return sessions; a real run's snapshot passes, and the same-session check is tested on its own.
+- [x] Analysis Run: a test that a split inside a return window and on the latest session is corrected in the peso returns and the day change.
+- [x] Nits: the raw-evidence comment, the design's MEP close row, rename the analysis's `describeLatestClose` to `measureLatestClose`, a helper for the previous MEP close, CONTEXT.md, `skills-lock.json` formatting.
+- [x] Run tests, typecheck, lint and format; check the live snapshot passes the read.
+- [ ] Lean reviews the diff.
+- [x] Archive.

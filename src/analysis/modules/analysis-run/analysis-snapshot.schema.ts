@@ -20,6 +20,12 @@ const messages = {
 		'The latest close must describe the latest State: its session, an earlier previous session, and a CCL part exactly when the line has CCL equivalents.',
 	inconsistentPeriodReturn:
 		'A period return must have both its start session and change, or neither.',
+	inconsistentLatestCloseEquivalents:
+		'The latest close in pesos and in CCL dollars must equal the peso and CCL equivalents’ close.',
+	inconsistentPeriodReturnSessions:
+		'Peso and CCL period returns must cover the windows of the MEP period returns, from the same start sessions; a CCL return may lack its start.',
+	cclFiguresWithoutCclRate:
+		'A snapshot without a CCL Rate source must have no CCL figure: every line’s CCL equivalents, CCL close and CCL period return, and every Structure Break’s CCL equivalents, must be null.',
 } as const;
 
 const stringSchema = v.string(messages.invalidType);
@@ -289,6 +295,15 @@ const latestCloseSchema = v.object(
 	messages.invalidType,
 );
 
+const cclRateSourceSchema = v.object(
+	{
+		pesoBondTradingLineId: stringSchema,
+		cableBondTradingLineId: stringSchema,
+		latestRateSessionDate: sessionDateSchema,
+	},
+	messages.invalidType,
+);
+
 const periodReturnsSchema = v.pipe(v.array(periodReturnSchema, messages.invalidType), v.readonly());
 
 const snapshotEventSchema = v.object(
@@ -371,25 +386,34 @@ const analyzedLineSchema = v.pipe(
 	v.check(checkIfPesoEquivalentsMatchState, messages.inconsistentPesoEquivalents),
 	v.check(checkIfCclEquivalentsMatchState, messages.inconsistentCclEquivalents),
 	v.check(checkIfLatestCloseMatchesLine, messages.inconsistentLatestClose),
+	v.check(checkIfLatestCloseMatchesEquivalents, messages.inconsistentLatestCloseEquivalents),
+	v.check(checkIfPeriodReturnsShareSessions, messages.inconsistentPeriodReturnSessions),
 	v.check(checkIfSituationsMatchState, messages.inconsistentSituations),
+);
+
+const snapshotOverviewEntriesSchema = v.object(
+	{
+		schemaVersion: v.literal(12, messages.invalidSchemaVersion),
+		priceUnit: v.picklist(['mep-dollar'], messages.invalidType),
+		ranAt: v.pipe(stringSchema, v.isoTimestamp(messages.invalidTimestamp)),
+		requestedThroughSession: sessionDateSchema,
+		cclRateSource: v.nullable(cclRateSourceSchema),
+		analyzedLines: v.pipe(v.array(analyzedLineSchema, messages.invalidType), v.readonly()),
+	},
+	messages.invalidType,
 );
 
 /**
  * The part of an Analysis Snapshot the web reads. `v.object` drops every other field, so a reader
  * cannot use a field that was never validated; fields are added here as pages start reading them.
  */
-export const analysisSnapshotOverviewSchema = v.object(
-	{
-		schemaVersion: v.literal(12, messages.invalidSchemaVersion),
-		priceUnit: v.picklist(['mep-dollar'], messages.invalidType),
-		ranAt: v.pipe(stringSchema, v.isoTimestamp(messages.invalidTimestamp)),
-		requestedThroughSession: sessionDateSchema,
-		analyzedLines: v.pipe(v.array(analyzedLineSchema, messages.invalidType), v.readonly()),
-	},
-	messages.invalidType,
+export const analysisSnapshotOverviewSchema = v.pipe(
+	snapshotOverviewEntriesSchema,
+	v.check(checkIfCclFiguresHaveCclRate, messages.cclFiguresWithoutCclRate),
 );
 
 type AnalyzedLineOverview = v.InferOutput<typeof analyzedLineVariantSchema>;
+type PeriodReturnOverview = v.InferOutput<typeof periodReturnSchema>;
 
 type AvailableLineOverview = Extract<AnalyzedLineOverview, { status: 'available' }>;
 type LatestStateEquivalents = AvailableLineOverview['pesoEquivalents'];
@@ -428,6 +452,90 @@ function checkIfLatestCloseMatchesLine(line: AnalyzedLineOverview): boolean {
 	const hasMatchingCcl = (latestClose.ccl === null) === (cclEquivalents === null);
 
 	return isSameSession && isPreviousEarlier && hasMatchingCcl;
+}
+
+// The latest close's peso and CCL closes are the equivalents' closes, written from the same session's
+// close and rate, so they are equal to the last bit.
+function checkIfLatestCloseMatchesEquivalents(line: AnalyzedLineOverview): boolean {
+	if (line.status !== 'available') {
+		return true;
+	}
+
+	const { latestClose, pesoEquivalents, cclEquivalents } = line;
+	const hasMatchingPesoClose = latestClose.peso.close === pesoEquivalents.close;
+	const hasMatchingCclClose =
+		latestClose.ccl === null ||
+		cclEquivalents === null ||
+		latestClose.ccl.close === cclEquivalents.close;
+
+	return hasMatchingPesoClose && hasMatchingCclClose;
+}
+
+// Every currency's returns count windows over the Dollarized Series' sessions. A peso close exists
+// on each of them, so a peso return starts where the MEP one does; a CCL return starts there too,
+// unless that session or the anchor has no CCL Rate.
+function checkIfPeriodReturnsShareSessions(line: AnalyzedLineOverview): boolean {
+	if (line.status !== 'available') {
+		return true;
+	}
+
+	const { periodReturns, pesoPeriodReturns, cclPeriodReturns } = line;
+	const isSameLength =
+		pesoPeriodReturns.length === periodReturns.length &&
+		cclPeriodReturns.length === periodReturns.length;
+
+	if (!isSameLength) {
+		return false;
+	}
+
+	return periodReturns.every((mepReturn, index) => {
+		const pesoReturn = pesoPeriodReturns[index]!;
+		const cclReturn = cclPeriodReturns[index]!;
+		const isSameWindow = checkIfSameWindow(mepReturn, pesoReturn, cclReturn);
+		const isPesoStartShared = pesoReturn.fromSessionDate === mepReturn.fromSessionDate;
+		const isCclStartShared =
+			cclReturn.fromSessionDate === null ||
+			cclReturn.fromSessionDate === mepReturn.fromSessionDate;
+
+		return isSameWindow && isPesoStartShared && isCclStartShared;
+	});
+}
+
+function checkIfSameWindow(
+	mepReturn: PeriodReturnOverview,
+	pesoReturn: PeriodReturnOverview,
+	cclReturn: PeriodReturnOverview,
+): boolean {
+	return (
+		pesoReturn.windowMonths === mepReturn.windowMonths &&
+		cclReturn.windowMonths === mepReturn.windowMonths
+	);
+}
+
+// Every CCL figure divides by a CCL Rate, so a run without one has none to write.
+function checkIfCclFiguresHaveCclRate(
+	snapshot: v.InferOutput<typeof snapshotOverviewEntriesSchema>,
+): boolean {
+	if (snapshot.cclRateSource !== null) {
+		return true;
+	}
+
+	return snapshot.analyzedLines.every((line) => !checkIfLineHasCclFigure(line));
+}
+
+function checkIfLineHasCclFigure(line: AnalyzedLineOverview): boolean {
+	if (line.status !== 'available') {
+		return false;
+	}
+
+	// The line's own check ties its CCL equivalents to its CCL close, so the close stands for both.
+	const hasCclClose = line.latestClose.ccl !== null;
+	const hasCclReturn = line.cclPeriodReturns.some((entry) => entry.fromSessionDate !== null);
+	const hasCclEvent = line.events.some(
+		({ event }) => event.type === 'structure-break' && event.cclEquivalents !== null,
+	);
+
+	return hasCclClose || hasCclReturn || hasCclEvent;
 }
 
 function checkIfEquivalentsMatchState(

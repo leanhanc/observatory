@@ -152,6 +152,10 @@ _Avoid_: Volatility Expansion, wide-range session, bullish or bearish signal, co
 How much the close moved over a recent stretch, in percent: one month, three months or one year, counted in calendar months back from the latest State's session (the windows are set in the Analysis Configuration). It starts from the last close on or before that date. It is measured in MEP dollars, and also in pesos and in CCL dollars for display, over the same sessions: a peso return includes the peso's devaluation, which is what a holder of the peso line got. It says how far, not why. When the history is too short, it is unavailable, never zero.
 _Avoid_: Performance, gain, distance below a level when referring to the whole move
 
+**Day Change**:
+How much the latest State's close moved since the line's previous session, as an amount and in percent, in pesos, MEP dollars and CCL dollars, for display. The previous session is the line's previous peso bar, whatever its rates, so it is the close the reader saw before; when the provider's bar for the session before was dropped as invalid, it is an earlier one. Each currency converts that previous close at its own session's rate: a peso day change includes the peso's move between the two sessions, and a dollar one removes it. A previous session without a rate in a currency has no day change in it; no other session's rate stands in.
+_Avoid_: Daily return, skipping to a previous session that has a rate, converting the previous close at the latest session's rate
+
 **Corporate Action**:
 An issuer's decision, such as a split, a reverse split, a share distribution or a change of a CEDEAR's ratio, that changes the number of shares or CEDEARs and moves the price in inverse proportion, without changing what a holding is worth. A price step it causes is bookkeeping, not market behavior.
 _Avoid_: Split when referring to every kind, adjustment when referring to the issuer's decision

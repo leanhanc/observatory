@@ -57,6 +57,10 @@ const exactPriceFormat = new Intl.NumberFormat('es-AR', {
 	minimumFractionDigits: 2,
 	maximumFractionDigits: 4,
 });
+const threeSignificantDigitsFormat = new Intl.NumberFormat('es-AR', {
+	minimumSignificantDigits: 3,
+	maximumSignificantDigits: 3,
+});
 // Prices under one keep three significant digits, so a cheap line does not round to a few cents.
 const smallPriceFormat = new Intl.NumberFormat('es-AR', {
 	minimumSignificantDigits: 2,
@@ -129,18 +133,34 @@ export function formatSignedPesoChange(change: number, close: number): string {
 }
 
 /**
- * Formats a change in MEP or CCL dollars with its sign first, as a dollar price is written:
- * `+U$S 0,04` or `−U$S 0,0105`. A change that rounds to zero reads `U$S 0,00`, without a sign.
+ * Formats a change in MEP or CCL dollars with its sign first, in the decimals its close is written
+ * with: two on a close of a dollar or more, `−U$S 0,01` on 3,81, and the decimals of the close's
+ * third significant digit below, `−U$S 0,002` on 0,343. A change that rounds to zero there has no
+ * sign, even when its percentage does not round to zero.
  */
-export function formatSignedDollarChange(change: number): string {
-	const isZero = twoDecimalFormat.format(Math.abs(change)) === twoDecimalFormat.format(0);
+export function formatSignedDollarChange(change: number, close: number): string {
+	const fractionDigits = countDollarFractionDigits(close);
+	const format = new Intl.NumberFormat('es-AR', {
+		minimumFractionDigits: fractionDigits,
+		maximumFractionDigits: fractionDigits,
+	});
+	const amount = `${DOLLAR_PREFIX}${NBSP}${format.format(Math.abs(change))}`;
+	return signAmount(change, amount);
+}
 
-	if (isZero) {
-		return `${DOLLAR_PREFIX}${NBSP}${twoDecimalFormat.format(0)}`;
+// The precision `formatDollars` writes a close with. Under one, it is the close's third significant
+// digit even where the close drops it as a trailing zero: 0,025 is 0,0250, so its change has four.
+function countDollarFractionDigits(close: number): number {
+	const isUnderOne = Math.abs(close) < 0.995;
+
+	if (!isUnderOne) {
+		return 2;
 	}
 
-	const sign = change > 0 ? '+' : MINUS_SIGN;
-	return `${sign}${formatDollars(Math.abs(change))}`;
+	const fraction = threeSignificantDigitsFormat
+		.formatToParts(close)
+		.find((part) => part.type === 'fraction');
+	return fraction?.value.length ?? 2;
 }
 
 function signAmount(change: number, amount: string): string {

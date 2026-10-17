@@ -2,7 +2,10 @@ import { fileURLToPath } from 'node:url';
 
 import { loadEnv } from 'vite';
 
-import { readRenderableSnapshot } from '#web/lib/utils/latest-analysis-snapshot/index.ts';
+import {
+	SNAPSHOT_FILE_VARIABLE,
+	readRenderableSnapshot,
+} from '#web/lib/utils/latest-analysis-snapshot/index.ts';
 
 import type { AstroIntegration } from 'astro';
 import type { Plugin } from 'vite';
@@ -25,7 +28,7 @@ export function provideLatestSnapshot(): AstroIntegration {
 	return {
 		name: 'observatory:latest-snapshot',
 		hooks: {
-			'astro:config:setup': async ({ command, config, updateConfig }) => {
+			'astro:config:setup': async ({ command, config, updateConfig, logger }) => {
 				const shouldRenderPages = command === 'build' || command === 'dev';
 
 				if (!shouldRenderPages) {
@@ -33,6 +36,13 @@ export function provideLatestSnapshot(): AstroIntegration {
 				}
 
 				const environment = loadEnv('production', fileURLToPath(config.root), '');
+				const snapshotFile = environment[SNAPSHOT_FILE_VARIABLE]?.trim();
+
+				// `.env` feeds this too, so a leftover override must not silently replace the bucket.
+				if (snapshotFile) {
+					logger.warn(`Reading the snapshot from ${snapshotFile}, not the bucket.`);
+				}
+
 				const snapshot = await readRenderableSnapshot(environment);
 				updateConfig({ vite: { plugins: [serveLatestSnapshot(snapshot)] } });
 			},

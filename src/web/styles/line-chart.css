@@ -1,0 +1,144 @@
+/*
+ * The chart island's box and its controls. The box keeps its height before and after the chart
+ * draws, so nothing below it moves. Without JavaScript the element is never defined: the note shows
+ * and the range control, which only the island can act on, stays hidden.
+ */
+@layer components {
+	.price-section {
+		padding-block: 0.25rem 2.5rem;
+	}
+
+	line-chart {
+		display: grid;
+		gap: 0.75rem;
+	}
+
+	.chart-controls {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem 1rem;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.chart-box {
+		position: relative;
+		height: 22rem;
+	}
+
+	.chart-note {
+		position: absolute;
+		inset: 0;
+		display: grid;
+		place-items: center;
+		color: var(--muted);
+		font-size: 0.875rem;
+	}
+
+	line-chart:not(:defined) .chart-range {
+		display: none;
+	}
+
+	line-chart:defined .chart-note {
+		visibility: hidden;
+	}
+
+	line-chart[data-state='failed'] .chart-note {
+		visibility: visible;
+	}
+
+	/* A chart that could not draw has no range to change. */
+	line-chart[data-state='failed'] .chart-range {
+		display: none;
+	}
+
+	.chart-legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem 1.25rem;
+		font-size: 0.8125rem;
+		color: var(--muted);
+	}
+
+	.chart-legend li {
+		display: inline-flex;
+		gap: 0.4rem;
+		align-items: center;
+	}
+
+	.chart-key {
+		display: inline-block;
+	}
+
+	/* The legend's keys repeat the candles' look: up hollow in the gain color, down filled. */
+	.chart-key-up {
+		width: 0.5rem;
+		height: 0.875rem;
+		border: 1.5px solid var(--up);
+	}
+
+	.chart-key-down {
+		width: 0.5rem;
+		height: 0.875rem;
+		background: var(--down);
+	}
+
+	.chart-key-level {
+		width: 1.25rem;
+		border-top: 1.5px dashed var(--accent);
+	}
+
+	.chart-credit {
+		font-size: 12px;
+		color: var(--muted);
+	}
+
+	/* The range control shares the currency control's segmented look, in the data face. */
+	.segmented {
+		display: inline-flex;
+		gap: 2px;
+		padding: 2px;
+		border: 1px solid var(--line);
+		border-radius: 6px;
+		background: var(--surface);
+	}
+
+	.chart-range label {
+		position: relative;
+		padding: 0.1875rem 0.625rem;
+		border-radius: 4px;
+		font-family: var(--font-data);
+		font-size: 0.8125rem;
+		color: var(--muted);
+		cursor: pointer;
+	}
+
+	/* As in the currency control: without `:has()` no label can be marked, so the inputs stay visible. */
+	@supports selector(:has(*)) {
+		.chart-range input {
+			position: absolute;
+			inset: 0;
+			margin: 0;
+			opacity: 0;
+			cursor: pointer;
+		}
+
+		.chart-range label:has(input:checked) {
+			background: var(--fg);
+			color: var(--bg);
+		}
+
+		.chart-range label:has(input:focus-visible) {
+			outline: 2px solid var(--accent);
+			outline-offset: 1px;
+		}
+	}
+
+	/* On a phone the chart runs the full width, past the page's 16px gutter. */
+	@media (max-width: 40rem) {
+		.chart-box {
+			height: 18rem;
+			margin-inline: calc(-1 * var(--gutter-left)) calc(-1 * var(--gutter-right));
+		}
+	}
+}

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { LinePage } from './line-page.tsx';
+import { LineView } from './line-view.tsx';
 
 import type { AvailableLine, UnavailableLine } from '#web/lib/utils/snapshot-pages/index.ts';
 
@@ -40,6 +40,7 @@ const ggalLine: AvailableLine = {
 		rsi: 34,
 		priceRelativeToEmaInAtr: -1.3,
 		priceRelativeToLongTermEmaInPercent: -17.7,
+		longTermEma: 4.6863,
 		situations: [],
 	},
 	latestClose: {
@@ -71,6 +72,7 @@ const ggalLine: AvailableLine = {
 		lastConfirmedSwingHigh: 6225.2,
 		lastConfirmedSwingLow: 5664.04,
 		regimeTippingCloses: { bullishCloseAbove: 7331.64, bearishCloseBelow: 7101.27 },
+		longTermEma: 7216.62,
 	},
 	cclEquivalents: {
 		sessionDate: '2026-10-13',
@@ -79,6 +81,18 @@ const ggalLine: AvailableLine = {
 		lastConfirmedSwingHigh: 3.8609,
 		lastConfirmedSwingLow: 3.5129,
 		regimeTippingCloses: { bullishCloseAbove: 4.5471, bearishCloseBelow: 4.4042 },
+		longTermEma: 4.4757,
+	},
+	watchDistances: {
+		lastConfirmedSwingHigh: 4.8,
+		lastConfirmedSwingLow: -4.6,
+		bullishCloseAbove: 23.4,
+		bearishCloseBelow: 19.5,
+	},
+	chartSeries: {
+		peso: [{ sessionDate: '2026-10-13', open: 5880, high: 6000, low: 5800, close: 5940 }],
+		mep: [{ sessionDate: '2026-10-13', open: 3.82, high: 3.9, low: 3.77, close: 3.8573 }],
+		ccl: [{ sessionDate: '2026-10-13', open: 3.65, high: 3.72, low: 3.6, close: 3.684 }],
 	},
 	events: [
 		{
@@ -112,10 +126,12 @@ const ggalLine: AvailableLine = {
 	],
 };
 
-describe('LinePage', () => {
+describe('LineView', () => {
 	test('a peso line with CCL figures offers ARS, USD and CCL, with ARS checked', () => {
 		const html = renderLinePage(ggalLine);
-		const inputs = [...html.matchAll(/<input[^>]*>/g)].map(([input]) => input);
+		const inputs = [...html.matchAll(/<input[^>]*name="currency"[^>]*>/g)].map(
+			([input]) => input,
+		);
 
 		expect(inputs).toHaveLength(3);
 		expect(inputs.map((input) => input.match(/id="([^"]+)"/)?.[1])).toEqual([
@@ -127,6 +143,90 @@ describe('LinePage', () => {
 		expect(inputs.slice(1).some((input) => input.includes('checked'))).toBe(false);
 		expect(html).toContain('<legend>Moneda</legend>');
 		expect(html).not.toContain('<script');
+	});
+
+	test('reads in the fixed order: identity, currency and chart, then the five sections', () => {
+		const html = renderLinePage(ggalLine);
+		const landmarks = [
+			'Datos al cierre',
+			'line-close-price',
+			'currency-control',
+			'chart-box',
+			'Qué está haciendo',
+			'Soporte y resistencia</h2>',
+			'Qué observar',
+			'Últimos cambios',
+			'Detalle</h2>',
+		];
+		const positions = landmarks.map((landmark) => html.indexOf(landmark));
+
+		expect(positions.every((position) => position >= 0)).toBe(true);
+		expect(positions).toEqual(positions.toSorted((left, right) => left - right));
+	});
+
+	test('the chart fetches its file by an absolute path, served with or without a trailing slash', () => {
+		const html = renderLinePage(ggalLine);
+
+		expect(html).toContain('data-src="/lines/galicia-stock-byma-ars/chart.json"');
+		expect(html).toContain('El gráfico no está disponible.');
+		expect(html).toContain('href="https://www.tradingview.com/"');
+	});
+
+	// Tier 2 reads as headed blocks; tier 3 stays collapsed, and nothing needs a script to collapse.
+	test('the 200-session distance and momentum are visible; the swing dates and history collapsed', () => {
+		const html = renderLinePage(ggalLine);
+		const closedDetails = [...html.matchAll(/<details>([\s\S]*?)<\/details>/g)].map(
+			([details]) => details,
+		);
+
+		expect(html).not.toContain('<details open');
+		expect(closedDetails.some((details) => details.includes('Mínimo del'))).toBe(true);
+		expect(closedDetails.some((details) => details.includes('Ver historial'))).toBe(true);
+		expect(closedDetails.some((details) => details.includes('media móvil de 200 ruedas'))).toBe(
+			false,
+		);
+		expect(closedDetails.some((details) => details.includes('Momentum:'))).toBe(false);
+	});
+
+	// Green and red belong to gains and losses alone, so only the day change and the period
+	// returns may carry a direction mark.
+	test('only the day change and the period returns are marked as gains or losses', () => {
+		const html = renderLinePage(ggalLine);
+		const markedClasses = [
+			...html.matchAll(/<[^>]*class="([^"]+)"[^>]*data-direction="(gain|loss)"/g),
+		].map(([, className]) => className);
+
+		expect(markedClasses.length).toBeGreaterThan(0);
+		expect(new Set(markedClasses)).toEqual(
+			new Set(['line-close-change', 'return-bar', 'return-bar-value figure']),
+		);
+	});
+
+	test('a CEDEAR names its Underlying on the type line', () => {
+		const html = renderLinePage({
+			...ggalLine,
+			instrumentId: 'lac-cedear',
+			tradingLineId: 'lac-cedear-byma-ars',
+		});
+
+		expect(html).toMatch(/<p class="line-type">CEDEAR · Subyacente: LAC · [A-Z]+<\/p>/);
+		expect(html).not.toContain('Sobre esta especie');
+	});
+
+	test('draws no 200-session ruler while the average is unreadable', () => {
+		const shortHistoryLine = {
+			...ggalLine,
+			latestState: {
+				...ggalLine.latestState,
+				longTermEma: null,
+				priceRelativeToLongTermEmaInPercent: null,
+			},
+		};
+
+		const html = renderLinePage(shortHistoryLine);
+
+		expect(html).not.toContain('media 200');
+		expect(html).not.toContain('media móvil de 200 ruedas');
 	});
 
 	test('the last close follows the data date in each view, before the control', async () => {
@@ -175,8 +275,10 @@ describe('LinePage', () => {
 		);
 
 		// The last close, the currency note, returns, levels, pattern, tipping points and raw
-		// evidence, and the Structure Break twice: in the last month's changes and in the history.
-		expect(variantCounts).toEqual([9, 9, 9]);
+		// evidence, the Structure Break twice, in the last month's changes and in the history, and
+		// the rulers' five prices: the close and the tipping point on the 200-session ruler, and the
+		// close, Support and Resistance on the levels ruler.
+		expect(variantCounts).toEqual([14, 14, 14]);
 		expect(cclVariants.join(' ')).toContain('Sin cotización CCL ese día.');
 		expect(cclVariants.join(' ')).toContain('Precios en dólares CCL');
 	});
@@ -202,7 +304,7 @@ describe('LinePage', () => {
 	test('a line the Catalog does not list as ARS shows MEP dollars with no control', () => {
 		const html = renderLinePage({ ...ggalLine, tradingLineId: 'unlisted-stock-byma-ars' });
 
-		expect(html).not.toContain('<input');
+		expect(html).not.toContain('name="currency"');
 		expect(html).not.toContain('data-currency-view');
 		expect(html).toContain('Soporte</strong> en <strong>U$S');
 		expect(html).not.toMatch(/(?<!U)\$\s\d/);
@@ -223,11 +325,12 @@ describe('LinePage', () => {
 		expect(html).not.toContain('Precios en');
 		expect(html).not.toContain('<input');
 		expect(html).not.toContain('<details');
+		expect(html).not.toContain('<line-chart');
 	});
 });
 
 function renderLinePage(line: AvailableLine | UnavailableLine): string {
-	return renderToStaticMarkup(<LinePage requestedThroughSession="2026-10-09" line={line} />);
+	return renderToStaticMarkup(<LineView requestedThroughSession="2026-10-09" line={line} />);
 }
 
 type Currency = 'ars' | 'usd' | 'ccl';

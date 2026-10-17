@@ -1,1 +1,1 @@
-export { readRenderableSnapshot } from './latest-analysis-snapshot.ts';
+export { SNAPSHOT_FILE_VARIABLE, readRenderableSnapshot } from './latest-analysis-snapshot.ts';

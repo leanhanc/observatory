@@ -4,6 +4,7 @@ export {
 	buildAnalysisSnapshotKey,
 	createAnalysisSnapshotStorage,
 	createAnalysisSnapshotStorageFromS3Client,
+	parseAnalysisSnapshotOverview,
 } from './analysis-snapshot-storage.ts';
 export type {
 	AnalysisEvent,

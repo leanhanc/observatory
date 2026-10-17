@@ -62,6 +62,7 @@ const ggalState: SnapshotState = {
 	rsi: 34.2,
 	priceRelativeToEmaInAtr: -1.43,
 	priceRelativeToLongTermEmaInPercent: -17.8,
+	longTermEma: 4.49,
 	situations: [],
 };
 const ggalPesoEquivalents: AvailableLine['pesoEquivalents'] = {
@@ -71,6 +72,7 @@ const ggalPesoEquivalents: AvailableLine['pesoEquivalents'] = {
 	lastConfirmedSwingHigh: 6223,
 	lastConfirmedSwingLow: 5662,
 	regimeTippingCloses: { bullishCloseAbove: 7344, bearishCloseBelow: 6480 },
+	longTermEma: 6912,
 };
 // The same levels at a CCL Rate of 1.612: about 4,5 % fewer dollars than at the MEP Rate.
 const ggalCclEquivalents: NonNullable<AvailableLine['cclEquivalents']> = {
@@ -80,6 +82,7 @@ const ggalCclEquivalents: NonNullable<AvailableLine['cclEquivalents']> = {
 	lastConfirmedSwingHigh: 3.8604,
 	lastConfirmedSwingLow: 3.5124,
 	regimeTippingCloses: { bullishCloseAbove: 4.5558, bearishCloseBelow: 4.0199 },
+	longTermEma: 4.2879,
 };
 const ggalLine = {
 	latestState: ggalState,

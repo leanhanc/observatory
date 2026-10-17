@@ -157,6 +157,7 @@ describe('createAnalysisRunner', () => {
 				bullishCloseAbove: regimeTippingCloses!.bullish.closeAbove * mepRate,
 				bearishCloseBelow: regimeTippingCloses!.bearish.closeBelow * mepRate,
 			},
+			longTermEma: ggal.latestState.longTermEma! * mepRate,
 		});
 		// One rate for the close and the level keeps the distance the State reports in MEP dollars.
 		const pesoDistance =
@@ -386,7 +387,7 @@ describe('createAnalysisRunner', () => {
 		const { result } = await runWithProvider(createHealthyProvider());
 
 		expect(result.ok && result.snapshot).toMatchObject({
-			schemaVersion: 12,
+			schemaVersion: 13,
 			priceUnit: 'mep-dollar',
 			ranAt: RAN_AT,
 			requestedThroughSession: REQUESTED_THROUGH_SESSION,
@@ -1289,6 +1290,7 @@ describe('Analysis Run CCL Rate', () => {
 				bullishCloseAbove: peso.regimeTippingCloses!.bullishCloseAbove / cclRate,
 				bearishCloseBelow: peso.regimeTippingCloses!.bearishCloseBelow / cclRate,
 			},
+			longTermEma: peso.longTermEma! / cclRate,
 		});
 		expect(cclRate).not.toBe(selectCclRate('2026-09-29'));
 	});
@@ -1574,11 +1576,139 @@ describe('Analysis Run CCL Rate', () => {
 		});
 		const [withCable, withoutCable] = [withCableRun.writes[0]!, withoutCableRun.writes[0]!];
 
-		expect(withCable.schemaVersion).toBe(12);
+		expect(withCable.schemaVersion).toBe(13);
 		expect(JSON.stringify(removeCclFigures(withCable))).toBe(
 			JSON.stringify(removeCclFigures(withoutCable)),
 		);
 		expect(JSON.stringify(withCable)).not.toBe(JSON.stringify(withoutCable));
+	});
+});
+
+describe('Analysis Run chart series and watch distances', () => {
+	test('publishes the line’s candles in each currency, ending on the latest State’s session', async () => {
+		const provider = { ...createHealthyProvider(), AL30C: al30cBars };
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const { peso, mep, ccl } = ggal.chartSeries;
+		const lastPesoBar = ggalPesoBars.at(-1)!;
+
+		expect(peso.at(-1)).toEqual({
+			sessionDate: ggal.latestState.sessionDate,
+			open: Number(lastPesoBar.open.toPrecision(6)),
+			high: Number(lastPesoBar.high.toPrecision(6)),
+			low: Number(lastPesoBar.low.toPrecision(6)),
+			close: Number(lastPesoBar.close.toPrecision(6)),
+		});
+		expect(mep.at(-1)!.close).toBe(
+			Number((lastPesoBar.close / selectMepRate(lastPesoBar.sessionDate)).toPrecision(6)),
+		);
+		expect(ccl.at(-1)!.sessionDate).toBe(ggal.latestState.sessionDate);
+	});
+
+	// The fixture holds less than 24 months, so the run keeps every corrected peso bar; the module's
+	// own tests cut a longer history at the window's start.
+	test('keeps every corrected peso bar inside the 24-month window', async () => {
+		const { result } = await runWithProvider(createHealthyProvider());
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const startDate = Temporal.PlainDate.from(ggal.latestState.sessionDate)
+			.subtract({ months: 24 })
+			.toString();
+		const expectedSessions = sessionDates.filter((date) => date >= startDate);
+
+		expect(sessionDates[0]! >= startDate).toBe(true);
+		expect(ggal.chartSeries.peso.map((candle) => candle.sessionDate)).toEqual(expectedSessions);
+	});
+
+	// An unadjusted 1:1 share distribution halves the price on its ex-date; drawn uncorrected, the
+	// chart would show a cliff that is bookkeeping, not market behavior.
+	test('draws the candles corrected for a Corporate Action', async () => {
+		const exDate = sessionDates.at(-30)!;
+		const distribution: PricesAndVolumeCorporateAction = {
+			tradingLineId: 'apple-cedear-byma-ars',
+			exDate,
+			correction: 'prices-and-volume',
+			priceFactor: 0.5,
+			kind: 'share-distribution',
+			sourceUrl: 'https://example.com/notice',
+		};
+		const unadjustedBars = ggalPesoBars.map((bar) =>
+			bar.sessionDate < exDate ? { ...scaleBarPrices(bar, 2), volume: bar.volume / 2 } : bar,
+		);
+		const provider = { ...createHealthyProvider(), AAPL: unadjustedBars };
+		const { result } = await runWithProvider(provider, REQUESTED_THROUGH_SESSION, [
+			distribution,
+		]);
+		const apple = selectAvailableLine(result, 'apple-cedear-byma-ars');
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+
+		expect(apple.corporateActions[0]!.status).toBe('applied');
+		expect(apple.chartSeries).toEqual(ggal.chartSeries);
+	});
+
+	test('a session without a CCL Rate has no CCL candle, and the others keep their own rates', async () => {
+		const untradedCableSession = '2026-09-29';
+		const provider = {
+			...createHealthyProvider(),
+			AL30C: al30cBars.filter((bar) => bar.sessionDate !== untradedCableSession),
+		};
+		const { result } = await runWithProvider(provider);
+		const { peso, mep, ccl } = selectAvailableLine(
+			result,
+			'galicia-stock-byma-ars',
+		).chartSeries;
+		const hasSession = (candles: typeof ccl) =>
+			candles.some((candle) => candle.sessionDate === untradedCableSession);
+
+		expect(hasSession(peso)).toBe(true);
+		expect(hasSession(mep)).toBe(true);
+		expect(hasSession(ccl)).toBe(false);
+		expect(ccl).toHaveLength(peso.length - 1);
+	});
+
+	// The page describes the latest State's session, so a later peso bar without a MEP Rate must not
+	// become the chart's last candle.
+	test('ends the candles on the latest State’s session when a later peso bar has no MEP Rate', async () => {
+		const lastSession = sessionDates.at(-1)!;
+		const provider = {
+			...createHealthyProvider(),
+			AL30D: al30dBars.filter((bar) => bar.sessionDate !== lastSession),
+		};
+		const { result } = await runWithProvider(provider);
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const { peso, mep } = ggal.chartSeries;
+
+		expect(ggal.latestState.sessionDate < lastSession).toBe(true);
+		expect(ggalPesoBars.at(-1)!.sessionDate).toBe(lastSession);
+		expect(peso.at(-1)!.sessionDate).toBe(ggal.latestState.sessionDate);
+		expect(mep.at(-1)!.sessionDate).toBe(ggal.latestState.sessionDate);
+	});
+
+	test('a run without CCL Rates has no CCL candles', async () => {
+		const provider = { ...createHealthyProvider(), AL30C: 'no-data' as const };
+		const { result } = await runWithProvider(provider);
+
+		expect(selectAvailableLine(result, 'galicia-stock-byma-ars').chartSeries.ccl).toEqual([]);
+	});
+
+	test('measures how far the close would move to reach each watch level', async () => {
+		const { result } = await runWithProvider(createHealthyProvider());
+		const ggal = selectAvailableLine(result, 'galicia-stock-byma-ars');
+		const { lastConfirmedSwingHigh, lastConfirmedSwingLow, regimeTippingCloses } =
+			ggal.latestState;
+		const close = ggalDollarBars.at(-1)!.close;
+		const distanceTo = (level: number) => ((level - close) / close) * 100;
+
+		expect(ggal.watchDistances).toEqual({
+			lastConfirmedSwingHigh: distanceTo(lastConfirmedSwingHigh!.price),
+			lastConfirmedSwingLow: distanceTo(lastConfirmedSwingLow!.price),
+			bullishCloseAbove: distanceTo(regimeTippingCloses!.bullish.closeAbove),
+			bearishCloseBelow: distanceTo(regimeTippingCloses!.bearish.closeBelow),
+		});
+		// The distance is in percent of the close, not of the level, so it is not the swing's own.
+		expect(ggal.watchDistances.lastConfirmedSwingHigh).not.toBeCloseTo(
+			-lastConfirmedSwingHigh!.priceRelativeToSwingInPercent!,
+			6,
+		);
 	});
 });
 
@@ -2329,7 +2459,8 @@ function removeCclFigures(snapshot: AnalysisSnapshot): unknown {
 			return { ...entry, event: eventRest };
 		});
 		const { ccl: _cclClose, ...latestClose } = line.latestClose;
-		return { ...lineRest, latestClose, events };
+		const { ccl: _cclCandles, ...chartSeries } = line.chartSeries;
+		return { ...lineRest, latestClose, events, chartSeries };
 	});
 
 	return { ...rest, analyzedLines };

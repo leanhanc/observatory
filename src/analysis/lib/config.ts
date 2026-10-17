@@ -8,7 +8,7 @@
  * separate conventions.
  */
 export const ANALYSIS_CONFIGURATION = {
-	version: 8,
+	version: 9,
 	regime: {
 		fastEmaPeriod: 50,
 		slowEmaPeriod: 200,
@@ -42,6 +42,11 @@ export const ANALYSIS_CONFIGURATION = {
 	// session count would drift: BYMA trades fewer sessions a year than the 252 of the US convention.
 	periodReturns: {
 		windowMonths: [1, 3, 12],
+	},
+	// The line page's chart shows this many calendar months of candles, ending on the latest State's
+	// session. It is a display window: no analysis reads the Chart Series.
+	chartSeries: {
+		historyMonths: 24,
 	},
 	// A Trading Line is analyzed only when, over the last `windowSessions` market sessions, it
 	// traded on at least `minimumParticipation` of them and its median traded value in MEP dollars

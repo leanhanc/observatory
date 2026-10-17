@@ -21,7 +21,7 @@ import type {
 	SnapshotEvent,
 	UnavailableLine,
 } from '#web/lib/utils/snapshot-pages/index.ts';
-import type { DisplayCurrency, Phrase } from './line-wording.types.ts';
+import type { ChangeDirection, DisplayCurrency, Phrase } from './line-wording.types.ts';
 
 type SnapshotState = AvailableLine['latestState'];
 type ReadableRegime = NonNullable<SnapshotState['regime']>;
@@ -33,11 +33,15 @@ type PricedLine = Pick<AvailableLine, 'latestState' | 'pesoEquivalents' | 'cclEq
 type ReturnsLine = Pick<AvailableLine, 'periodReturns' | 'pesoPeriodReturns' | 'cclPeriodReturns'>;
 
 /** The latest State's levels in one view's currency, as the snapshot publishes them. */
-type CurrencyLevels = Readonly<{
+export type CurrencyLevels = Readonly<{
 	lastConfirmedSwingHigh: number | null;
 	lastConfirmedSwingLow: number | null;
 	regimeTippingCloses: Readonly<{ bullishCloseAbove: number; bearishCloseBelow: number }> | null;
+	longTermEma: number | null;
 }>;
+
+/** The levels "Soporte y resistencia" names, in one view's currency; `null` where it names none. */
+export type NamedLevels = Readonly<{ support: number | null; resistance: number | null }>;
 
 /** A Structure Break's close and crossed level in one view's currency. */
 type BreakPrices = Readonly<{ closePrice: number; definingSwingPrice: number }>;
@@ -76,6 +80,13 @@ const PERIOD_NAMES: Record<number, string> = {
 	1: 'en un mes',
 	3: 'en tres meses',
 	12: 'en un año',
+};
+
+// The row labels beside the return bars; the sentence under the bars names the windows in full.
+const PERIOD_LABELS: Record<number, string> = {
+	1: '1 mes',
+	3: '3 meses',
+	12: '1 año',
 };
 
 const PATTERN_NAMES: Record<StructureBreak['priorStructure'], string> = {
@@ -131,6 +142,15 @@ export function describeTrend(regime: SnapshotState['regime']): Phrase {
 	return TREND_PHRASES[regime];
 }
 
+/** The trend's name for its chip, such as "Tendencia bajista", or `null` while it is unreadable. */
+export function describeTrendName(regime: SnapshotState['regime']): string | null {
+	if (regime === null) {
+		return null;
+	}
+
+	return `Tendencia ${TREND_NAMES[regime]}`;
+}
+
 /**
  * The period returns in the view's currency on one line; an unavailable window shows as a dash,
  * never as `0`. A CCL return missing where the MEP-dollar one exists lacked a CCL Rate at one of
@@ -153,6 +173,49 @@ export function describePeriodReturns(line: ReturnsLine, currency: DisplayCurren
 	);
 
 	return [...separatedPhrases, ` (${RETURN_CURRENCY_NAMES[currency]})`];
+}
+
+/** One window's return as the bars beside the sentence draw it. */
+export type ReturnFigure = Readonly<{
+	windowMonths: number;
+	label: string;
+	percentChange: number | null;
+	/** The percentage as the sentence prints it, or `null` while the return is unavailable. */
+	percentText: string | null;
+	direction: ChangeDirection | null;
+}>;
+
+/**
+ * Each window's return in the view's currency, labeled and signed exactly as the sentence prints
+ * it, with its direction read from that printed sign.
+ */
+export function describeReturnFigures(
+	line: ReturnsLine,
+	currency: DisplayCurrency,
+): readonly ReturnFigure[] {
+	return selectPeriodReturns(line, currency).map(({ windowMonths, percentChange }) => {
+		const label = PERIOD_LABELS[windowMonths] ?? `${windowMonths} meses`;
+		const percentText = percentChange === null ? null : formatSignedPercent(percentChange);
+		const direction = percentText === null ? null : readPrintedDirection(percentText);
+		return { windowMonths, label, percentChange, percentText, direction };
+	});
+}
+
+/**
+ * The direction a printed figure shows: a gain when it starts with `+`, a loss when it starts with
+ * `−`, and none when it prints without a sign. Color follows what the reader sees, so a change that
+ * prints as `0,0 %` takes none even when the figure behind it is not exactly zero.
+ */
+export function readPrintedDirection(printedFigure: string): ChangeDirection | null {
+	if (printedFigure.startsWith('+')) {
+		return 'gain';
+	}
+
+	if (printedFigure.startsWith('−')) {
+		return 'loss';
+	}
+
+	return null;
 }
 
 function selectPeriodReturns(
@@ -211,21 +274,22 @@ export function describeLongTermDistance(
 export function describeLevels(line: PricedLine, currency: DisplayCurrency): readonly Phrase[] {
 	const { latestState: state } = line;
 	const { lastConfirmedSwingLow: low, lastConfirmedSwingHigh: high } = state;
-	const levels = selectCurrencyLevels(line, currency);
+	const { support, resistance } = selectNamedLevels(line, currency);
 
 	if (low === null && high === null) {
 		return [['Todavía no hay máximos ni mínimos confirmados.']];
 	}
 
 	return [
-		describeLowLevel(state, levels.lastConfirmedSwingLow, currency),
-		describeHighLevel(state, levels.lastConfirmedSwingHigh, currency),
+		describeLowLevel(state, support, currency),
+		describeHighLevel(state, resistance, currency),
 	];
 }
 
+/** The Support line, or what the close below the last confirmed low means when there is none. */
 function describeLowLevel(
 	state: SnapshotState,
-	levelPrice: number | null,
+	support: number | null,
 	currency: DisplayCurrency,
 ): Phrase {
 	const low = state.lastConfirmedSwingLow;
@@ -236,14 +300,14 @@ function describeLowLevel(
 
 	const distance = low.priceRelativeToSwingInPercent;
 
-	if (low.closePosition === 'at-or-above') {
+	if (support !== null) {
 		// The distance is measured against the level, so the close is its subject.
 		const distanceText =
 			distance === null ? '' : `: el cierre está ${formatPercent(distance)} por encima`;
 		return [
 			{ strong: 'Soporte' },
 			' en ',
-			...describePrice(levelPrice, currency),
+			...describePrice(support, currency),
 			`${distanceText}.`,
 		];
 	}
@@ -269,9 +333,10 @@ function describeLowLevel(
 	];
 }
 
+/** The Resistance line, or what the close above the last confirmed high means when there is none. */
 function describeHighLevel(
 	state: SnapshotState,
-	levelPrice: number | null,
+	resistance: number | null,
 	currency: DisplayCurrency,
 ): Phrase {
 	const high = state.lastConfirmedSwingHigh;
@@ -282,13 +347,13 @@ function describeHighLevel(
 
 	const distance = high.priceRelativeToSwingInPercent;
 
-	if (high.closePosition === 'at-or-below') {
+	if (resistance !== null) {
 		const distanceText =
 			distance === null ? '' : `: el cierre está ${formatPercent(distance)} por debajo`;
 		return [
 			{ strong: 'Resistencia' },
 			' en ',
-			...describePrice(levelPrice, currency),
+			...describePrice(resistance, currency),
 			`${distanceText}.`,
 		];
 	}
@@ -548,24 +613,64 @@ export function describeLatestClose(
 	line: Pick<AvailableLine, 'latestClose'>,
 	currency: DisplayCurrency,
 ): Phrase {
+	const { closeText, changeText } = describeLatestCloseParts(line, currency);
+
+	if (changeText === null) {
+		return [{ strong: closeText }];
+	}
+
+	return [{ strong: closeText }, ` ${changeText}`];
+}
+
+/** The latest close and its day change as the header prints them, apart, so the change can be colored. */
+export type LatestCloseParts = Readonly<{
+	closeText: string;
+	/** `(+$ 60, +1,0 %)`, or `null` when the analysis left the change `null`. */
+	changeText: string | null;
+	/** Read from the sign printed on the percentage, the sign the reader sees. */
+	direction: ChangeDirection | null;
+}>;
+
+/**
+ * The parts of `describeLatestClose`. The direction comes from the percentage as printed: it
+ * carries the change's sign whenever the change does not read as zero.
+ *
+ * @throws {Error} for a CCL view of a line without a CCL close, which offers no such view.
+ */
+export function describeLatestCloseParts(
+	line: Pick<AvailableLine, 'latestClose'>,
+	currency: DisplayCurrency,
+): LatestCloseParts {
 	const closeChange = selectCloseChange(line.latestClose, currency);
 	const closeText = formatCurrencyPrice(closeChange.close, currency);
 	const { change, percentChange } = closeChange;
 
 	if (change === null || percentChange === null) {
-		return [{ strong: closeText }];
+		return { closeText, changeText: null, direction: null };
 	}
 
-	const changeText =
+	const amountText =
 		currency === 'ars'
 			? formatSignedPesoChange(change, closeChange.close)
 			: formatSignedDollarChange(change, closeChange.close);
 	// A change that moved keeps its sign on a percentage that rounds to zero: `−$ 50, −0,0 %`.
-	const isZeroChange = checkIfAmountIsZero(changeText);
+	const isZeroChange = checkIfAmountIsZero(amountText);
 	const percentText = isZeroChange
 		? formatSignedPercent(percentChange)
 		: formatPercentOfNonzeroChange(percentChange);
-	return [{ strong: closeText }, ` (${changeText}, ${percentText})`];
+	return {
+		closeText,
+		changeText: `(${amountText}, ${percentText})`,
+		direction: readPrintedDirection(percentText),
+	};
+}
+
+/** The latest close in the view's currency, as the snapshot publishes it. */
+export function selectViewClose(
+	line: Pick<AvailableLine, 'latestClose'>,
+	currency: DisplayCurrency,
+): number {
+	return selectCloseChange(line.latestClose, currency).close;
 }
 
 function selectCloseChange(
@@ -716,7 +821,7 @@ export function describeUnavailableLine(line: UnavailableLine): Phrase {
  *
  * @throws {Error} for a CCL view of a line without CCL figures, which offers no such view.
  */
-function selectCurrencyLevels(line: PricedLine, currency: DisplayCurrency): CurrencyLevels {
+export function selectCurrencyLevels(line: PricedLine, currency: DisplayCurrency): CurrencyLevels {
 	if (currency === 'ars') {
 		return line.pesoEquivalents;
 	}
@@ -729,7 +834,8 @@ function selectCurrencyLevels(line: PricedLine, currency: DisplayCurrency): Curr
 		return line.cclEquivalents;
 	}
 
-	const { lastConfirmedSwingHigh, lastConfirmedSwingLow, regimeTippingCloses } = line.latestState;
+	const { lastConfirmedSwingHigh, lastConfirmedSwingLow, regimeTippingCloses, longTermEma } =
+		line.latestState;
 	return {
 		lastConfirmedSwingHigh: lastConfirmedSwingHigh?.price ?? null,
 		lastConfirmedSwingLow: lastConfirmedSwingLow?.price ?? null,
@@ -740,6 +846,25 @@ function selectCurrencyLevels(line: PricedLine, currency: DisplayCurrency): Curr
 						bullishCloseAbove: regimeTippingCloses.bullish.closeAbove,
 						bearishCloseBelow: regimeTippingCloses.bearish.closeBelow,
 					},
+		longTermEma,
+	};
+}
+
+/**
+ * Support is the last confirmed low while the close is at or above it, and Resistance the last
+ * confirmed high while the close is at or below it. A close beyond a level leaves no confirmed level
+ * on that side until a new swing confirms, so neither the text nor the chart names one. This is the
+ * one place the page decides it.
+ */
+export function selectNamedLevels(line: PricedLine, currency: DisplayCurrency): NamedLevels {
+	const { lastConfirmedSwingLow: low, lastConfirmedSwingHigh: high } = line.latestState;
+	const levels = selectCurrencyLevels(line, currency);
+	const isSupport = low?.closePosition === 'at-or-above';
+	const isResistance = high?.closePosition === 'at-or-below';
+
+	return {
+		support: isSupport ? levels.lastConfirmedSwingLow : null,
+		resistance: isResistance ? levels.lastConfirmedSwingHigh : null,
 	};
 }
 
@@ -752,7 +877,8 @@ function describePrice(price: number | null, currency: DisplayCurrency): Phrase 
 	return [{ strong: formatCurrencyPrice(price, currency) }];
 }
 
-function formatCurrencyPrice(price: number, currency: DisplayCurrency): string {
+/** A price in the view's currency, as every sentence prints it: `$ 5.940` or `U$S 3,86`. */
+export function formatCurrencyPrice(price: number, currency: DisplayCurrency): string {
 	if (currency === 'ars') {
 		return formatPesos(price);
 	}

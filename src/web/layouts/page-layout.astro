@@ -1,4 +1,9 @@
 ---
+import { Font } from 'astro:assets';
+
+import '#web/styles/tokens.css';
+import '#web/styles/base.css';
+
 // Line pages and the not-found page are in Spanish; the home page is still in English.
 const { lang = 'es' } = Astro.props as { lang?: 'es' | 'en' };
 ---
@@ -6,8 +11,11 @@ const { lang = 'es' } = Astro.props as { lang?: 'es' | 'en' };
 <html lang={lang}>
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<title>Observatory</title>
+		<Font cssVariable="--font-newsreader" preload />
+		<Font cssVariable="--font-geist" preload />
+		<Font cssVariable="--font-geist-mono" />
 	</head>
 	<body>
 		<slot />

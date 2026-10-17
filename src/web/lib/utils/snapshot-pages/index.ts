@@ -1,5 +1,11 @@
-export { buildLinePagePath, buildLinePages, requireRenderableSnapshot } from './snapshot-pages.ts';
-export type { LinePage, LinePageProps } from './snapshot-pages.ts';
+export {
+	buildLineChartPages,
+	buildLineChartPath,
+	buildLinePagePath,
+	buildLinePages,
+	requireRenderableSnapshot,
+} from './snapshot-pages.ts';
+export type { LineChartPage, LinePage, LinePageProps } from './snapshot-pages.ts';
 export type {
 	AvailableLine,
 	SnapshotEvent,

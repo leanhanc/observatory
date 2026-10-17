@@ -83,6 +83,11 @@ export function formatPercent(value: number): string {
 	return `${formatOneDecimal(Math.abs(value))}${NBSP}%`;
 }
 
+/** Formats a number with one decimal and its sign, for example `−1,3` or `+4,2`; zero has no sign. */
+export function formatSignedOneDecimal(value: number): string {
+	return useMinusSign(signedOneDecimalFormat.format(value));
+}
+
 /** Formats a percentage with its sign, for example `−17,8 %` or `+41,6 %`; zero has no sign. */
 export function formatSignedPercent(value: number): string {
 	return `${useMinusSign(signedOneDecimalFormat.format(value))}${NBSP}%`;

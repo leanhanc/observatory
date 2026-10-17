@@ -1,13 +1,13 @@
+import { PhraseText } from '#web/components/phrase-text.tsx';
 import { formatPercent, formatWholeNumber } from '#web/lib/utils/es-ar-formatting/index.ts';
 import { describeUnavailableLine } from '#web/lib/utils/line-wording/index.ts';
 
-import { PhraseText } from './phrase-text.tsx';
-
 import type { UnavailableLine } from '#web/lib/utils/snapshot-pages/index.ts';
 
-export function UnavailableLineDetails({ line }: { line: UnavailableLine }) {
+/** Why the line was not analyzed, with its liquidity measures when that was the reason. */
+export function UnavailableNotice({ line }: { line: UnavailableLine }) {
 	return (
-		<section>
+		<section className="line-section">
 			<p>
 				<PhraseText phrase={describeUnavailableLine(line)} />
 			</p>

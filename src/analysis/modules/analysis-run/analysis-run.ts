@@ -6,6 +6,7 @@ import {
 	createOpenBymadataBarHistoryAcquirer,
 	validateDailyBars,
 } from '#modules/bar-history/index.ts';
+import { buildChartSeries, roundChartSeriesForDisplay } from '#modules/chart-series/index.ts';
 import {
 	assertWatchRulesMatchTradingLines,
 	watchCorporateActions,
@@ -82,6 +83,7 @@ import type {
 	LatestClose,
 	PesoEquivalents,
 	TradingLineSession,
+	WatchDistances,
 } from './analysis-run.types.ts';
 
 type AnalyzedTradingLine = Readonly<{
@@ -311,7 +313,7 @@ async function runAnalysis(
 	);
 
 	const snapshot = {
-		schemaVersion: 12,
+		schemaVersion: 13,
 		priceUnit: SNAPSHOT_PRICE_UNIT,
 		ranAt,
 		requestedThroughSession,
@@ -996,13 +998,47 @@ function analyzeTradingLine(
 		sessionsWithoutMepRate: dollarizedSeries.sessionsWithoutMepRate,
 		pesoEquivalents,
 		cclEquivalents: projectPesoEquivalentsToCcl(pesoEquivalents, cclRates),
+		watchDistances: measureWatchDistances(latestState, lastBar.close),
+		chartSeries: roundChartSeriesForDisplay(
+			buildChartSeries({
+				pesoBars: correction.bars,
+				mepRates,
+				cclRates,
+				throughSessionDate: latestState.sessionDate,
+			}),
+		),
 		...barRepairs,
 	};
 }
 
 /**
- * Expresses the latest State's close, watch levels and Regime tipping closes in pesos at that
- * session's MEP Rate. It is the rate that dollarized the session's close, so the close's distance
+ * How far the latest close, in MEP dollars, would have to move to reach each of the State's watch
+ * levels, in percent of the close.
+ */
+function measureWatchDistances(latestState: InstrumentState, close: number): WatchDistances {
+	const { lastConfirmedSwingHigh, lastConfirmedSwingLow, regimeTippingCloses } = latestState;
+
+	return {
+		lastConfirmedSwingHigh: measureDistanceFromClose(close, lastConfirmedSwingHigh?.price),
+		lastConfirmedSwingLow: measureDistanceFromClose(close, lastConfirmedSwingLow?.price),
+		bullishCloseAbove: measureDistanceFromClose(close, regimeTippingCloses?.bullish.closeAbove),
+		bearishCloseBelow: measureDistanceFromClose(close, regimeTippingCloses?.bearish.closeBelow),
+	};
+}
+
+function measureDistanceFromClose(close: number, level: number | undefined): number | null {
+	// Validated prices are positive, so a zero close is not expected; dividing by it is undefined.
+	if (level === undefined || close === 0) {
+		return null;
+	}
+
+	const distance = ((level - close) / close) * 100;
+	return Number.isFinite(distance) ? distance : null;
+}
+
+/**
+ * Expresses the latest State's close, watch levels, Regime tipping closes and long-term EMA in pesos
+ * at that session's MEP Rate. It is the rate that dollarized the session's close, so the close's distance
  * from each level is the same in pesos as in MEP dollars.
  */
 function projectLatestStateToPesos(
@@ -1010,8 +1046,13 @@ function projectLatestStateToPesos(
 	pesoBars: readonly DailyBar[],
 	mepRates: readonly MepRateSession[],
 ): PesoEquivalents {
-	const { sessionDate, lastConfirmedSwingHigh, lastConfirmedSwingLow, regimeTippingCloses } =
-		latestState;
+	const {
+		sessionDate,
+		lastConfirmedSwingHigh,
+		lastConfirmedSwingLow,
+		regimeTippingCloses,
+		longTermEma,
+	} = latestState;
 	const { mepRate, pesoClose } = findPesoSession(sessionDate, pesoBars, mepRates);
 
 	return {
@@ -1021,6 +1062,7 @@ function projectLatestStateToPesos(
 		lastConfirmedSwingHigh: convertSwingPrice(lastConfirmedSwingHigh, mepRate),
 		lastConfirmedSwingLow: convertSwingPrice(lastConfirmedSwingLow, mepRate),
 		regimeTippingCloses: convertTippingCloses(regimeTippingCloses, mepRate),
+		longTermEma: longTermEma === null ? null : toPesoEquivalent(longTermEma, mepRate),
 	};
 }
 
@@ -1119,6 +1161,7 @@ function projectPesoEquivalentsToCcl(
 		lastConfirmedSwingHigh: convertNullablePesos(lastConfirmedSwingHigh, cclRate),
 		lastConfirmedSwingLow: convertNullablePesos(lastConfirmedSwingLow, cclRate),
 		regimeTippingCloses,
+		longTermEma: convertNullablePesos(pesoEquivalents.longTermEma, cclRate),
 	};
 }
 

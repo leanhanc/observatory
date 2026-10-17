@@ -9,3 +9,6 @@ export type Phrase = readonly PhraseSegment[];
  * analyzed unit, and `ccl` in CCL dollars. A view names no other currency's price.
  */
 export type DisplayCurrency = 'ars' | 'usd' | 'ccl';
+
+/** Whether a printed change is a gain or a loss: the only figures the page colors green or red. */
+export type ChangeDirection = 'gain' | 'loss';

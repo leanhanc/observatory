@@ -4,24 +4,33 @@
  * `:has()` support, the pesos view shows, as it is checked in the HTML, and so do the radio inputs.
  */
 @layer currency-view {
+	/* A segmented control: one label per view, the checked one filled. */
 	.currency-control {
-		border: 0;
+		display: inline-flex;
+		gap: 2px;
 		margin: 0;
-		padding: 0;
+		padding: 2px;
+		border: 1px solid var(--line);
+		border-radius: 6px;
+		background: var(--surface);
 	}
 
 	.currency-control legend {
-		float: left;
-		margin-right: 0.5em;
-		padding: 0;
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 
 	.currency-control label {
-		display: inline-block;
 		position: relative;
-		margin-right: -1px;
-		padding: 0.125em 0.625em;
-		border: 1px solid;
+		padding: 0.3125rem 0.875rem;
+		border-radius: 4px;
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--muted);
 		cursor: pointer;
 	}
 
@@ -38,13 +47,13 @@
 	/* Without `:has()` no label can be marked, so the radio inputs stay visible to show the view. */
 	@supports selector(:has(*)) {
 		.currency-control label:has(input:checked) {
-			background: CanvasText;
-			color: Canvas;
+			background: var(--fg);
+			color: var(--bg);
 		}
 
 		.currency-control label:has(input:focus-visible) {
-			outline: 2px solid;
-			outline-offset: 2px;
+			outline: 2px solid var(--accent);
+			outline-offset: 1px;
 		}
 
 		/* The input stays in the accessibility tree and keyboard order; its label is the control. */

@@ -60,6 +60,10 @@ _Avoid_: Peso level, peso swing, converting with another session's rate
 A price of a peso line expressed in CCL dollars at one stated session's CCL Rate: the peso price, or a MEP-dollar level's Peso Equivalent, divided by that session's CCL Rate. It is for display only. A session without a CCL Rate has no CCL Equivalent; no other session's rate stands in.
 _Avoid_: CCL price, cable-line price, converting with another session's rate
 
+**Chart Series**:
+A line's corrected Daily Bars as candles in pesos, MEP dollars and CCL dollars, for drawing Candlesticks: each session's open, high, low and close, converted at that session's own MEP or CCL Rate. A session without a rate has no candle in that currency; no other session's rate stands in. It covers a recent window ending on the latest State's session. It is for display only: no analysis reads it.
+_Avoid_: Price history, Bar History, chart data that fills a missing rate
+
 **Bar History**:
 The chronological sequence of Daily Bars for one Trading Line.
 _Avoid_: Candle history, price history

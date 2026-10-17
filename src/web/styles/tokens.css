@@ -1,0 +1,60 @@
+/*
+ * The page's ground: layer order, theme tokens and the html/body rules. They are unlayered on
+ * purpose: unlayered CSS beats every layer, so nothing layered can override the theme, and any
+ * third-party CSS must be imported into a layer.
+ *
+ * Dark is the bare `:root`, so a browser that states no preference gets dark; light applies only
+ * when the operating system asks for it.
+ */
+@layer reset, base, components, currency-view, utilities;
+
+:root {
+	color-scheme: dark;
+	--bg: #181716;
+	--surface: #201f1d;
+	--fg: #ece9e3;
+	--muted: #9b968e;
+	--line: #302e2b;
+	--accent: #d9b766;
+	--up: oklch(0.79 0.09 145);
+	--down: oklch(0.73 0.11 25);
+	--band: rgba(217, 183, 102, 0.13);
+	--track: #2a2826;
+
+	--font-display: var(--font-newsreader), 'Iowan Old Style', Georgia, serif;
+	--font-body: var(--font-geist), 'Helvetica Neue', Helvetica, Arial, sans-serif;
+	--font-data: var(--font-geist-mono), 'SF Mono', Menlo, Consolas, monospace;
+	--gutter-left: max(16px, env(safe-area-inset-left, 0px));
+	--gutter-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+@media (prefers-color-scheme: light) {
+	:root {
+		color-scheme: light;
+		--bg: #ffffff;
+		--surface: #f7f6f3;
+		--fg: #2f3437;
+		--muted: #787774;
+		--line: #eaeaea;
+		--accent: #956400;
+		--up: oklch(0.46 0.09 145);
+		--down: oklch(0.46 0.13 27);
+		--band: rgba(149, 100, 0, 0.12);
+		--track: #efeeeb;
+	}
+}
+
+html {
+	background: var(--bg);
+}
+
+body {
+	margin: 0;
+	padding: 0 var(--gutter-right) 4rem var(--gutter-left);
+	background: var(--bg);
+	color: var(--fg);
+	font-family: var(--font-body);
+	font-size: 1rem;
+	line-height: 1.6;
+	-webkit-font-smoothing: antialiased;
+}

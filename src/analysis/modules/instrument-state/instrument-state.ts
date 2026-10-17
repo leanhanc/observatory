@@ -34,7 +34,8 @@ const { rsiPeriod, emaPeriod, atrPeriod, longTermEmaPeriod } =
  * Describes one Trading Line at the close of each session: Regime, any pending change of it and
  * the closes its price condition needs, Structure and the last confirmed swing high and low with
  * the close's distance and position relative to them, RSI, the close's distance from its EMA in
- * ATR units, its distance from its long-term EMA in percent, and the active Situations.
+ * ATR units, its long-term EMA and the close's distance from it in percent, and the active
+ * Situations.
  *
  * Returns one State per bar, in input order. Every bar gets a State; a part
  * that lacks history or a readable input is `null` rather than a fabricated value.
@@ -73,6 +74,7 @@ export function calculateInstrumentStates(bars: readonly DailyBar[]): readonly I
 			bar.close,
 			longTermEmaValues[index]!,
 		),
+		longTermEma: toAvailableValue(longTermEmaValues[index]!),
 	}));
 	const trackedSituations = trackSituations(stateParts);
 

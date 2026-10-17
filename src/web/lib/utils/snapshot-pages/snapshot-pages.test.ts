@@ -28,6 +28,7 @@ const availableLine = {
 		rsi: 33.6,
 		priceRelativeToEmaInAtr: -1.39,
 		priceRelativeToLongTermEmaInPercent: -4.2,
+		longTermEma: 7.44,
 		situations: [],
 	},
 	latestClose: {
@@ -48,6 +49,20 @@ const availableLine = {
 		lastConfirmedSwingHigh: 11_250,
 		lastConfirmedSwingLow: null,
 		regimeTippingCloses: null,
+		longTermEma: 11_160,
+	},
+	watchDistances: {
+		lastConfirmedSwingHigh: 5.263_157_894_736_842,
+		lastConfirmedSwingLow: null,
+		bullishCloseAbove: null,
+		bearishCloseBelow: null,
+	},
+	chartSeries: {
+		peso: [
+			{ sessionDate: '2026-10-09', open: 10_500, high: 10_700, low: 10_450, close: 10_687.5 },
+		],
+		mep: [{ sessionDate: '2026-10-09', open: 7, high: 7.13, low: 6.97, close: 7.125 }],
+		ccl: [],
 	},
 	events: [],
 } as const;
@@ -59,7 +74,7 @@ const unavailableLine = {
 	message: 'The provider returned no Daily Bars for this Trading Line.',
 } as const;
 const serializedSnapshot = JSON.stringify({
-	schemaVersion: 12,
+	schemaVersion: 13,
 	priceUnit: 'mep-dollar',
 	ranAt: '2026-10-11T14:03:58.608Z',
 	requestedThroughSession: '2026-10-10',
@@ -99,24 +114,24 @@ describe('requireRenderableSnapshot', () => {
 		const missingSnapshot: LatestAnalysisSnapshotReadResult = {
 			ok: false,
 			reason: 'not-found',
-			message: 'analysis-snapshots/v12/latest.json does not exist.',
+			message: 'analysis-snapshots/v13/latest.json does not exist.',
 		};
 
 		expect(() => requireRenderableSnapshot(missingSnapshot)).toThrow(
-			'No Analysis Snapshot to render: analysis-snapshots/v12/latest.json does not exist.',
+			'No Analysis Snapshot to render: analysis-snapshots/v13/latest.json does not exist.',
 		);
 	});
 
 	test('fails with the validation message when the snapshot is invalid', () => {
 		const invalidSnapshot = serializedSnapshot.replace(
+			'"schemaVersion":13',
 			'"schemaVersion":12',
-			'"schemaVersion":11',
 		);
 
 		expect(() =>
 			requireRenderableSnapshot(parseAnalysisSnapshotOverview(invalidSnapshot)),
 		).toThrow(
-			'No Analysis Snapshot to render: The snapshot is invalid. schemaVersion: Schema version must be 12.',
+			'No Analysis Snapshot to render: The snapshot is invalid. schemaVersion: Schema version must be 13.',
 		);
 	});
 

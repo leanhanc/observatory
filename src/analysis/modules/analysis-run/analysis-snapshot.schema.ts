@@ -4,7 +4,7 @@ import { ANALYSIS_CONFIGURATION } from '#lib/config.ts';
 import { checkIfIsoDateIsValid } from '#lib/utils/validation/index.ts';
 
 const messages = {
-	invalidSchemaVersion: 'Schema version must be 12.',
+	invalidSchemaVersion: 'Schema version must be 13.',
 	invalidSessionDate: 'Value must be a real YYYY-MM-DD date.',
 	invalidTimestamp: 'Value must be an ISO timestamp.',
 	invalidType: 'Value has an invalid type or shape.',
@@ -25,7 +25,15 @@ const messages = {
 	inconsistentPeriodReturnSessions:
 		'Peso and CCL period returns must cover the windows of the MEP period returns, from the same start sessions; a CCL return may lack its start.',
 	cclFiguresWithoutCclRate:
-		'A snapshot without a CCL Rate source must have no CCL figure: every line’s CCL equivalents, CCL close and CCL period return, and every Structure Break’s CCL equivalents, must be null.',
+		'A snapshot without a CCL Rate source must have no CCL figure: every line’s CCL equivalents, CCL close and CCL period return, and every Structure Break’s CCL equivalents, must be null, and every line’s CCL candles empty.',
+	inconsistentLongTermEma:
+		'The long-term EMA must be readable exactly when the close’s distance from it is, in the State and in its equivalents.',
+	inconsistentWatchDistances:
+		'Each watch distance must be a number exactly when the State has its level.',
+	invalidCandle:
+		'A candle must have positive prices with its high at or above its open, low and close, and its low at or below its open and close.',
+	inconsistentChartSeries:
+		'Chart candles must be in ascending session order; the peso and MEP candles must end on the latest State’s session, the CCL candles on it exactly when the line has CCL equivalents, and every MEP session must be a peso session.',
 } as const;
 
 const stringSchema = v.string(messages.invalidType);
@@ -176,6 +184,7 @@ const latestStateSchema = v.object(
 		rsi: v.nullable(numberSchema),
 		priceRelativeToEmaInAtr: v.nullable(numberSchema),
 		priceRelativeToLongTermEmaInPercent: v.nullable(numberSchema),
+		longTermEma: v.nullable(numberSchema),
 		situations: v.pipe(v.array(situationSchema, messages.invalidType), v.readonly()),
 	},
 	messages.invalidType,
@@ -254,7 +263,42 @@ const latestStateEquivalentEntries = {
 			messages.invalidType,
 		),
 	),
+	longTermEma: v.nullable(numberSchema),
 };
+
+const watchDistancesSchema = v.object(
+	{
+		lastConfirmedSwingHigh: v.nullable(numberSchema),
+		lastConfirmedSwingLow: v.nullable(numberSchema),
+		bullishCloseAbove: v.nullable(numberSchema),
+		bearishCloseBelow: v.nullable(numberSchema),
+	},
+	messages.invalidType,
+);
+
+const candlePriceSchema = v.pipe(numberSchema, v.gtValue(0, messages.invalidCandle));
+
+// Strict: a candle is drawn as it is, so a field the reader does not know is a shape it cannot trust.
+const candleSchema = v.pipe(
+	v.strictObject(
+		{
+			sessionDate: sessionDateSchema,
+			open: candlePriceSchema,
+			high: candlePriceSchema,
+			low: candlePriceSchema,
+			close: candlePriceSchema,
+		},
+		messages.invalidType,
+	),
+	v.check((candle) => checkIfCandleRangeHolds(candle), messages.invalidCandle),
+);
+
+const candlesSchema = v.pipe(v.array(candleSchema, messages.invalidType), v.readonly());
+
+const chartSeriesSchema = v.object(
+	{ peso: candlesSchema, mep: candlesSchema, ccl: candlesSchema },
+	messages.invalidType,
+);
 
 const pesoEquivalentsSchema = v.object(
 	{ mepRate: exchangeRateSchema, ...latestStateEquivalentEntries },
@@ -334,6 +378,8 @@ const analyzedLineVariantSchema = v.variant(
 				cclPeriodReturns: periodReturnsSchema,
 				pesoEquivalents: pesoEquivalentsSchema,
 				cclEquivalents: v.nullable(cclEquivalentsSchema),
+				watchDistances: watchDistancesSchema,
+				chartSeries: chartSeriesSchema,
 				events: v.pipe(v.array(snapshotEventSchema, messages.invalidType), v.readonly()),
 			},
 			messages.invalidType,
@@ -389,11 +435,14 @@ const analyzedLineSchema = v.pipe(
 	v.check(checkIfLatestCloseMatchesEquivalents, messages.inconsistentLatestCloseEquivalents),
 	v.check(checkIfPeriodReturnsShareSessions, messages.inconsistentPeriodReturnSessions),
 	v.check(checkIfSituationsMatchState, messages.inconsistentSituations),
+	v.check(checkIfLongTermEmaMatchesState, messages.inconsistentLongTermEma),
+	v.check(checkIfWatchDistancesMatchState, messages.inconsistentWatchDistances),
+	v.check(checkIfChartSeriesMatchesLine, messages.inconsistentChartSeries),
 );
 
 const snapshotOverviewEntriesSchema = v.object(
 	{
-		schemaVersion: v.literal(12, messages.invalidSchemaVersion),
+		schemaVersion: v.literal(13, messages.invalidSchemaVersion),
 		priceUnit: v.picklist(['mep-dollar'], messages.invalidType),
 		ranAt: v.pipe(stringSchema, v.isoTimestamp(messages.invalidTimestamp)),
 		requestedThroughSession: sessionDateSchema,
@@ -535,7 +584,92 @@ function checkIfLineHasCclFigure(line: AnalyzedLineOverview): boolean {
 		({ event }) => event.type === 'structure-break' && event.cclEquivalents !== null,
 	);
 
-	return hasCclClose || hasCclReturn || hasCclEvent;
+	const hasCclCandle = line.chartSeries.ccl.length > 0;
+	return hasCclClose || hasCclReturn || hasCclEvent || hasCclCandle;
+}
+
+type CandlePrices = Readonly<{ open: number; high: number; low: number; close: number }>;
+type CandleOverview = CandlePrices & Readonly<{ sessionDate: string }>;
+
+function checkIfCandleRangeHolds(candle: CandlePrices): boolean {
+	const { open, high, low, close } = candle;
+	const isHighAtTop = high >= open && high >= close && high >= low;
+	const isLowAtBottom = low <= open && low <= close;
+	return isHighAtTop && isLowAtBottom;
+}
+
+// The average and the distance from it come from one EMA(200), so either both are readable or
+// neither is; the equivalents convert that same average.
+function checkIfLongTermEmaMatchesState(line: AnalyzedLineOverview): boolean {
+	if (line.status !== 'available') {
+		return true;
+	}
+
+	const { latestState, pesoEquivalents, cclEquivalents } = line;
+	const hasLongTermEma = latestState.longTermEma !== null;
+	const hasDistance = latestState.priceRelativeToLongTermEmaInPercent !== null;
+	const hasPesoLongTermEma = pesoEquivalents.longTermEma !== null;
+	const hasCclLongTermEma =
+		cclEquivalents === null || (cclEquivalents.longTermEma !== null) === hasLongTermEma;
+	return (
+		hasLongTermEma === hasDistance && hasPesoLongTermEma === hasLongTermEma && hasCclLongTermEma
+	);
+}
+
+function checkIfWatchDistancesMatchState(line: AnalyzedLineOverview): boolean {
+	if (line.status !== 'available') {
+		return true;
+	}
+
+	const { watchDistances, latestState } = line;
+	const hasTippingCloses = latestState.regimeTippingCloses !== null;
+	return (
+		(watchDistances.lastConfirmedSwingHigh !== null) ===
+			(latestState.lastConfirmedSwingHigh !== null) &&
+		(watchDistances.lastConfirmedSwingLow !== null) ===
+			(latestState.lastConfirmedSwingLow !== null) &&
+		(watchDistances.bullishCloseAbove !== null) === hasTippingCloses &&
+		(watchDistances.bearishCloseBelow !== null) === hasTippingCloses
+	);
+}
+
+// The chart draws the session the page describes as its last candle, so a series that stops short
+// of it, or runs past it, would show another day than "Datos al cierre del …". A CCL candle on that
+// session needs its CCL Rate, which is exactly when the line has CCL equivalents.
+function checkIfChartSeriesMatchesLine(line: AnalyzedLineOverview): boolean {
+	if (line.status !== 'available') {
+		return true;
+	}
+
+	const { chartSeries, latestState, cclEquivalents } = line;
+	const { sessionDate } = latestState;
+	const isEveryListAscending = [chartSeries.peso, chartSeries.mep, chartSeries.ccl].every(
+		checkIfCandlesAscend,
+	);
+	const isPesoEndingOnState = chartSeries.peso.at(-1)?.sessionDate === sessionDate;
+	const isMepEndingOnState = chartSeries.mep.at(-1)?.sessionDate === sessionDate;
+	const lastCclSession = chartSeries.ccl.at(-1)?.sessionDate;
+	const isCclEndingOnState = lastCclSession === sessionDate;
+	const isCclWithinState = lastCclSession === undefined || lastCclSession <= sessionDate;
+	const hasMatchingCclEnd = isCclEndingOnState === (cclEquivalents !== null);
+	const pesoSessions = new Set(chartSeries.peso.map((candle) => candle.sessionDate));
+	const isEveryMepSessionPeso = chartSeries.mep.every((candle) =>
+		pesoSessions.has(candle.sessionDate),
+	);
+	return (
+		isEveryListAscending &&
+		isPesoEndingOnState &&
+		isMepEndingOnState &&
+		isCclWithinState &&
+		hasMatchingCclEnd &&
+		isEveryMepSessionPeso
+	);
+}
+
+function checkIfCandlesAscend(candles: readonly CandleOverview[]): boolean {
+	return candles.every(
+		(candle, index) => index === 0 || candles[index - 1]!.sessionDate < candle.sessionDate,
+	);
 }
 
 function checkIfEquivalentsMatchState(

@@ -299,6 +299,7 @@ describe('trackSituations', () => {
 			rsi: 30,
 			priceRelativeToEmaInAtr: -2,
 			priceRelativeToLongTermEmaInPercent: -15,
+			longTermEma: 20,
 		};
 	}
 });

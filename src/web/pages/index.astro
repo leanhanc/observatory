@@ -1,10 +1,10 @@
 ---
 import latestSnapshot from 'virtual:observatory/latest-snapshot';
 
-import { HomePage } from '#web/components/home-page.tsx';
 import PageLayout from '#web/layouts/page-layout.astro';
+import { HomeView } from '#web/views/home-view.tsx';
 ---
 
 <PageLayout lang="en">
-	<HomePage snapshot={latestSnapshot} />
+	<HomeView snapshot={latestSnapshot} />
 </PageLayout>

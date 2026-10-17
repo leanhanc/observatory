@@ -1,6 +1,5 @@
+import { Timeline } from '#web/components/timeline.tsx';
 import { groupHistoryByYear, selectRecentChanges } from '#web/lib/utils/line-wording/index.ts';
-
-import { EventList } from './event-list.tsx';
 
 import type { DisplayCurrency } from '#web/lib/utils/line-wording/index.ts';
 import type { AvailableLine } from '#web/lib/utils/snapshot-pages/index.ts';
@@ -23,27 +22,27 @@ export function RecentChanges({ line, currencies }: RecentChangesProps) {
 	const historyYears = groupHistoryByYear(line);
 
 	return (
-		<section>
-			<h2>Últimos cambios</h2>
+		<section className="line-section" aria-labelledby="changes-heading">
+			<h2 id="changes-heading">Últimos cambios</h2>
 			{isQuietMonth && (
-				<p>
+				<p className="quiet-month">
 					<strong>Sin cambios en el último mes.</strong>
 				</p>
 			)}
-			{hasChanges && <EventList events={changes} currencies={currencies} />}
+			{hasChanges && <Timeline events={changes} currencies={currencies} />}
 			{hasVolatileSessions && (
 				<details>
 					<summary>{volatileSummary}</summary>
-					<EventList events={volatileSessions} currencies={currencies} />
+					<Timeline events={volatileSessions} currencies={currencies} />
 				</details>
 			)}
 			{historyYears.length > 0 && (
 				<details>
 					<summary>Ver historial</summary>
 					{historyYears.map(({ year, events }) => (
-						<section key={year}>
+						<section key={year} className="history-year">
 							<h3>{year}</h3>
-							<EventList events={events} currencies={currencies} />
+							<Timeline events={events} currencies={currencies} />
 						</section>
 					))}
 				</details>

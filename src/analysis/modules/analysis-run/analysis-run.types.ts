@@ -1,4 +1,5 @@
 import type { BarHistoryPause } from '#modules/bar-history/index.ts';
+import type { ChartSeries } from '#modules/chart-series/index.ts';
 import type { CorporateActionWatch, WatchRules } from '#modules/corporate-action-watch/index.ts';
 import type { CorporateAction, CorporateActionOutcome } from '#modules/corporate-actions/index.ts';
 import type { InstrumentCatalog } from '#modules/instrument-catalog/index.ts';
@@ -102,6 +103,9 @@ export type AnalyzedLine =
 			pesoEquivalents: PesoEquivalents;
 			/** `null` when the latest State's session has no CCL Rate. */
 			cclEquivalents: CclEquivalents | null;
+			watchDistances: WatchDistances;
+			/** The line's candles in each display currency, rounded for display; no analysis reads them. */
+			chartSeries: ChartSeries;
 	  }> &
 			BarRepairs)
 	| Readonly<{
@@ -163,6 +167,8 @@ export type PesoEquivalents = Readonly<{
 	lastConfirmedSwingLow: number | null;
 	/** The State's Regime tipping closes at `mepRate`, or `null` while Regime is unavailable. */
 	regimeTippingCloses: Readonly<{ bullishCloseAbove: number; bearishCloseBelow: number }> | null;
+	/** The State's long-term EMA at `mepRate`, or `null` while it is unavailable. */
+	longTermEma: number | null;
 }>;
 
 /**
@@ -178,6 +184,20 @@ export type CclEquivalents = Readonly<{
 	lastConfirmedSwingHigh: number | null;
 	lastConfirmedSwingLow: number | null;
 	regimeTippingCloses: Readonly<{ bullishCloseAbove: number; bearishCloseBelow: number }> | null;
+	longTermEma: number | null;
+}>;
+
+/**
+ * How far the latest State's close would have to move to reach each watch level, in percent of the
+ * close: `(level − close) / close × 100`, positive for a level above the close. Each is `null` when
+ * its level is. One session's rate converts the close and its levels, so the figure is the same in
+ * every currency.
+ */
+export type WatchDistances = Readonly<{
+	lastConfirmedSwingHigh: number | null;
+	lastConfirmedSwingLow: number | null;
+	bullishCloseAbove: number | null;
+	bearishCloseBelow: number | null;
 }>;
 
 /**
@@ -218,7 +238,7 @@ export type TradingLineSession = Readonly<{
 export type PriceUnit = 'mep-dollar';
 
 export type AnalysisSnapshot = Readonly<{
-	schemaVersion: 12;
+	schemaVersion: 13;
 	priceUnit: PriceUnit;
 	ranAt: string;
 	requestedThroughSession: string;

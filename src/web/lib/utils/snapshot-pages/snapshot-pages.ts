@@ -2,7 +2,7 @@ import type {
 	AnalysisSnapshotOverview,
 	LatestAnalysisSnapshotReadResult,
 } from '#modules/analysis-run/index.ts';
-import type { SnapshotLine } from './snapshot-pages.types.ts';
+import type { AvailableLine, SnapshotLine } from './snapshot-pages.types.ts';
 
 export type LinePage = Readonly<{
 	params: { tradingLineId: string };
@@ -14,8 +14,32 @@ export type LinePageProps = Readonly<{
 	line: SnapshotLine;
 }>;
 
+export type LineChartPage = Readonly<{
+	params: { tradingLineId: string };
+	props: Readonly<{ line: AvailableLine }>;
+}>;
+
 export function buildLinePagePath(tradingLineId: string): string {
 	return `/lines/${encodeURIComponent(tradingLineId)}`;
+}
+
+/**
+ * The absolute path of a line's chart file. A page is served with and without a trailing slash, so
+ * a relative path would resolve to two different files.
+ */
+export function buildLineChartPath(tradingLineId: string): string {
+	return `${buildLinePagePath(tradingLineId)}/chart.json`;
+}
+
+/** The chart files a build writes: one per available line, which is the only kind with a chart. */
+export function buildLineChartPages(snapshot: AnalysisSnapshotOverview): LineChartPage[] {
+	return snapshot.analyzedLines.flatMap((line) => {
+		if (line.status !== 'available') {
+			return [];
+		}
+
+		return [{ params: { tradingLineId: line.tradingLineId }, props: { line } }];
+	});
 }
 
 /** The line pages a build prerenders: one per analyzed line, available or not, in snapshot order. */

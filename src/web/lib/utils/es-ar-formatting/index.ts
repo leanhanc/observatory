@@ -12,6 +12,7 @@ export {
 	formatShortDate,
 	formatShortDateList,
 	formatSignedDollarChange,
+	formatSignedOneDecimal,
 	formatSignedPercent,
 	formatSignedPesoChange,
 	formatWholeNumber,

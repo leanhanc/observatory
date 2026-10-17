@@ -14,7 +14,8 @@
 		"typescript/prefer-nullish-coalescing": "warn",
 		"consistent-return": "error",
 		"no-console": "warn",
-		"import/no-duplicates": "error"
+		"import/no-duplicates": "error",
+		"import/no-unassigned-import": ["warn", { "allow": ["**/*.css", "#web/islands/**"] }]
 	},
 	"overrides": [
 		{

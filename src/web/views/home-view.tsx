@@ -2,7 +2,7 @@ import { buildLinePagePath } from '#web/lib/utils/snapshot-pages/index.ts';
 
 import type { AnalysisSnapshotOverview } from '#modules/analysis-run/index.ts';
 
-export function HomePage({ snapshot }: { snapshot: AnalysisSnapshotOverview }) {
+export function HomeView({ snapshot }: { snapshot: AnalysisSnapshotOverview }) {
 	const { ranAt, requestedThroughSession, analyzedLines } = snapshot;
 
 	return (

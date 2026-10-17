@@ -12,6 +12,7 @@ import {
 	formatShortDate,
 	formatShortDateList,
 	formatSignedDollarChange,
+	formatSignedOneDecimal,
 	formatSignedPercent,
 	formatSignedPesoChange,
 	formatWholeNumber,
@@ -130,5 +131,13 @@ describe('es-AR dates', () => {
 		expect(formatShortDateList(['2026-09-30', '2026-10-01', '2026-10-02'])).toBe(
 			`30${NBSP}sep, 1 y 2${NBSP}oct`,
 		);
+	});
+});
+
+describe('formatSignedOneDecimal', () => {
+	test('signs a reading that prints as nonzero, and leaves one that rounds to zero unsigned', () => {
+		expect(formatSignedOneDecimal(-1.34)).toBe('−1,3');
+		expect(formatSignedOneDecimal(4.2)).toBe('+4,2');
+		expect(formatSignedOneDecimal(-0.04)).toBe('0,0');
 	});
 });

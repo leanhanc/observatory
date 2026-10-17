@@ -96,6 +96,11 @@ export type InstrumentState = Readonly<{
 	 * long-term average, in percent of it. `null` until that average is readable.
 	 */
 	priceRelativeToLongTermEmaInPercent: number | null;
+	/**
+	 * The long-term EMA itself, in the bars' unit: the center of Regime's noise band, whose edges are
+	 * the Regime tipping closes. `null` until it is readable.
+	 */
+	longTermEma: number | null;
 	/** The active Situations, in a fixed order; empty when none is active. */
 	situations: readonly Situation[];
 }>;

@@ -42,6 +42,7 @@ describe('calculateInstrumentStates', () => {
 		expect(Object.keys(states[breakIndex]!).toSorted()).toEqual([
 			'lastConfirmedSwingHigh',
 			'lastConfirmedSwingLow',
+			'longTermEma',
 			'pendingRegimeTransition',
 			'priceRelativeToEmaInAtr',
 			'priceRelativeToLongTermEmaInPercent',
@@ -70,6 +71,7 @@ describe('calculateInstrumentStates', () => {
 		expect(states.every((state) => state.priceRelativeToLongTermEmaInPercent === null)).toBe(
 			true,
 		);
+		expect(states.every((state) => state.longTermEma === null)).toBe(true);
 	});
 
 	test('the long-term distance is null exactly until EMA(200) is readable', () => {
@@ -112,6 +114,51 @@ describe('calculateInstrumentStates', () => {
 		});
 		expect(states.some((state) => state.priceRelativeToLongTermEmaInPercent! < 0)).toBe(true);
 		expect(states.some((state) => state.priceRelativeToLongTermEmaInPercent! > 0)).toBe(true);
+	});
+
+	test('publishes EMA(200) itself, null exactly while it warms up', async () => {
+		const bars = await loadGgalFixture();
+		const ema200 = calculateEma(
+			bars.map((bar) => bar.close),
+			200,
+		);
+		const states = calculateInstrumentStates(bars);
+
+		expect(states.slice(0, 199).every((state) => state.longTermEma === null)).toBe(true);
+		states.forEach((state, index) => {
+			expect(state.longTermEma).toBe(ema200[index]!);
+		});
+	});
+
+	test('the long-term EMA is the one the distance measures against', async () => {
+		const bars = await loadGgalFixture();
+		const states = calculateInstrumentStates(bars);
+		const readableIndexes = states.flatMap((state, index) =>
+			state.longTermEma === null ? [] : [index],
+		);
+
+		expect(readableIndexes.length).toBeGreaterThan(0);
+		readableIndexes.forEach((index) => {
+			const { longTermEma, priceRelativeToLongTermEmaInPercent } = states[index]!;
+			const distance = ((bars[index]!.close - longTermEma!) / longTermEma!) * 100;
+
+			expect(priceRelativeToLongTermEmaInPercent).toBeCloseTo(distance, 9);
+		});
+	});
+
+	// Regime's tipping closes are EMA200 ± half an ATR14, so the published average must sit exactly
+	// between them: it is the center of the noise band the line page draws.
+	test('the long-term EMA is the center of the Regime tipping closes', async () => {
+		const states = calculateInstrumentStates(await loadGgalFixture());
+		const statesWithBand = states.filter((state) => state.regimeTippingCloses !== null);
+
+		expect(statesWithBand.length).toBeGreaterThan(0);
+		statesWithBand.forEach((state) => {
+			const { bullish, bearish } = state.regimeTippingCloses!;
+			const bandCenter = (bullish.closeAbove + bearish.closeBelow) / 2;
+
+			expect(state.longTermEma).toBeCloseTo(bandCenter, 9);
+		});
 	});
 
 	test('measures RSI(14) and (close − EMA20) / ATR14 at every session', async () => {
